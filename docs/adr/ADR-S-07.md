@@ -19,7 +19,7 @@ jusque dans Celery et les consumers WebSocket), logs (JSON structuré,
 le signal d'un relais arrêté — panne silencieuse, sans erreur HTTP, que
 seule une métrique métier révèle.
 
-**Implémentation Sprint 0** : voir `OBSERVABILITY.md` pour la chaîne
+**Implémentation Sprint 0** : voir `docs/OBSERVABILITY.md` pour la chaîne
 complète. Point technique critique validé par un test dédié :
 `apps/core/tests/test_trace_propagation.py` (propagation du traceparent à
 travers Celery — coefficient ×2 justifié sur ce bloc, Source B §2.4).

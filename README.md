@@ -25,7 +25,7 @@ Puis vérifier :
 - Métriques Prometheus : http://localhost:8000/metrics
 - Nginx (edge) : http://localhost:8080/api/v1/health
 
-Voir `INSTALL.md` pour le détail des prérequis, `OBSERVABILITY.md` pour la
+Voir `INSTALL.md` pour le détail des prérequis, `docs/OBSERVABILITY.md` pour la
 chaîne de traces/logs/métriques.
 
 ## Structure du dépôt
