@@ -1,0 +1,244 @@
+"""
+Settings communs à tous les environnements.
+
+Règle absolue (§40 du master prompt / §5.1 Source B) : aucune variable
+d'environnement critique n'a de valeur par défaut fonctionnelle. `env()` sans
+`default=` lève immédiatement une erreur explicite si la variable manque —
+un défaut silencieux en production est pire qu'un crash au démarrage.
+"""
+from pathlib import Path
+
+import environ
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+APPS_DIR = BASE_DIR / "apps"
+
+env = environ.Env()
+env_file = BASE_DIR.parent / ".env"
+if env_file.exists():
+    environ.Env.read_env(str(env_file))
+
+# --- Sécurité / identité de service (critique, jamais de défaut) ---
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+APP_VERSION = env("APP_VERSION", default="0.0.0-dev")
+COMMIT_SHA = env("COMMIT_SHA", default="unknown")
+ENVIRONMENT = env("OTEL_ENVIRONMENT", default="dev")
+
+# --- Applications ---
+DJANGO_APPS = [
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
+    "django.contrib.staticfiles",
+]
+
+THIRD_PARTY_APPS = [
+    "rest_framework",
+    "drf_spectacular",
+    "corsheaders",
+    "channels",
+    "django_celery_beat",
+    "django_prometheus",
+]
+
+# Bounded contexts (§14 Source B / ADR-S-01). `core` en premier : il ne dépend
+# d'aucun des autres et tous les autres peuvent en dépendre.
+LOCAL_APPS = [
+    "apps.core",
+    "apps.identity",
+    "apps.organizing",
+    "apps.catalog",
+    "apps.ordering",
+    "apps.payments",
+    "apps.ticketing",
+    "apps.access",
+    "apps.notifying",
+    "apps.realtime",
+]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+# --- Middlewares — ordre imposé, §2.5 Source B / §33 master prompt ---
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "apps.core.observability.middleware.CorrelationMiddleware",
+    "apps.core.observability.middleware.RequestLogMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.core.idempotency.middleware.IdempotencyMiddleware",
+    "apps.core.observability.metrics.MetricsMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+AUTH_USER_MODEL = "identity.User"
+
+# --- Base de données ---
+DATABASES = {"default": env.db("DATABASE_URL")}
+DATABASES["default"]["CONN_MAX_AGE"] = 60
+DATABASES["default"]["ENGINE"] = "django_prometheus.db.backends.postgresql"
+
+# --- Redis (partitionné par DB logique — service unique, cf. .env.example) ---
+REDIS_URL = env("REDIS_URL")
+REDIS_CACHE_DB = env.int("REDIS_CACHE_DB", default=0)
+REDIS_CHANNEL_LAYER_DB = env.int("REDIS_CHANNEL_LAYER_DB", default=1)
+REDIS_LOCK_DB = env.int("REDIS_LOCK_DB", default=2)
+
+
+def _redis_url_with_db(db_index: int) -> str:
+    base = REDIS_URL.rsplit("/", 1)[0]
+    return f"{base}/{db_index}"
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": _redis_url_with_db(REDIS_CACHE_DB),
+    }
+}
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [_redis_url_with_db(REDIS_CHANNEL_LAYER_DB)]},
+    }
+}
+
+# --- Celery ---
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_DEFAULT_QUEUE = "default"
+
+# --- DRF ---
+REST_FRAMEWORK = {
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],  # deny-by-default, ADR-S-04 règle 1
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPagination",
+    "PAGE_SIZE": 20,
+    "EXCEPTION_HANDLER": "apps.core.handlers.custom_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": env("THROTTLE_ANON_RATE", default="60/min"),
+        "user": env("THROTTLE_USER_RATE", default="300/min"),
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "FAN id API",
+    "DESCRIPTION": "Plateforme de billetterie sécurisée — Sprint 0 (socle plateforme)",
+    "VERSION": APP_VERSION,
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
+# --- CORS ---
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_CREDENTIALS = True
+
+# --- Internationalisation ---
+LANGUAGE_CODE = "fr-fr"
+TIME_ZONE = "UTC"
+USE_I18N = True
+USE_TZ = True
+
+# --- Fichiers statiques ---
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Idempotence / Outbox (core, §3.1 Source B) ---
+IDEMPOTENCY_RETENTION_HOURS = env.int("IDEMPOTENCY_RETENTION_HOURS", default=24)
+IDEMPOTENCY_ORPHAN_GUARD_SECONDS = env.int("IDEMPOTENCY_ORPHAN_GUARD_SECONDS", default=60)
+OUTBOX_RELAY_BATCH_SIZE = env.int("OUTBOX_RELAY_BATCH_SIZE", default=100)
+OUTBOX_RELAY_INTERVAL_SECONDS = env.int("OUTBOX_RELAY_INTERVAL_SECONDS", default=2)
+OUTBOX_MAX_ATTEMPTS = env.int("OUTBOX_MAX_ATTEMPTS", default=5)
+OUTBOX_RETENTION_DAYS = env.int("OUTBOX_RETENTION_DAYS", default=30)
+OUTBOX_BACKOFF_SCHEDULE_SECONDS = [2, 8, 32, 120, 480]  # 2s,8s,32s,2min,8min — §21 master prompt
+
+# Planification statique (§21 master prompt : relais toutes les 2s ; purge
+# quotidienne). `django_celery_beat` reste installé pour permettre une
+# planification pilotable en base aux sprints suivants (ex. rappels
+# métier), mais le Sprint 0 n'a besoin que de ces deux tâches fixes — la
+# DatabaseScheduler aurait exigé un seed de données au premier démarrage
+# pour un gain nul à ce stade (YAGNI, §5 master prompt).
+CELERY_BEAT_SCHEDULE = {
+    "outbox-relay": {
+        "task": "core.outbox.relay_batch",
+        "schedule": OUTBOX_RELAY_INTERVAL_SECONDS,
+    },
+    "outbox-purge-published": {
+        "task": "core.outbox.purge_published",
+        "schedule": 86400.0,  # quotidien
+    },
+    "idempotency-purge-expired": {
+        "task": "core.idempotency.purge_expired",
+        "schedule": 86400.0,  # quotidien
+    },
+}
+
+# --- Secrets (SecretProvider port, §2.3 Source B) ---
+SECRET_PROVIDER_BACKEND = env("SECRET_PROVIDER", default="env")
+SSM_PARAMETER_PREFIX = env("SSM_PARAMETER_PREFIX", default="/fanid/dev/")
+
+# --- Health / readiness ---
+HEALTH_DEPENDENCY_TIMEOUT_SECONDS = env.float("HEALTH_DEPENDENCY_TIMEOUT_SECONDS", default=2.0)
+
+# --- Logging (JSON structuré + rédaction, §28 master prompt / §5.3 Source B) ---
+LOG_LEVEL = env("LOG_LEVEL", default="INFO")
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "correlation": {"()": "apps.core.observability.logging.CorrelationLogFilter"},
+    },
+    "formatters": {
+        "json": {"()": "apps.core.observability.logging.JsonFormatter"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "filters": ["correlation"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "fanid": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "celery": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+    },
+}
+
+# --- OpenTelemetry ---
+OTEL_SERVICE_NAME = env("OTEL_SERVICE_NAME", default="fanid-api")
+OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="http://otel-collector:4317")
+OTEL_ENABLED = True

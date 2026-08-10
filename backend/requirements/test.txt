@@ -1,0 +1,24 @@
+-r base.txt
+
+pytest==8.3.3
+pytest-django==4.9.0
+pytest-cov==5.0.0
+pytest-xdist==3.6.1
+pytest-asyncio==0.24.0
+factory-boy==3.3.1
+freezegun==1.5.1
+responses==0.25.3
+
+# --- Qualité / sécurité ---
+black==24.8.0
+isort==5.13.2
+flake8==7.1.1
+flake8-bugbear==24.8.19
+mypy==1.11.2
+django-stubs==5.1.0
+djangorestframework-stubs==3.15.1
+bandit==1.7.10
+pip-audit==2.7.3
+detect-secrets==1.5.0
+django-migration-linter==5.1.0
+import-linter==2.1
