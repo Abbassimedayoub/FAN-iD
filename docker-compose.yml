@@ -1,0 +1,136 @@
+name: fanid
+
+x-django-common: &django-common
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+    target: dev
+  env_file: .env
+  volumes:
+    - ./backend:/app
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks: [fanid]
+
+services:
+  postgres:
+    image: postgres:15.8-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fanid}
+      POSTGRES_USER: ${POSTGRES_USER:-fanid}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-change-me}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fanid} -d ${POSTGRES_DB:-fanid}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [fanid]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:56379:6379"
+    volumes:
+      - ./infra/docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [fanid]
+
+  api:
+    <<: *django-common
+    command: ["/app/docker/entrypoint.sh", "api"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/api/v1/health').status==200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  ws:
+    <<: *django-common
+    command: ["/app/docker/entrypoint.sh", "ws"]
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_healthy }
+
+  worker:
+    <<: *django-common
+    command: ["/app/docker/entrypoint.sh", "worker"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_healthy }
+
+  beat:
+    <<: *django-common
+    command: ["/app/docker/entrypoint.sh", "beat"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_healthy }
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/api/v1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks: [fanid]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./infra/otel/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"   # OTLP gRPC
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+      - "127.0.0.1:8889:8889"   # exposition Prometheus (métriques app relayées)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks: [fanid]
+
+networks:
+  fanid:
+    name: fanid-network
+
+volumes:
+  postgres_data:
+    name: fanid_postgres_data
+  redis_data:
+    name: fanid_redis_data
