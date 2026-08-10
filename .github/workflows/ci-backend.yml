@@ -53,6 +53,9 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/requirements/test.txt
 
+      - name: Vérification statique migrations vs modèles (sans Django, fail-fast)
+        run: python3 scripts/check_migrations_static.py
+
       - name: Installer les dépendances
         run: pip install -r requirements/test.txt
 
@@ -87,13 +90,82 @@ jobs:
         run: bandit -r apps config -ll
       - name: pip-audit
         run: pip-audit -r requirements/prod.txt
-      - name: detect-secrets (historique complet)
+      - name: detect-secrets (historique complet, bloquant)
         working-directory: .
         run: |
           pip install detect-secrets
           detect-secrets scan --baseline .secrets.baseline
+          # `scan` met à jour .secrets.baseline en place : un diff non vide
+          # signifie qu'un secret NON présent dans la baseline validée a été
+          # détecté quelque part dans l'historique — la CI DOIT échouer, pas
+          # se contenter de committer silencieusement une nouvelle baseline.
+          git diff --exit-code -- .secrets.baseline
+          detect-secrets audit --report --fail-on-unaudited .secrets.baseline
 
-      # --- Porte 8 : build Docker + démarrage + /health ---
+      # --- Porte 8 : build + démarrage réel de la stack Docker + probes ---
       - name: Build image Docker (stage dev)
         working-directory: .
         run: docker build -t fanid-api:ci --target dev backend
+
+      - name: docker compose up (stack complète)
+        working-directory: .
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+
+      - name: Attendre que tous les services soient healthy
+        working-directory: .
+        run: |
+          services="postgres redis api ws worker beat nginx otel-collector"
+          deadline=$((SECONDS + 120))
+          for service in $services; do
+            cid=$(docker compose ps -q "$service")
+            if [ -z "$cid" ]; then
+              echo "::error::service '$service' absent de 'docker compose ps'"
+              docker compose ps
+              exit 1
+            fi
+          done
+          while true; do
+            unhealthy=""
+            for service in $services; do
+              cid=$(docker compose ps -q "$service")
+              status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid")
+              if [ "$status" != "healthy" ] && [ "$status" != "no-healthcheck" ]; then
+                unhealthy="$unhealthy $service:$status"
+              fi
+            done
+            if [ -z "$unhealthy" ]; then
+              echo "Tous les services sont healthy."
+              break
+            fi
+            if [ $SECONDS -ge $deadline ]; then
+              echo "::error::Timeout (120s) en attente des healthchecks —$unhealthy"
+              docker compose ps
+              docker compose logs --tail=100
+              exit 1
+            fi
+            echo "En attente :$unhealthy"
+            sleep 5
+          done
+
+      - name: Vérifier /health, /health/ready, /metrics, /schema
+        working-directory: .
+        run: |
+          set -e
+          curl -sf http://localhost:8000/api/v1/health | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -sf http://localhost:8000/api/v1/health/ready | tee /dev/stderr | grep -qE '"status":\s*"(ok|degraded)"'
+          curl -sf http://localhost:8000/metrics | grep -q '^http_requests_total'
+          curl -sf http://localhost:8000/api/v1/schema/ | grep -q '"openapi"'
+          # Vérification du edge Nginx (§39 master prompt) — pas seulement l'API en direct.
+          curl -sf http://localhost:8080/api/v1/health | grep -q '"status":"ok"'
+
+      - name: docker compose logs (diagnostic, toujours exécuté)
+        if: always()
+        working-directory: .
+        run: docker compose logs --tail=200
+
+      - name: docker compose down
+        if: always()
+        working-directory: .
+        run: docker compose down -v --remove-orphans
