@@ -74,3 +74,25 @@ prompt : aucune notification métier) et Source B compte exactement 8
 services — ajouter un 9ᵉ service pour un besoin qui n'existe pas encore
 serait du scope creep (§81 master prompt). Réintroduit quand `notifying`
 aura un envoi réel à tester (Sprint 3/4).
+
+## D-07 — Correction post-bilan (P2.2) : `InProcessPublisher` renommé `UnimplementedEventPublisher`
+
+**Constat du bilan (note 72/100)** : `apps/core/adapters/events.py` définissait
+une classe `InProcessPublisher` — nom qui laisse entendre une implémentation
+V1 fonctionnelle du port `EventPublisher` — dont les deux méthodes ne
+faisaient que lever `NotImplementedError`. Une classe concrète qui prétend
+implémenter un port mais échoue systématiquement est un piège : un
+développeur pressé qui la voit dans `adapters/events.py` peut raisonnablement
+supposer qu'elle fonctionne.
+
+**Résolution** : renommée `UnimplementedEventPublisher`, avec un docstring qui
+explique explicitement (a) pourquoi aucune implémentation directe de ce port
+n'existe au Sprint 0 — la voie normale est
+`apps.core.outbox.publisher.publish_event()` + le registre de consommateurs
+in-process de `outbox/relay.py`, qui ne passe pas par ce port — et (b) que
+`RecordingPublisher` (déjà présent, inchangé) reste le double de test concret
+du port. Aucun appelant existant dans le code (vérifié par recherche globale) :
+renommage sans impact fonctionnel. Décision locale non architecturale (§69/§70
+master prompt) : le port `EventPublisher` lui-même, sa place dans
+`core/interfaces/`, et le principe qu'une V2 (SQS/Kafka) le bascule sans
+refonte restent inchangés (Source A §1.1.2 B, Source B §2.3).
