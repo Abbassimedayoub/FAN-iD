@@ -16,11 +16,16 @@ jobs:
         with:
           fetch-depth: 0  # scan de l'HISTORIQUE complet, pas seulement le diff (§60 master prompt)
 
-      - name: detect-secrets (historique complet)
+      - name: detect-secrets (historique complet, bloquant)
         run: |
           pip install detect-secrets
           detect-secrets scan --baseline .secrets.baseline
-          detect-secrets audit --report --fail-on-unaudited .secrets.baseline || true
+          # AUCUN bypass : un secret nouvellement détecté (diff non vide) ou
+          # un secret déjà connu mais non audité comme faux positif DOIT
+          # faire échouer la CI (§60 master prompt — "la CI doit échouer
+          # réellement en cas de faille de sécurité").
+          git diff --exit-code -- .secrets.baseline
+          detect-secrets audit --report --fail-on-unaudited .secrets.baseline
 
   dependency-audit:
     runs-on: ubuntu-latest
@@ -36,9 +41,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - working-directory: web
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci + npm audit (bloquant — pas de skip silencieux)
+        working-directory: web
         run: |
-          if [ -f package-lock.json ]; then npm ci && npm audit --audit-level=high; fi
+          if [ ! -f package-lock.json ]; then
+            echo "::error::web/package-lock.json absent — voir docs/implementation/SPRINT_TEST_REPORT.md (section lockfile)."
+            exit 1
+          fi
+          npm ci
+          npm audit --audit-level=high
 
   static-analysis:
     runs-on: ubuntu-latest
