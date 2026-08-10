@@ -1,0 +1,52 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 6 * * 1"  # scan hebdomadaire (dépendances) — cohérent avec Dependabot §5.1 Source B
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # scan de l'HISTORIQUE complet, pas seulement le diff (§60 master prompt)
+
+      - name: detect-secrets (historique complet)
+        run: |
+          pip install detect-secrets
+          detect-secrets scan --baseline .secrets.baseline
+          detect-secrets audit --report --fail-on-unaudited .secrets.baseline || true
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r backend/requirements/prod.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - working-directory: web
+        run: |
+          if [ -f package-lock.json ]; then npm ci && npm audit --audit-level=high; fi
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - run: bandit -r backend/apps backend/config -ll
