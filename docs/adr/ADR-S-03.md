@@ -30,3 +30,13 @@ consumer,tasks}.py`, tables `outbox_event`/`consumed_event`
 (`apps/core/migrations/0001_infrastructure.py`), tests de concurrence
 (`apps/core/tests/test_outbox.py` : rollback ⇒ aucun événement, deux
 relais concurrents ⇒ aucun doublon, 5 échecs ⇒ `DEAD`).
+
+**Correction post-bilan (P1.C.1)** : `relay_batch()` tient les verrous
+`SELECT FOR UPDATE SKIP LOCKED` pour la durée de tout le lot — un
+consumer qui ferait un appel réseau direct dans `handle()` tiendrait ces
+verrous pendant la latence réseau (même risque que §24 master prompt,
+appliqué au relais). `BaseConsumer.defer(callback)` (`transaction.
+on_commit`) est désormais l'unique mécanisme sanctionné pour tout effet
+de bord réseau d'un consumer — testé par
+`apps/core/tests/test_outbox_consumer_contract.py` (le callback ne
+s'exécute qu'après le commit, jamais après un rollback).

@@ -7,6 +7,12 @@ consommer la file SANS se bloquer et sans traiter deux fois le même
 événement. Sans `SKIP LOCKED`, un second worker attendrait le premier et le
 débit s'effondrerait.
 
+Corollaire de sécurité (§24 master prompt, audit P1.C.1) : `relay_batch()`
+tient ces verrous pour la durée de TOUT le lot. Les consumers appelés par
+`_dispatch_to_consumers()` ne doivent donc contenir AUCUN appel réseau
+direct — voir la règle absolue et le mécanisme `BaseConsumer.defer()` dans
+`consumer.py`.
+
 Backoff exponentiel (2s, 8s, 32s, 2min, 8min) puis `DEAD` après 5 tentatives
 — jamais de rejeu infini (§21 master prompt).
 """
