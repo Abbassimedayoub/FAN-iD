@@ -27,6 +27,11 @@ class IdempotencyRecord(models.Model):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.IN_PROGRESS)
     response_status = models.PositiveSmallIntegerField(null=True, blank=True)
     response_body = models.JSONField(null=True, blank=True)
+    # Sous-ensemble whitelisté d'en-têtes HTTP "clés" (Content-Type, Location,
+    # Retry-After...) restitués lors d'un rejeu — voir
+    # middleware.REPLAYABLE_RESPONSE_HEADERS. Jamais l'intégralité des
+    # en-têtes originaux (Set-Cookie, X-Correlation-ID... ne sont jamais rejoués).
+    response_headers = models.JSONField(null=True, blank=True, default=dict)
     locked_at = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()

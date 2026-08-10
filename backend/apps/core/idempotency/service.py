@@ -1,9 +1,21 @@
 """
 Service d'idempotence (ADR-S-06).
 
+Le quadruplet **(user, key, endpoint, request_hash)** est validé
+explicitement — pas seulement (user, key) — car une même valeur de clé
+soumise par erreur (ou par un client bogué) sur DEUX endpoints différents ne
+doit JAMAIS pouvoir rejouer la réponse de l'un sur l'autre : c'est une fuite
+de réponse inter-endpoints, potentiellement inter-fonctionnalités (ex. la
+réponse d'un `POST /tickets/purchase` rejouée sur un `POST
+/tickets/transfer` qui partagerait accidentellement la même clé client).
+
 Règles fines (§3.1 Source B / §20 master prompt) :
-- clé déjà vue, COMPLETED, même empreinte de requête ⇒ réponse mémorisée rejouée.
-- clé déjà vue, empreinte DIFFÉRENTE ⇒ IdempotencyKeyReuseError (422).
+- clé déjà vue sur un endpoint DIFFÉRENT (même si le hash coïncide) ⇒
+  `IdempotencyKeyReuseError` (422) — vérifié EN PREMIER, avant toute
+  logique par statut : ce cas ne doit jamais atteindre un chemin de rejeu.
+- clé déjà vue, COMPLETED, même endpoint, même empreinte de requête ⇒
+  réponse mémorisée rejouée.
+- clé déjà vue, même endpoint, empreinte DIFFÉRENTE ⇒ IdempotencyKeyReuseError (422).
 - clé IN_PROGRESS, non orpheline (< délai de garde) ⇒ RequestInProgressError (409).
 - clé IN_PROGRESS, orpheline (processus tué entre IN_PROGRESS et COMPLETED,
   `locked_at` + 60s dépassé) ⇒ reprise, avec log WARNING.
@@ -70,6 +82,28 @@ def begin(*, key: str, user_id, endpoint: str, request_hash: str) -> Idempotency
     # Un enregistrement existe déjà : verrouillage pessimiste pour la décision.
     record = IdempotencyRecord.objects.select_for_update().get(key=key, user_id=user_id)
 
+    # Validation du quadruplet (user, key, endpoint, request_hash) — PREMIÈRE
+    # vérification, avant toute branche par statut. Un endpoint différent est
+    # TOUJOURS un rejet, quel que soit le statut de l'enregistrement existant
+    # (COMPLETED, IN_PROGRESS ou FAILED) : ré-utiliser une clé sur un autre
+    # endpoint n'est jamais une "reprise" légitime, c'est soit un bug client,
+    # soit une tentative de faire rejouer la réponse d'un autre endpoint.
+    if record.endpoint != endpoint:
+        fanid_idempotency_conflicts_total.labels(reason="endpoint_mismatch").inc()
+        logger.warning(
+            "idempotency_key_reused_across_endpoints",
+            extra={
+                "idempotency_key": key,
+                "user_id": str(user_id),
+                "original_endpoint": record.endpoint,
+                "attempted_endpoint": endpoint,
+            },
+        )
+        raise IdempotencyKeyReuseError(
+            message="Cette clé d'idempotence a déjà été utilisée sur un autre endpoint.",
+            details={"key": key, "expected_endpoint": record.endpoint, "received_endpoint": endpoint},
+        )
+
     if record.status == IdempotencyRecord.Status.COMPLETED:
         if record.request_hash != request_hash:
             fanid_idempotency_conflicts_total.labels(reason="key_reuse").inc()
@@ -100,11 +134,25 @@ def begin(*, key: str, user_id, endpoint: str, request_hash: str) -> Idempotency
     return IdempotencyOutcome(record=record, replayed=False)
 
 
-def complete(record: IdempotencyRecord, *, response_status: int, response_body) -> None:
+def complete(
+    record: IdempotencyRecord,
+    *,
+    response_status: int,
+    response_body,
+    response_headers: dict | None = None,
+) -> None:
+    """
+    Mémorise le résultat pour un rejeu futur. `response_headers` ne contient
+    QU'un sous-ensemble d'en-têtes "clés" (whitelist, voir
+    `middleware.REPLAYABLE_RESPONSE_HEADERS`) — jamais l'intégralité des
+    en-têtes de la réponse originale (certains, comme `Set-Cookie` ou
+    `X-Correlation-ID`, ne doivent jamais être rejoués tels quels).
+    """
     record.status = IdempotencyRecord.Status.COMPLETED
     record.response_status = response_status
     record.response_body = response_body
-    record.save(update_fields=["status", "response_status", "response_body"])
+    record.response_headers = response_headers or {}
+    record.save(update_fields=["status", "response_status", "response_body", "response_headers"])
 
 
 def fail(record: IdempotencyRecord) -> None:

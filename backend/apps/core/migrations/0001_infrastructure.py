@@ -47,6 +47,7 @@ class Migration(migrations.Migration):
                 ),
                 ("response_status", models.PositiveSmallIntegerField(blank=True, null=True)),
                 ("response_body", models.JSONField(blank=True, null=True)),
+                ("response_headers", models.JSONField(blank=True, default=dict, null=True)),
                 ("locked_at", models.DateTimeField(auto_now_add=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("expires_at", models.DateTimeField()),

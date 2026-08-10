@@ -22,6 +22,14 @@ logger = logging.getLogger("fanid.idempotency")
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 IDEMPOTENCY_KEY_HEADER = "HTTP_IDEMPOTENCY_KEY"
 
+# Whitelist des en-têtes de réponse mémorisés et rejoués (§P1.A.2) —
+# jamais l'intégralité des en-têtes : `Set-Cookie`, `X-Correlation-ID` (chaque
+# rejeu a sa PROPRE corrélation, générée par CorrelationMiddleware pour CETTE
+# requête, jamais celle de l'exécution originale) et tout en-tête lié à la
+# session ne doivent jamais être recopiés d'une exécution à l'autre.
+REPLAYABLE_RESPONSE_HEADERS = ("Content-Type", "Location", "Retry-After")
+REPLAYED_MARKER_HEADER = "Idempotency-Replayed"
+
 
 class IdempotencyMiddleware:
     def __init__(self, get_response):
@@ -56,7 +64,11 @@ class IdempotencyMiddleware:
 
         if outcome.replayed:
             body = outcome.record.response_body
-            return JsonResponse(body, status=outcome.record.response_status, safe=False)
+            replay_response = JsonResponse(body, status=outcome.record.response_status, safe=False)
+            for header_name, header_value in (outcome.record.response_headers or {}).items():
+                replay_response[header_name] = header_value
+            replay_response[REPLAYED_MARKER_HEADER] = "true"
+            return replay_response
 
         request.idempotency_record = outcome.record
 
@@ -68,7 +80,15 @@ class IdempotencyMiddleware:
             payload = None
 
         if 200 <= response.status_code < 500:
-            service.complete(outcome.record, response_status=response.status_code, response_body=payload)
+            response_headers = {
+                name: response[name] for name in REPLAYABLE_RESPONSE_HEADERS if name in response
+            }
+            service.complete(
+                outcome.record,
+                response_status=response.status_code,
+                response_body=payload,
+                response_headers=response_headers,
+            )
         else:
             service.fail(outcome.record)
 
