@@ -2,6 +2,7 @@
 Endpoints plateforme du Sprint 0 (§34-36 master prompt, §3.2 Source B) :
 liveness, readiness. `/metrics` est servi par django-prometheus (urls.py).
 """
+import logging
 import time
 
 from django.conf import settings
@@ -10,6 +11,16 @@ from django.http import JsonResponse
 from django.views import View
 
 _START_TIME = time.monotonic()
+
+logger = logging.getLogger("fanid.health")
+
+# Message générique renvoyé au CLIENT pour toute dépendance en échec —
+# jamais le texte de l'exception (§P1.B.2 plan de correction : une chaîne de
+# connexion, un nom d'hôte interne ou un message pilote PostgreSQL/Redis ne
+# doivent jamais atteindre un appelant non authentifié de /health/ready).
+# L'exception complète est systématiquement consignée côté serveur via
+# `logger.warning(..., exc_info=True)`.
+_GENERIC_UNAVAILABLE_DETAIL = "dépendance indisponible — voir les journaux serveur pour le détail"
 
 
 class HealthView(View):
@@ -71,14 +82,37 @@ class ReadinessView(View):
 
     @staticmethod
     def _check_database(timeout: float) -> dict:
+        """
+        Timeout RÉELLEMENT appliqué (§P1.B.1) : une connexion psycopg dédiée
+        et éphémère est ouverte avec `connect_timeout` (phase TCP/auth) ET
+        `statement_timeout` SQL (phase requête) bornés à `timeout` secondes.
+
+        La connexion partagée/poolée de Django (`connections["default"]`,
+        `CONN_MAX_AGE=60`) est délibérément évitée pour cette sonde : une
+        requête posée dessus n'a AUCUN timeout par défaut et pourrait geler
+        indéfiniment sur un réseau dégradé, ce qui viderait de son sens le
+        "délai de garde de 2s par sonde" exigé (§36 master prompt) — la
+        version précédente de ce code recevait `timeout` en paramètre mais
+        ne l'appliquait nulle part, bug corrigé ici.
+        """
         start = time.monotonic()
         try:
-            with connections["default"].cursor() as cursor:
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
+            import psycopg
+
+            params = dict(connections["default"].get_connection_params())
+            params.pop("connect_timeout", None)
+            existing_options = params.pop("options", "")
+            statement_timeout_ms = max(int(timeout * 1000), 1)
+            params["options"] = f"{existing_options} -c statement_timeout={statement_timeout_ms}".strip()
+
+            with psycopg.connect(connect_timeout=timeout, **params) as probe_connection:
+                with probe_connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
             return {"status": "ok", "latency_ms": round((time.monotonic() - start) * 1000, 1)}
-        except Exception as exc:  # noqa: BLE001 — on rapporte, jamais on ne propage
-            return {"status": "down", "detail": str(exc)[:200]}
+        except Exception:
+            logger.warning("readiness_database_check_failed", exc_info=True)
+            return {"status": "down", "detail": _GENERIC_UNAVAILABLE_DETAIL}
 
     @staticmethod
     def _check_redis(timeout: float) -> dict:
@@ -86,11 +120,14 @@ class ReadinessView(View):
         try:
             import redis as redis_lib
 
-            client = redis_lib.from_url(settings.REDIS_URL, socket_timeout=timeout)
+            client = redis_lib.from_url(
+                settings.REDIS_URL, socket_timeout=timeout, socket_connect_timeout=timeout
+            )
             client.ping()
             return {"status": "ok", "latency_ms": round((time.monotonic() - start) * 1000, 1)}
-        except Exception as exc:  # noqa: BLE001
-            return {"status": "degraded", "detail": str(exc)[:200]}
+        except Exception:
+            logger.warning("readiness_redis_check_failed", exc_info=True)
+            return {"status": "degraded", "detail": _GENERIC_UNAVAILABLE_DETAIL}
 
     @staticmethod
     def _check_celery(timeout: float) -> dict:
@@ -100,6 +137,8 @@ class ReadinessView(View):
             replies = celery_app.control.ping(timeout=timeout)
             if replies:
                 return {"status": "ok"}
+            # Chaîne fixe, non dérivée d'une exception — sans risque de fuite.
             return {"status": "degraded", "detail": "no heartbeat"}
-        except Exception as exc:  # noqa: BLE001
-            return {"status": "degraded", "detail": str(exc)[:200]}
+        except Exception:
+            logger.warning("readiness_celery_check_failed", exc_info=True)
+            return {"status": "degraded", "detail": _GENERIC_UNAVAILABLE_DETAIL}
