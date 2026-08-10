@@ -1,0 +1,39 @@
+[importlinter]
+root_package = apps
+include_external_packages = True
+
+# Règle absolue (ADR-S-01) : core ne dépend d'aucun bounded context métier.
+[importlinter:contract:core-is-independent]
+name = core must not depend on any bounded context
+type = forbidden
+source_modules =
+    apps.core
+forbidden_modules =
+    apps.identity
+    apps.organizing
+    apps.catalog
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
+
+# Aucune dépendance circulaire / directe entre bounded contexts au Sprint 0.
+# NB : à partir du Sprint où une communication synchrone inter-contextes est requise,
+# ce contrat sera assoupli pour n'autoriser que `<context>.api` (interface publique) —
+# import-linter ne permet pas de restreindre "un seul sous-module autorisé" en une
+# ligne ; la revue de code (règle §1.4.3.2) reste la deuxième ligne de défense.
+[importlinter:contract:contexts-are-independent]
+name = bounded contexts must not import each other directly
+type = independence
+modules =
+    apps.identity
+    apps.organizing
+    apps.catalog
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
