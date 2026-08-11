@@ -29,6 +29,7 @@ DJANGO_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "django.contrib.staticfiles",
+    "django.contrib.sessions",
 ]
 
 THIRD_PARTY_APPS = [
