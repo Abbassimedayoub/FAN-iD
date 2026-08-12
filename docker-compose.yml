@@ -10,6 +10,7 @@ x-django-common: &django-common
   volumes:
     - ./backend:/app
     - ./.importlinter:/config/.importlinter:ro
+    - ./.env.example:/config/.env.example:ro
   depends_on:
     postgres:
       condition: service_healthy

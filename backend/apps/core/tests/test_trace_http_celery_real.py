@@ -1,11 +1,10 @@
 import json
 import time
 import uuid
-
+import os
 import pytest
 import redis
 from celery import shared_task
-from django.conf import settings
 from django.http import JsonResponse
 from django.test import Client, override_settings
 from django.urls import path
@@ -83,8 +82,11 @@ urlpatterns = [
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.skipif(
-    not settings.OTEL_ENABLED,
-    reason="Test d'intégration réel nécessitant OTEL_ENABLED=True et un worker Celery réel.",
+    os.environ.get("FANID_RUN_REAL_OTEL_TESTS") != "1",
+    reason=(
+        "Test d'intégration réel désactivé dans la suite standard. "
+        "Lancer avec FANID_RUN_REAL_OTEL_TESTS=1 et un worker P0-8 dédié."
+    ),
 )
 @override_settings(ROOT_URLCONF=__name__)
 def test_real_http_request_and_real_celery_worker_share_trace():

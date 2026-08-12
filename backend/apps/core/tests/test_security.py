@@ -44,21 +44,35 @@ def test_dev_env_example_never_contains_a_real_looking_secret():
     """
     from pathlib import Path
 
-    current = Path(__file__).resolve()
+    candidates = [
+        Path("/config/.env.example"),
+        *(
+            parent / ".env.example"
+            for parent in Path(__file__).resolve().parents
+        ),
+    ]
 
     env_example = next(
-        (parent / ".env.example" for parent in current.parents if (parent / ".env.example").exists()),
+        (path for path in candidates if path.exists()),
         None,
     )
 
-    assert env_example is not None, ".env.example introuvable depuis le contexte de test"
+    assert env_example is not None, (
+        ".env.example introuvable depuis le contexte de test"
+    )
+
     content = env_example.read_text()
 
-    forbidden_patterns = ["sk_live_", "AKIA", "-----BEGIN"]
+    forbidden_patterns = [
+        "sk_live_",
+        "AKIA",
+        "-----BEGIN",
+    ]
+
     for pattern in forbidden_patterns:
-        assert pattern not in content, f"motif de secret réel potentiel trouvé : {pattern}"
-
-
+        assert pattern not in content, (
+            f"motif de secret réel potentiel trouvé : {pattern}"
+        )
 def test_no_secret_pattern_leaks_through_the_logging_pipeline_end_to_end(caplog):
     """
     Parcourt les lignes produites par le pipeline de logging complet
