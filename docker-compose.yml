@@ -130,10 +130,7 @@ services:
 
 networks:
   fanid:
-    name: fanid-network
 
 volumes:
   postgres_data:
-    name: fanid_postgres_data
   redis_data:
-    name: fanid_redis_data
