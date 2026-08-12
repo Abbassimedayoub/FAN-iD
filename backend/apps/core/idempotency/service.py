@@ -66,21 +66,26 @@ def begin(*, key: str, user_id, endpoint: str, request_hash: str) -> Idempotency
     verrou, pas un SELECT préalable.
     """
     expires_at = timezone.now() + timedelta(hours=settings.IDEMPOTENCY_RETENTION_HOURS)
+
     try:
-        record = IdempotencyRecord.objects.create(
-            key=key,
-            user_id=user_id,
-            endpoint=endpoint,
-            request_hash=request_hash,
-            status=IdempotencyRecord.Status.IN_PROGRESS,
-            expires_at=expires_at,
-        )
+        with transaction.atomic():
+            record = IdempotencyRecord.objects.create(
+                key=key,
+                user_id=user_id,
+                endpoint=endpoint,
+                request_hash=request_hash,
+                status=IdempotencyRecord.Status.IN_PROGRESS,
+                expires_at=expires_at,
+            )
         return IdempotencyOutcome(record=record, replayed=False)
     except IntegrityError:
         pass
 
     # Un enregistrement existe déjà : verrouillage pessimiste pour la décision.
-    record = IdempotencyRecord.objects.select_for_update().get(key=key, user_id=user_id)
+    record = IdempotencyRecord.objects.select_for_update().get(
+        key=key,
+        user_id=user_id,
+    )
 
     # Validation du quadruplet (user, key, endpoint, request_hash) — PREMIÈRE
     # vérification, avant toute branche par statut. Un endpoint différent est

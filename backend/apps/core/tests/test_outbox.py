@@ -37,7 +37,7 @@ class _AlwaysFailingConsumer(BaseConsumer):
         raise RuntimeError("simulated permanent failure")
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_publish_event_requires_active_transaction():
     with pytest.raises(AssertionError):
         publish_event(
@@ -46,7 +46,6 @@ def test_publish_event_requires_active_transaction():
             aggregate_id=uuid.uuid4(),
             payload={},
         )
-
 
 @pytest.mark.django_db
 def test_rolled_back_transaction_publishes_no_event():
@@ -182,3 +181,118 @@ def test_consumed_event_primary_key_deduplicates():
 
     with pytest.raises(IntegrityError):
         ConsumedEvent.objects.create(consumer_name="c1", event_id=event_id)
+
+@pytest.mark.django_db(transaction=True)
+def test_two_concurrent_relays_one_event_is_processed_exactly_once():
+    """
+    Preuve stricte SKIP LOCKED :
+    1 événement PENDING + 2 relais simultanés => 1 seul traitement.
+    """
+    consumer = _RecordingConsumer()
+    relay._CONSUMER_REGISTRY.clear()
+    relay.register_consumer(consumer)
+
+    with transaction.atomic():
+        event = publish_event(
+            event_type="test.event",
+            aggregate_type="test_aggregate",
+            aggregate_id=uuid.uuid4(),
+            payload={"test": "single-event-concurrency"},
+        )
+
+    barrier = threading.Barrier(2)
+    results = []
+    results_lock = threading.Lock()
+
+    def worker():
+        connections.close_all()
+        try:
+            # Force les deux relais à démarrer leur compétition ensemble.
+            barrier.wait()
+
+            result = relay.relay_batch(batch_size=1)
+
+            with results_lock:
+                results.append(result.published)
+        finally:
+            connections.close_all()
+
+    try:
+        threads = [
+            threading.Thread(target=worker),
+            threading.Thread(target=worker),
+        ]
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        event.refresh_from_db()
+
+        # Un seul des deux relais doit publier l'événement.
+        assert sorted(results) == [0, 1], results
+        assert event.status == OutboxEvent.Status.PUBLISHED
+
+        # Une seule exécution consumer.
+        assert consumer.handled.count(event.id) == 1
+
+        # Une seule trace de consommation.
+        assert (
+            ConsumedEvent.objects.filter(
+                consumer_name=consumer.name,
+                event_id=event.id,
+            ).count()
+            == 1
+        )
+
+    finally:
+        relay._CONSUMER_REGISTRY.clear()
+
+@pytest.mark.django_db
+def test_same_event_can_be_consumed_independently_by_two_consumers():
+    event_id = uuid.uuid4()
+
+    ConsumedEvent.objects.create(
+        consumer_name="consumer-a",
+        event_id=event_id,
+    )
+
+    ConsumedEvent.objects.create(
+        consumer_name="consumer-b",
+        event_id=event_id,
+    )
+
+    assert ConsumedEvent.objects.filter(
+        event_id=event_id,
+    ).count() == 2
+
+@pytest.mark.django_db
+def test_dead_event_updates_fanid_outbox_dead_metric(settings):
+    settings.OUTBOX_MAX_ATTEMPTS = 1
+
+    consumer = _AlwaysFailingConsumer()
+    relay._CONSUMER_REGISTRY.clear()
+    relay.register_consumer(consumer)
+
+    try:
+        with transaction.atomic():
+            event = publish_event(
+                event_type="test.poison",
+                aggregate_type="test_aggregate",
+                aggregate_id=uuid.uuid4(),
+                payload={},
+            )
+
+        relay.relay_batch(batch_size=10)
+
+        event.refresh_from_db()
+
+        assert event.status == OutboxEvent.Status.DEAD
+        assert event.attempts == 1
+
+        assert relay.fanid_outbox_dead._value.get() >= 1
+
+    finally:
+        relay._CONSUMER_REGISTRY.clear()

@@ -98,8 +98,11 @@ def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settin
     (`locked_at` + 60s), l'enregistrement doit être considéré orphelin et
     repris — sinon le client ne peut plus jamais acheter avec cette clé.
     """
+    from unittest.mock import patch
+
     settings.IDEMPOTENCY_ORPHAN_GUARD_SECONDS = 60
     key = "purchase-key-5"
+
     record = IdempotencyRecord.objects.create(
         key=key,
         user_id=user.pk,
@@ -108,15 +111,26 @@ def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settin
         status=IdempotencyRecord.Status.IN_PROGRESS,
         expires_at=timezone.now() + timedelta(hours=24),
     )
-    # Simule un enregistrement verrouillé il y a plus de 60s (processus tué).
-    IdempotencyRecord.objects.filter(pk=record.pk).update(locked_at=timezone.now() - timedelta(seconds=61))
 
-    outcome = service.begin(key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a")
+    # Simule un enregistrement verrouillé il y a plus de 60 secondes.
+    IdempotencyRecord.objects.filter(pk=record.pk).update(
+        locked_at=timezone.now() - timedelta(seconds=61)
+    )
 
-    assert outcome.replayed is False  # repris, pas rejeté
+    # Vérifie que la récupération de l'orphelin génère bien un WARNING.
+    with patch("apps.core.idempotency.service.logger.warning") as warning_mock:
+        outcome = service.begin(
+            key=key,
+            user_id=user.pk,
+            endpoint="/api/v1/tickets/purchase",
+            request_hash="hash-a",
+        )
+
+    assert outcome.replayed is False
     assert outcome.record.status == IdempotencyRecord.Status.IN_PROGRESS
 
-
+    warning_mock.assert_called_once()
+    assert warning_mock.call_args.args[0] == "idempotency_orphan_recovered"
 @pytest.mark.django_db
 def test_key_is_scoped_per_user_not_global(user, other_user):
     """Deux utilisateurs différents peuvent utiliser la même clé sans interférence."""

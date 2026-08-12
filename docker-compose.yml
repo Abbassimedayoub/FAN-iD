@@ -1,5 +1,6 @@
 name: fanid
 
+
 x-django-common: &django-common
   build:
     context: ./backend
@@ -8,12 +9,14 @@ x-django-common: &django-common
   env_file: .env
   volumes:
     - ./backend:/app
+    - ./.importlinter:/config/.importlinter:ro
   depends_on:
     postgres:
       condition: service_healthy
     redis:
       condition: service_healthy
   networks: [fanid]
+
 
 services:
   postgres:
@@ -29,7 +32,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fanid} -d ${POSTGRES_DB:-fanid}"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 10
       start_period: 5s
@@ -54,7 +57,7 @@ services:
 
   api:
     <<: *django-common
-    command: ["/app/docker/entrypoint.sh", "api"]
+    command: ["api"]
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -66,7 +69,7 @@ services:
 
   ws:
     <<: *django-common
-    command: ["/app/docker/entrypoint.sh", "ws"]
+    command: ["ws"]
     ports:
       - "127.0.0.1:8001:8001"
     depends_on:
@@ -76,7 +79,7 @@ services:
 
   worker:
     <<: *django-common
-    command: ["/app/docker/entrypoint.sh", "worker"]
+    command: ["worker"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -84,7 +87,7 @@ services:
 
   beat:
     <<: *django-common
-    command: ["/app/docker/entrypoint.sh", "beat"]
+    command: ["beat"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -100,7 +103,7 @@ services:
     depends_on:
       api: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/api/v1/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/v1/health"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -118,7 +121,7 @@ services:
       - "127.0.0.1:4318:4318"   # OTLP HTTP
       - "127.0.0.1:8889:8889"   # exposition Prometheus (métriques app relayées)
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:13133/"]
+      test: ["CMD", "/otelcol-contrib", "components"]
       interval: 10s
       timeout: 3s
       retries: 5

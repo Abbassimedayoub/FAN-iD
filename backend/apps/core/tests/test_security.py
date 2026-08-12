@@ -44,7 +44,14 @@ def test_dev_env_example_never_contains_a_real_looking_secret():
     """
     from pathlib import Path
 
-    env_example = Path(__file__).resolve().parents[4] / ".env.example"
+    current = Path(__file__).resolve()
+
+    env_example = next(
+        (parent / ".env.example" for parent in current.parents if (parent / ".env.example").exists()),
+        None,
+    )
+
+    assert env_example is not None, ".env.example introuvable depuis le contexte de test"
     content = env_example.read_text()
 
     forbidden_patterns = ["sk_live_", "AKIA", "-----BEGIN"]

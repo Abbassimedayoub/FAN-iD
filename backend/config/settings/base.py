@@ -39,6 +39,7 @@ THIRD_PARTY_APPS = [
     "channels",
     "django_celery_beat",
     "django_prometheus",
+    "django_migration_linter",
 ]
 
 # Bounded contexts (§14 Source B / ADR-S-01). `core` en premier : il ne dépend
@@ -68,6 +69,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.core.idempotency.middleware.IdempotencyMiddleware",
     "apps.core.observability.metrics.MetricsMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

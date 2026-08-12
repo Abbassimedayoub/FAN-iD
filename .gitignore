@@ -75,6 +75,7 @@ mobile/.pub/
 infra/docker/**/data/
 postgres-data/
 redis-*-data/
+backend/celerybeat-schedule*
 
 # --- Editeurs / OS ---
 .vscode/*

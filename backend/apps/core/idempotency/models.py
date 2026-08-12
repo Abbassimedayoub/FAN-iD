@@ -42,7 +42,9 @@ class IdempotencyRecord(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["key", "user"], name="uq_idempotency_key_user"),
             models.CheckConstraint(
-                check=models.Q(status__in=[s.value for s in Status]),
+                check=models.Q(
+    status__in=["IN_PROGRESS", "COMPLETED", "FAILED"]
+),
                 name="ck_idempotency_status_valid",
             ),
         ]

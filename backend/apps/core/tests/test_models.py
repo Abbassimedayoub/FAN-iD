@@ -12,11 +12,13 @@ from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
 class _DummyUUIDModel(UUIDModel):
     class Meta:
         app_label = "core"
+        managed = False
 
 
 class _DummyTimeStampedModel(TimeStampedModel):
     class Meta:
         app_label = "core"
+        managed = False
 
 
 class _DummyVersionedModel(VersionedModel):
@@ -24,7 +26,7 @@ class _DummyVersionedModel(VersionedModel):
 
     class Meta:
         app_label = "core"
-
+        managed = False
 
 def test_uuid_model_generates_uuid4_pk():
     instance = _DummyUUIDModel()

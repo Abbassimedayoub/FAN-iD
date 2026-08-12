@@ -23,7 +23,14 @@ class OutboxEvent(models.Model):
     # par une vraie séquence PostgreSQL (BIGSERIAL) posée en migration via RunSQL —
     # Django n'autorise pas un second AutoField non-PK sur un modèle (fields.E100),
     # d'où ce BigIntegerField() dont la valeur par défaut est `nextval(...)` côté SQL.
-    sequence = models.BigIntegerField(editable=False, unique=True)
+    sequence = models.BigIntegerField(
+        editable=False,
+        unique=True,
+        db_default=models.expressions.RawSQL(
+            "nextval('outbox_event_sequence_seq')",
+            params=[],
+        ),
+    )
     payload = models.JSONField()
     correlation_id = models.CharField(max_length=40, null=True, blank=True)
     causation_id = models.UUIDField(null=True, blank=True)
@@ -41,7 +48,9 @@ class OutboxEvent(models.Model):
         constraints = [
             models.CheckConstraint(check=models.Q(attempts__gte=0), name="ck_outbox_attempts_nonneg"),
             models.CheckConstraint(
-                check=models.Q(status__in=[s.value for s in Status]),
+                check=models.Q(
+    status__in=["PENDING", "PUBLISHED", "FAILED", "DEAD"]
+),
                 name="ck_outbox_status_valid",
             ),
         ]
