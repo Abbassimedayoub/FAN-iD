@@ -78,6 +78,24 @@ class TokenExpiredError(AuthError):
     default_message = "Jeton expire."
 
 
+class TokenReuseDetectedError(AuthError):
+    """
+    401 — un refresh deja tourne a ete rejoue.
+
+    Motif DISTINCT, contrairement a la regle d opacite qui vaut ailleurs. Deux
+    raisons : le client legitime doit comprendre qu il faut se reconnecter et
+    non reessayer, et surtout la metrique
+    `fanid_auth_token_reuse_detected_total` doit pouvoir compter cet evenement
+    precis — toute valeur superieure a zero merite une inspection (plan §5.4).
+
+    Ce que cette erreur revele a un attaquant, il le sait deja : il vient de
+    rejouer un jeton qu il possede.
+    """
+
+    default_code = "TOKEN_REUSE_DETECTED"
+    default_message = "Ce jeton a deja ete utilise. La session a ete revoquee."
+
+
 def _algorithm() -> str:
     return str(settings.JWT_ALGORITHM)
 
