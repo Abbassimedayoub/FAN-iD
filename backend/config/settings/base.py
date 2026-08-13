@@ -133,6 +133,11 @@ def _redis_url_with_db(db_index: int) -> str:
     return f"{base}/{db_index}"
 
 
+# URL complète de la base Redis dédiée aux verrous. Isolée du cache : un
+# `cache.clear()` — légitime, fréquent en développement — ne doit pas effacer
+# les verrous d'appareil de tous les utilisateurs connectés.
+REDIS_LOCK_URL = _redis_url_with_db(REDIS_LOCK_DB)
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
