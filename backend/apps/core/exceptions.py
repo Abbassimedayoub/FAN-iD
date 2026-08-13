@@ -62,11 +62,34 @@ class StaleResourceError(ConflictError):
 
 
 class PreconditionFailed(BusinessError):
-    """412 — en-tête `If-Match` requis mais absent, ou mal formé."""
+    """
+    428 — en-tête `If-Match` requis mais absent sur une ressource versionnée.
 
-    status_code = 412
+    **428 Precondition Required**, pas 412 : le 412 signifie « la précondition
+    fournie a échoué », alors qu'ici le client n'en a fourni AUCUNE. RFC 6585 §3
+    a créé le 428 exactement pour ce cas, afin d'empêcher la mise à jour perdue
+    (« lost update ») lorsqu'un client oublie `If-Match`. Corrigé au Sprint 1 :
+    le contrat gelé du Sprint 0 portait 412, le plan S1 §3.4 exige 428, et aucun
+    appelant n'existait encore.
+    """
+
+    status_code = 428
     default_code = "PRECONDITION_REQUIRED"
     default_message = "L'en-tête If-Match est requis pour cette opération."
+
+
+class InvalidStateTransitionError(ConflictError):
+    """
+    409 — transition de machine à états interdite.
+
+    Générique par nature : `organizing` s'en sert pour le cycle de validation
+    d'un organisateur (S1), `ticketing` s'en servira pour le cycle de vie d'un
+    billet (S3). Défini ici plutôt que dans un contexte pour éviter qu'un
+    contexte n'importe les exceptions d'un autre (ADR-S-01).
+    """
+
+    default_code = "INVALID_STATE_TRANSITION"
+    default_message = "Cette transition d'état n'est pas autorisée."
 
 
 class UnprocessableError(BusinessError):

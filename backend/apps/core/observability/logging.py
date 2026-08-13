@@ -18,7 +18,17 @@ from typing import Any
 
 from .context import get_correlation_id, get_trace_id
 
-_SENSITIVE_KEY_PATTERN = re.compile(r"(password|token|secret|seed|key|authorization|card)", re.IGNORECASE)
+# Motifs LARGES (correspondance partielle) : toute clé qui les contient est masquée.
+# Motifs ANCRÉS (`^...$`) : le Sprint 1 introduit des clés courtes et ambiguës —
+# `code`, `did`, `jti`. Les traiter en correspondance partielle masquerait
+# `error_code`, `status_code` ou `candidate`, ce qui détruirait l'observabilité
+# des erreurs sans rien protéger. `^otp` et `^refresh` couvrent les dérivés
+# (`otp_code`, `refresh_jti`) sans attraper `totp`.
+_SENSITIVE_KEY_PATTERN = re.compile(
+    r"password|token|secret|seed|key|authorization|card|fingerprint"
+    r"|^otp|^refresh|^jti$|^did$|^access$|^code$",
+    re.IGNORECASE,
+)
 _REDACTED = "***REDACTED***"
 
 _RESERVED_LOGRECORD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys()) | {

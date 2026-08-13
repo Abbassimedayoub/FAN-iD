@@ -22,6 +22,14 @@ SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
+# Le refresh est TOUJOURS transmis en Secure en production — non négociable,
+# contrairement au développement local où l'absence de TLS l'impose à False.
+REFRESH_COOKIE_SECURE = True
+
+# Obligatoire en production : sans liste blanche, toute requête authentifiée par
+# cookie depuis une origine tierce serait acceptée.
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
+
 # --- Schema/Swagger protégés en production (§37 master prompt) ---
 SPECTACULAR_SETTINGS = {**SPECTACULAR_SETTINGS, "SERVE_PUBLIC": False}  # noqa: F405
 

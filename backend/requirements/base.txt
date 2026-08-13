@@ -35,6 +35,13 @@ drf-spectacular==0.27.2
 
 # --- Config & sécurité ---
 
+# argon2-cffi : liaison C requise par django.contrib.auth.hashers.Argon2PasswordHasher.
+# Sans elle, Django lève ImproperlyConfigured au premier hachage. Aucune alternative
+# dans la bibliothèque standard ; PBKDF2 (intégré) est explicitement écarté par le
+# plan S1 §5.1 au titre d'OWASP A02. Impact sécurité : positif. Impact lockfile :
+# argon2-cffi + cffi (déjà présent, transitif de cryptography).
+argon2-cffi==23.1.0
+
 django-environ==0.11.2
 django-cors-headers==4.4.0
 boto3==1.35.36

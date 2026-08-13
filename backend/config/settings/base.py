@@ -71,7 +71,6 @@ MIDDLEWARE = [
     "apps.core.idempotency.middleware.IdempotencyMiddleware",
     "apps.core.observability.metrics.MetricsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -96,6 +95,26 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 AUTH_USER_MODEL = "identity.User"
+
+# --- Hachage des mots de passe (ADR-S-04 règle 5 / plan S1 §5.1) ---
+# Argon2id en tête : c'est lui qui hache les nouveaux mots de passe. Les
+# suivants ne servent qu'à VÉRIFIER d'anciens hachages et à les remplacer
+# de façon transparente à la connexion suivante.
+PASSWORD_HASHERS = [
+    "apps.identity.hashers.FanIdArgon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+]
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 10},  # plan S1 §3.3 : >= 10 caractères
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 
 # --- Base de données ---
 DATABASES = {"default": env.db("DATABASE_URL")}
@@ -170,6 +189,28 @@ SPECTACULAR_SETTINGS = {
 # --- CORS ---
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
+
+# --- Transport du refresh token côté Web (plan S1 §18 / ADR-05) ---
+# Décision : le refresh vit dans un cookie HttpOnly, l'access reste en mémoire.
+# AUCUN domaine de production n'existe à ce jour : tout est piloté par
+# l'environnement, et les défauts ci-dessous ne valent QUE pour le développement
+# local. §70 du prompt d'exécution : ne jamais coder en dur un domaine de
+# production, fût-il plausible — un domaine inventé finit toujours par être
+# déployé tel quel.
+# `REFRESH_COOKIE_DOMAIN` vide => cookie lié à l'hôte (host-only), le bon défaut.
+REFRESH_COOKIE_NAME = env("REFRESH_COOKIE_NAME", default="fanid_refresh")
+REFRESH_COOKIE_DOMAIN = env("REFRESH_COOKIE_DOMAIN", default="") or None
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
+REFRESH_COOKIE_SAMESITE = env("REFRESH_COOKIE_SAMESITE", default="Lax")
+REFRESH_COOKIE_PATH = env("REFRESH_COOKIE_PATH", default="/api/v1/auth")
+REFRESH_COOKIE_HTTPONLY = True  # jamais configurable : un refresh lisible en JS est une faille
+
+# --- CSRF ---
+# Requis dès qu'un cookie participe à l'authentification. Liste blanche stricte,
+# jamais de wildcard.
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+CSRF_COOKIE_SAMESITE = env("CSRF_COOKIE_SAMESITE", default="Lax")
+SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
 
 # --- Internationalisation ---
 LANGUAGE_CODE = "fr-fr"
