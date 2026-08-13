@@ -170,6 +170,10 @@ REST_FRAMEWORK = {
     # « etre connecte » n est pas une autorisation. Voir apps/core/permissions.py.
     "DEFAULT_PERMISSION_CLASSES": ["apps.core.permissions.DenyAll"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        # JWT en PREMIER : c'est le mécanisme de l'API. `SessionAuthentication`
+        # reste derrière pour la console d'administration Django et la vue de
+        # schéma, qui s'utilisent depuis un navigateur authentifié par cookie.
+        "apps.identity.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPagination",

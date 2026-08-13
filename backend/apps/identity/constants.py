@@ -107,3 +107,11 @@ MFA_PURPOSES: tuple[str, ...] = (
 CODE_HASH_PATTERN = r"^[0-9a-f]{64}$"
 OTP_MAX_ATTEMPTS = 5
 OTP_TTL_MINUTES = 5
+
+
+#: Age minimum a l inscription (RM-13). La contrainte `ck_user_min_age_16` porte
+#: la meme valeur en dur dans la migration 0002 : une migration deja appliquee
+#: ne se relit pas, on ne peut donc pas l y remplacer par cette constante. Les
+#: tests de contrainte de S1-A.1a verifient que les deux disent la meme chose —
+#: 16 ans pile accepte, la veille refuse.
+MINIMUM_AGE_YEARS = 16

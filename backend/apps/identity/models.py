@@ -44,7 +44,8 @@ class Role(models.Model):
 
     `permissions` est **descriptif** (ADR-02) : il documente les capacités du
     rôle pour la console d'administration. La source de vérité de l'autorisation
-    est le `PolicyEngine`, en code (master prompt §10). Ne jamais autoriser une
+    est la politique en code de `apps.identity.authz` (master prompt §10). Ne
+    jamais autoriser une
     requête sur la foi de ce JSON.
     """
 
