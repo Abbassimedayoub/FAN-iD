@@ -7,6 +7,7 @@ Le contrat est figé dès maintenant pour que les vues des sprints suivants
 appellent systématiquement `PolicyEngine.can(...)` plutôt que des vérifications
 de rôle ad hoc dispersées dans les vues.
 """
+
 from typing import Any
 
 

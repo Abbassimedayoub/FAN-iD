@@ -4,9 +4,15 @@ CorrelationMiddleware + RequestLogMiddleware (§26/§33 master prompt, §2.5 Sou
 Position imposée : CorrelationMiddleware doit s'exécuter avant TOUT ce qui
 journalise (règle absolue). RequestLogMiddleware juste après.
 """
+
 import logging
 import time
 import uuid
+from collections.abc import Callable
+
+from django.http import HttpResponse
+
+from apps.core.http import FanIdRequest
 
 from .context import CORRELATION_ID_HEADER, get_correlation_id, set_correlation_id
 
@@ -21,10 +27,10 @@ class CorrelationMiddleware:
     la même requête (ni un généré puis un autre, ni le header ignoré).
     """
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[FanIdRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
-    def __call__(self, request):
+    def __call__(self, request: FanIdRequest) -> HttpResponse:
         incoming = request.headers.get(CORRELATION_ID_HEADER)
         correlation_id = incoming if incoming else str(uuid.uuid4())
         set_correlation_id(correlation_id)
@@ -39,10 +45,10 @@ class CorrelationMiddleware:
 class RequestLogMiddleware:
     """Une ligne de log structurée par requête : méthode, route, statut, latence, acteur."""
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[FanIdRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
-    def __call__(self, request):
+    def __call__(self, request: FanIdRequest) -> HttpResponse:
         start = time.monotonic()
         response = self.get_response(request)
         duration_ms = round((time.monotonic() - start) * 1000, 2)

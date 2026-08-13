@@ -33,6 +33,7 @@ callback différé :
             # peut appeler SES/SMTP sans tenir aucun verrou Outbox.
             self.defer(lambda: send_order_confirmation_email.delay(order_id=str(order_id)))
 """
+
 import logging
 from abc import ABC, abstractmethod
 from typing import Callable

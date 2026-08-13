@@ -3,9 +3,11 @@ Gestionnaire d'exception unique — produit le contrat d'erreur gelé (§17 mast
 prompt / §3.3 Source B) pour TOUTE erreur, qu'elle vienne de DRF ou d'une
 `BusinessError` métier.
 """
-import logging
 
-from rest_framework.exceptions import APIException
+import logging
+from typing import Any
+
+from rest_framework.exceptions import APIException, ErrorDetail
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
@@ -40,7 +42,7 @@ def _error_body(code: str, message: str, details: dict | None = None) -> dict:
     }
 
 
-def custom_exception_handler(exc, context):
+def custom_exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
     """
     Point d'entrée unique appelé par DRF (`REST_FRAMEWORK.EXCEPTION_HANDLER`).
 
@@ -77,5 +79,9 @@ class DRFBusinessException(APIException):
 
     def __init__(self, business_error: BusinessError):
         self.status_code = business_error.status_code
-        self.detail = business_error.message
+        # `APIException.detail` est typé `ErrorDetail | list | dict` : une `str`
+        # nue y est acceptée à l'exécution mais viole le contrat déclaré par DRF.
+        # `ErrorDetail` EST une sous-classe de `str` — aucun changement de
+        # comportement, le contrat d'erreur gelé du Sprint 0 est préservé.
+        self.detail = ErrorDetail(business_error.message)
         self.business_error = business_error

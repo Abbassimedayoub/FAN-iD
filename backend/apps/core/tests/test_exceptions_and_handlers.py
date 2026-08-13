@@ -1,4 +1,5 @@
 """custom_exception_handler : chaque classe d'erreur produit le bon corps et le bon statut (§55)."""
+
 import pytest
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.test import APIRequestFactory
@@ -53,7 +54,9 @@ def test_business_error_produces_frozen_error_contract(exc_class, expected_statu
 
 
 def test_business_error_details_are_preserved():
-    exc = ValidationBusinessError("stock insuffisant", code="STOCK_UNAVAILABLE", details={"requested": 4, "available": 2})
+    exc = ValidationBusinessError(
+        "stock insuffisant", code="STOCK_UNAVAILABLE", details={"requested": 4, "available": 2}
+    )
     response = custom_exception_handler(exc, _context())
 
     assert response.data["error"]["code"] == "STOCK_UNAVAILABLE"

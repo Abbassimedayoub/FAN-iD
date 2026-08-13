@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class NotificationSender(ABC):
@@ -10,9 +11,9 @@ class NotificationSender(ABC):
     """
 
     @abstractmethod
-    def send_email(self, to: str, subject: str, body: str, **kwargs) -> None:
+    def send_email(self, to: str, subject: str, body: str, **kwargs: Any) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def send_push(self, device_token: str, title: str, body: str, **kwargs) -> None:
+    def send_push(self, device_token: str, title: str, body: str, **kwargs: Any) -> None:
         raise NotImplementedError

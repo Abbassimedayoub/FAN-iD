@@ -6,7 +6,7 @@ from apps.core.interfaces import ObjectStorage
 class InMemoryStorage(ObjectStorage):
     """Tests — aucun accès disque ni S3 réel."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._objects: dict[str, bytes] = {}
 
     def upload(self, file: BinaryIO, key: str) -> str:

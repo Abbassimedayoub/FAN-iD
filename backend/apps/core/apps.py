@@ -10,7 +10,7 @@ class CoreConfig(AppConfig):
     label = "core"
     verbose_name = "Core (socle transverse)"
 
-    def ready(self):
+    def ready(self) -> None:
         # Ne pas instrumenter pendant makemigrations/migrate/collectstatic — bruit
         # inutile et connexion réseau au collecteur non pertinente pour ces commandes.
         management_commands_to_skip = {"makemigrations", "migrate", "collectstatic", "shell"}

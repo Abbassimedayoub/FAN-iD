@@ -15,7 +15,7 @@ class RedisDeviceLock(DeviceLockBackend):
 
     KEY_PREFIX = "device_lock:"
 
-    def __init__(self, redis_client):
+    def __init__(self, redis_client: Any) -> None:
         self._redis = redis_client
 
     def acquire(self, user_id: str, device_id: str, ttl_seconds: int) -> bool:
@@ -34,7 +34,7 @@ class RedisDeviceLock(DeviceLockBackend):
 class FakeDeviceLock(DeviceLockBackend):
     """Tests — dictionnaire en mémoire, aucun Redis requis."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._locks: dict[str, tuple[str, float]] = {}
 
     def acquire(self, user_id: str, device_id: str, ttl_seconds: int) -> bool:

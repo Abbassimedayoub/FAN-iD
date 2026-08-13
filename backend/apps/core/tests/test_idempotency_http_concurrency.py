@@ -1,17 +1,15 @@
 import json
 import threading
 import time
-from unittest.mock import patch
 
 import pytest
+from django.db import connections
 from django.http import JsonResponse
 from django.test import Client, override_settings
 from django.urls import path
-from django.db import connections
 
 from apps.core.idempotency.middleware import REPLAYED_MARKER_HEADER
 from apps.core.idempotency.models import IdempotencyRecord
-
 
 _execution_count = 0
 _execution_lock = threading.Lock()
@@ -95,31 +93,25 @@ def test_five_concurrent_http_requests_execute_business_logic_only_once(user):
 
     # Une requête doit avoir réellement exécuté la vue.
     successful_originals = [
-        result
-        for result in results
-        if result["status"] == 201 and result["replayed"] != "true"
+        result for result in results if result["status"] == 201 and result["replayed"] != "true"
     ]
     assert len(successful_originals) == 1, results
 
     # Les quatre concurrentes ne doivent JAMAIS déclencher une autre exécution.
     # Selon leur timing exact, elles peuvent recevoir 409 IN_PROGRESS
     # ou arriver après completion et obtenir immédiatement un replay.
-    other_results = [
-        result
-        for result in results
-        if result not in successful_originals
-    ]
+    other_results = [result for result in results if result not in successful_originals]
     assert len(other_results) == 4
 
-    assert all(
-        result["status"] in {201, 409}
-        for result in other_results
-    ), results
+    assert all(result["status"] in {201, 409} for result in other_results), results
 
-    assert IdempotencyRecord.objects.filter(
-        key=key,
-        user_id=user.pk,
-    ).count() == 1
+    assert (
+        IdempotencyRecord.objects.filter(
+            key=key,
+            user_id=user.pk,
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -158,7 +150,4 @@ def test_completed_http_request_is_replayed_four_times_without_reexecution(user)
     assert _execution_count == 1
 
     assert all(response.status_code == 201 for response in replays)
-    assert all(
-        response.headers.get(REPLAYED_MARKER_HEADER) == "true"
-        for response in replays
-    )
+    assert all(response.headers.get(REPLAYED_MARKER_HEADER) == "true" for response in replays)

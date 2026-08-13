@@ -3,6 +3,7 @@ P1.C.1 — garantit qu'un effet de bord réseau planifié via `BaseConsumer.defe
 ne s'exécute JAMAIS pendant que le relais tient ses verrous `SELECT FOR
 UPDATE SKIP LOCKED`, seulement après le commit de `relay_batch()`.
 """
+
 import uuid
 
 import pytest
@@ -58,9 +59,9 @@ class OutboxDeferredSideEffectTests(TransactionTestCase):
 
             assert result.published == 1
             assert event.id in consumer.executed_during_handle
-            assert event.id in consumer.deferred_calls, (
-                "le callback différé n'a jamais été exécuté après le commit du relais"
-            )
+            assert (
+                event.id in consumer.deferred_calls
+            ), "le callback différé n'a jamais été exécuté après le commit du relais"
         finally:
             relay._CONSUMER_REGISTRY.clear()
 

@@ -5,7 +5,9 @@ Règle absolue : `core` ne dépend d'aucun bounded context métier (ADR-S-01,
 vérifié par import-linter). Ces classes abstraites sont importées PAR les
 bounded contexts, jamais l'inverse.
 """
+
 import uuid
+from typing import Any
 
 from django.db import models
 
@@ -58,7 +60,7 @@ class VersionedModel(models.Model):
     class Meta:
         abstract = True
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         if self.pk and not kwargs.get("force_insert"):
             self.version = models.F("version") + 1
         super().save(*args, **kwargs)

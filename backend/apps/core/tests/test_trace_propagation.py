@@ -10,12 +10,10 @@ correctement restauré côté tâche et que le span de tâche appartient à la
 même trace que le span HTTP simulé.
 """
 
-from opentelemetry import context, propagate, trace
+from opentelemetry import context, propagate
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
-    InMemorySpanExporter,
-)
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
 def test_http_request_and_celery_task_share_one_trace():
@@ -36,7 +34,7 @@ def test_http_request_and_celery_task_share_one_trace():
 
         # 2. Simulation de la publication Celery :
         # CeleryInstrumentor fait propagate.inject(headers).
-        headers = {}
+        headers: dict[str, str] = {}
         propagate.inject(headers)
 
         assert "traceparent" in headers

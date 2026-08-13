@@ -6,6 +6,7 @@ Les adaptateurs concrets vivent dans `apps.core.adapters` ; les sprints
 suivants y ajoutent les implémentations réelles (Stripe, SES, S3, SSM) sans
 jamais modifier ces contrats ni le code qui les consomme.
 """
+
 from .device_lock import DeviceLockBackend
 from .events import EventPublisher
 from .notifications import NotificationSender

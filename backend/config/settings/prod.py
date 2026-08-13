@@ -4,6 +4,7 @@ Settings de production.
 §41 master prompt : aucun secret avec valeur par défaut fonctionnelle ici —
 tout `env()` sans `default=` fait échouer le démarrage si la variable manque.
 """
+
 from .base import *  # noqa: F401,F403
 from .base import env
 
@@ -27,6 +28,8 @@ SPECTACULAR_SETTINGS = {**SPECTACULAR_SETTINGS, "SERVE_PUBLIC": False}  # noqa: 
 # --- Secrets : SsmSecretProvider (implémentation réelle hors périmètre S0 local) ---
 SECRET_PROVIDER_BACKEND = "ssm"
 
-OTEL_TRACES_SAMPLE_RATE = env.float("OTEL_TRACES_SAMPLER_ARG", default=0.2)  # 20% + conservation des erreurs (voir tracing.py)
+OTEL_TRACES_SAMPLE_RATE = env.float(
+    "OTEL_TRACES_SAMPLER_ARG", default=0.2
+)  # 20% + conservation des erreurs (voir tracing.py)
 
 LOGGING["root"]["level"] = "INFO"  # noqa: F405

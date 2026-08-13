@@ -1,7 +1,9 @@
 import json
+import os
 import time
 import uuid
-import os
+from typing import cast
+
 import pytest
 import redis
 from celery import shared_task
@@ -121,14 +123,14 @@ def test_real_http_request_and_real_celery_worker_share_trace():
         raw = redis_client.get(key)
 
         if raw:
-            worker_result = json.loads(raw)
+            # redis-py déclare un retour union (sync/async) : le client est
+            # synchrone ici, la valeur est donc bien des octets.
+            worker_result = json.loads(cast(bytes, raw))
             break
 
         time.sleep(0.1)
 
-    assert worker_result is not None, (
-        "Le worker Celery réel n'a pas écrit le résultat de trace dans Redis."
-    )
+    assert worker_result is not None, "Le worker Celery réel n'a pas écrit le résultat de trace dans Redis."
 
     celery_trace_id = worker_result["trace_id"]
     celery_span_id = worker_result["span_id"]

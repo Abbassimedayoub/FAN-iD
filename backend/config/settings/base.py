@@ -6,6 +6,7 @@ d'environnement critique n'a de valeur par défaut fonctionnelle. `env()` sans
 `default=` lève immédiatement une erreur explicite si la variable manque —
 un défaut silencieux en production est pire qu'un crash au démarrage.
 """
+
 from pathlib import Path
 
 import environ
@@ -139,7 +140,9 @@ CELERY_TASK_DEFAULT_QUEUE = "default"
 
 # --- DRF ---
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],  # deny-by-default, ADR-S-04 règle 1
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated"
+    ],  # deny-by-default, ADR-S-04 règle 1
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
@@ -213,6 +216,13 @@ CELERY_BEAT_SCHEDULE = {
 # --- Secrets (SecretProvider port, §2.3 Source B) ---
 SECRET_PROVIDER_BACKEND = env("SECRET_PROVIDER", default="env")
 SSM_PARAMETER_PREFIX = env("SSM_PARAMETER_PREFIX", default="/fanid/dev/")
+
+# --- django-migration-linter (ADR-S-08) ---
+# Restreint aux apps du projet : l'historique de `django_celery_beat` contient
+# 6 migrations que le linter juge risquées (ADD unique, ALTER COLUMN, DROP
+# COLUMN, NOT NULL). Migrations tierces, non corrigeables — leur présence
+# faisait échouer la porte CI sur du code que nous ne maîtrisons pas (P1-000).
+MIGRATION_LINTER_OPTIONS = {"include_apps": ["core", "identity", "organizing"]}
 
 # --- Health / readiness ---
 HEALTH_DEPENDENCY_TIMEOUT_SECONDS = env.float("HEALTH_DEPENDENCY_TIMEOUT_SECONDS", default=2.0)

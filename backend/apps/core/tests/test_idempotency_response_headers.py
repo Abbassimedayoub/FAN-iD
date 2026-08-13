@@ -2,7 +2,6 @@
 Rejeu des en-têtes de réponse "clés" (P1.A.2 du plan de correction) —
 whitelist REPLAYABLE_RESPONSE_HEADERS, jamais l'intégralité des en-têtes.
 """
-import json
 
 import pytest
 from django.http import JsonResponse
@@ -53,7 +52,10 @@ def test_key_response_headers_are_captured_and_replayed(user):
     assert replay_response["Content-Type"] == "application/json"
     assert replay_response[REPLAYED_MARKER_HEADER] == "true"
     # Le cookie de session ne doit JAMAIS être rejoué — pas dans la whitelist.
-    assert "Set-Cookie" not in replay_response or replay_response.get("Set-Cookie") != "sessionid=should-never-be-replayed"
+    assert (
+        "Set-Cookie" not in replay_response
+        or replay_response.get("Set-Cookie") != "sessionid=should-never-be-replayed"
+    )
 
 
 def test_replayable_headers_whitelist_excludes_session_and_correlation():

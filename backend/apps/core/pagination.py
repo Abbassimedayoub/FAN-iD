@@ -1,4 +1,5 @@
 """Pagination standard (par page) et par curseur (§18 master prompt / §2.2 Source B)."""
+
 from rest_framework.pagination import CursorPagination as DRFCursorPagination
 from rest_framework.pagination import PageNumberPagination
 

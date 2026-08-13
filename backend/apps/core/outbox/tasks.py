@@ -28,11 +28,15 @@ def relay_outbox_batch() -> dict:
 @shared_task(name="core.outbox.purge_published")
 def purge_published_events() -> int:
     """Purge des événements PUBLISHED de plus de OUTBOX_RETENTION_DAYS (§21 master prompt)."""
+    from datetime import timedelta
+
     from django.utils import timezone
 
     from .models import OutboxEvent
 
-    cutoff = timezone.now() - timezone.timedelta(days=settings.OUTBOX_RETENTION_DAYS)
-    deleted, _ = OutboxEvent.objects.filter(status=OutboxEvent.Status.PUBLISHED, published_at__lt=cutoff).delete()
+    cutoff = timezone.now() - timedelta(days=settings.OUTBOX_RETENTION_DAYS)
+    deleted, _ = OutboxEvent.objects.filter(
+        status=OutboxEvent.Status.PUBLISHED, published_at__lt=cutoff
+    ).delete()
     logger.info("outbox_purge_completed", extra={"deleted_count": deleted})
     return deleted

@@ -8,17 +8,17 @@ dict dans liste) — pour ne jamais logguer un token, un mot de passe, une
 graine cryptographique ou une donnée de paiement, même par accident via un
 `extra={"payload": stripe_response}`.
 """
+
 import json
 import logging
 import os
 import re
 from datetime import datetime, timezone
+from typing import Any
 
 from .context import get_correlation_id, get_trace_id
 
-_SENSITIVE_KEY_PATTERN = re.compile(
-    r"(password|token|secret|seed|key|authorization|card)", re.IGNORECASE
-)
+_SENSITIVE_KEY_PATTERN = re.compile(r"(password|token|secret|seed|key|authorization|card)", re.IGNORECASE)
 _REDACTED = "***REDACTED***"
 
 _RESERVED_LOGRECORD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys()) | {
@@ -31,7 +31,7 @@ class SecretRedactor:
     """Masque récursivement les valeurs dont la clé matche le motif sensible."""
 
     @classmethod
-    def redact(cls, value):
+    def redact(cls, value: Any) -> Any:
         if isinstance(value, dict):
             return {
                 k: (_REDACTED if _SENSITIVE_KEY_PATTERN.search(str(k)) else cls.redact(v))

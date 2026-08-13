@@ -6,7 +6,9 @@ l'intérieur de la même transaction que l'écriture métier qui le déclenche.
 On le fait respecter par une assertion — appeler cette fonction hors
 transaction est un bug, pas un cas à tolérer silencieusement.
 """
+
 import logging
+from typing import Any
 
 from django.db import connection
 from django.utils import timezone
@@ -22,10 +24,10 @@ def publish_event(
     *,
     event_type: str,
     aggregate_type: str,
-    aggregate_id,
+    aggregate_id: Any,
     payload: dict,
-    actor_id=None,
-    causation_id=None,
+    actor_id: Any = None,
+    causation_id: Any = None,
     event_version: int = 1,
 ) -> OutboxEvent:
     """

@@ -13,6 +13,7 @@ du strict socle Django `AbstractUser` + PK UUID (cohérent avec `UUIDModel`,
 §16 master prompt) : pas de rôle, pas d'appareil, pas de session, pas de MFA.
 Role / Device / Session / MFAChallenge / Organizer sont posés au Sprint 1.
 """
+
 import uuid
 
 from django.contrib.auth.models import AbstractUser

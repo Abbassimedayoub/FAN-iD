@@ -7,13 +7,16 @@ Position imposée (§2.5 Source B / §33 master prompt) : APRÈS
 partageant la même clé se voleraient mutuellement leurs réponses — faille de
 fuite de données inter-comptes explicitement identifiée par Source B.
 """
+
 import json
 import logging
+from collections.abc import Callable
 
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 
 from apps.core.exceptions import BusinessError
 from apps.core.handlers import _error_body
+from apps.core.http import FanIdRequest
 
 from . import service
 
@@ -32,10 +35,10 @@ REPLAYED_MARKER_HEADER = "Idempotency-Replayed"
 
 
 class IdempotencyMiddleware:
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[FanIdRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
-    def __call__(self, request):
+    def __call__(self, request: FanIdRequest) -> HttpResponse:
         key = request.META.get(IDEMPOTENCY_KEY_HEADER)
 
         if request.method not in _MUTATING_METHODS or not key:
@@ -58,9 +61,7 @@ class IdempotencyMiddleware:
                 request_hash=request_hash,
             )
         except BusinessError as exc:
-            return JsonResponse(
-                _error_body(exc.code, exc.message, exc.details), status=exc.status_code
-            )
+            return JsonResponse(_error_body(exc.code, exc.message, exc.details), status=exc.status_code)
 
         if outcome.replayed:
             body = outcome.record.response_body

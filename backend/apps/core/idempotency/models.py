@@ -7,6 +7,7 @@ L'INSERTION elle-même sert de verrou distribué via la contrainte
 "quelqu'un traite déjà cette clé" — jamais de SELECT-puis-INSERT (fenêtre de
 course), voir `service.py`.
 """
+
 import uuid
 
 from django.conf import settings
@@ -21,7 +22,9 @@ class IdempotencyRecord(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     key = models.CharField(max_length=64)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="idempotency_records")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="idempotency_records"
+    )
     endpoint = models.CharField(max_length=120)
     request_hash = models.CharField(max_length=64)  # SHA-256 hexdigest
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.IN_PROGRESS)
@@ -37,14 +40,14 @@ class IdempotencyRecord(models.Model):
     expires_at = models.DateTimeField()
 
     class Meta:
-        app_label = "core"  # rattaché aux migrations de l'app `core` (Source B §3.1 : core/migrations/0001_infrastructure.py)
+        # Rattaché aux migrations de l'app `core`
+        # (Source B §3.1 : core/migrations/0001_infrastructure.py).
+        app_label = "core"
         db_table = "idempotency_record"
         constraints = [
             models.UniqueConstraint(fields=["key", "user"], name="uq_idempotency_key_user"),
             models.CheckConstraint(
-                check=models.Q(
-    status__in=["IN_PROGRESS", "COMPLETED", "FAILED"]
-),
+                condition=models.Q(status__in=["IN_PROGRESS", "COMPLETED", "FAILED"]),
                 name="ck_idempotency_status_valid",
             ),
         ]
@@ -52,5 +55,5 @@ class IdempotencyRecord(models.Model):
             models.Index(fields=["expires_at"], name="ix_idempotency_expires_at"),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"IdempotencyRecord({self.key}, user={self.user_id}, status={self.status})"

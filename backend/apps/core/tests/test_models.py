@@ -1,7 +1,7 @@
 """Tests unitaires des modèles de base (§55 master prompt)."""
+
 import uuid
 
-import pytest
 from django.db import models
 
 from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
@@ -27,6 +27,7 @@ class _DummyVersionedModel(VersionedModel):
     class Meta:
         app_label = "core"
         managed = False
+
 
 def test_uuid_model_generates_uuid4_pk():
     instance = _DummyUUIDModel()
@@ -63,8 +64,11 @@ def test_versioned_model_save_uses_f_expression_when_updating():
     # avant l'appel réel à la base — on vérifie l'expression sans DB réelle.
     import unittest.mock as mock
 
-    with mock.patch("apps.core.models.models.Model.save"), mock.patch.object(
-        _DummyVersionedModel, "refresh_from_db"
+    with (
+        mock.patch("apps.core.models.models.Model.save"),
+        mock.patch.object(_DummyVersionedModel, "refresh_from_db"),
     ):
         instance.save()
-    assert hasattr(instance.version, "connector") or isinstance(instance.version, models.expressions.CombinedExpression)
+    assert hasattr(instance.version, "connector") or isinstance(
+        instance.version, models.expressions.CombinedExpression
+    )

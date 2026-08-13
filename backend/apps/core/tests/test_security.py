@@ -3,6 +3,7 @@ Tests sécurité (§60 master prompt / §6.1 Source B) : configuration de
 production sans avertissement, en-têtes de sécurité présents, aucun secret
 loggué par la suite de tests elle-même.
 """
+
 import importlib
 import logging
 
@@ -46,10 +47,7 @@ def test_dev_env_example_never_contains_a_real_looking_secret():
 
     candidates = [
         Path("/config/.env.example"),
-        *(
-            parent / ".env.example"
-            for parent in Path(__file__).resolve().parents
-        ),
+        *(parent / ".env.example" for parent in Path(__file__).resolve().parents),
     ]
 
     env_example = next(
@@ -57,9 +55,7 @@ def test_dev_env_example_never_contains_a_real_looking_secret():
         None,
     )
 
-    assert env_example is not None, (
-        ".env.example introuvable depuis le contexte de test"
-    )
+    assert env_example is not None, ".env.example introuvable depuis le contexte de test"
 
     content = env_example.read_text()
 
@@ -70,9 +66,9 @@ def test_dev_env_example_never_contains_a_real_looking_secret():
     ]
 
     for pattern in forbidden_patterns:
-        assert pattern not in content, (
-            f"motif de secret réel potentiel trouvé : {pattern}"
-        )
+        assert pattern not in content, f"motif de secret réel potentiel trouvé : {pattern}"
+
+
 def test_no_secret_pattern_leaks_through_the_logging_pipeline_end_to_end(caplog):
     """
     Parcourt les lignes produites par le pipeline de logging complet
@@ -85,8 +81,13 @@ def test_no_secret_pattern_leaks_through_the_logging_pipeline_end_to_end(caplog)
     formatter = JsonFormatter()
     secret_value = "sk_test_do_not_leak_me_0000000000"
     record = logging.LogRecord(
-        name="fanid.test", level=logging.INFO, pathname=__file__, lineno=1,
-        msg="payment_intent_created", args=(), exc_info=None,
+        name="fanid.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="payment_intent_created",
+        args=(),
+        exc_info=None,
     )
     record.stripe_secret_key = secret_value
     record.nested = {"authorization": f"Bearer {secret_value}"}

@@ -83,7 +83,7 @@ jobs:
 
       # --- Porte 6 : architecture (import-linter) ---
       - name: import-linter (core indépendant, pas de dépendance circulaire)
-        run: lint-imports
+        run: lint-imports --config=../.importlinter
 
       # --- Porte 7 : sécurité ---
       - name: Bandit (haute sévérité)

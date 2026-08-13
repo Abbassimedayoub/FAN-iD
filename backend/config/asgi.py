@@ -5,6 +5,7 @@ Les routes WebSocket métier seront ajoutées par `apps.realtime` aux sprints
 suivants ; le Sprint 0 ne fait que préparer le routage (§1 master prompt :
 "WebSocket doit être préparé", pas implémenté).
 """
+
 import os
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")

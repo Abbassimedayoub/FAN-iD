@@ -2,12 +2,13 @@
 Endpoints plateforme du Sprint 0 (§34-36 master prompt, §3.2 Source B) :
 liveness, readiness. `/metrics` est servi par django-prometheus (urls.py).
 """
+
 import logging
 import time
 
 from django.conf import settings
 from django.db import connections
-from django.http import JsonResponse
+from django.http import HttpRequest, JsonResponse
 from django.views import View
 
 _START_TIME = time.monotonic()
@@ -23,6 +24,29 @@ logger = logging.getLogger("fanid.health")
 _GENERIC_UNAVAILABLE_DETAIL = "dépendance indisponible — voir les journaux serveur pour le détail"
 
 
+def libpq_connect_timeout(timeout: float) -> int:
+    """
+    Normalise un délai de garde applicatif (float, secondes) vers ce que libpq
+    accepte réellement pour `connect_timeout`.
+
+    Deux contraintes de libpq, toutes deux silencieuses — défaut révélé par le
+    premier passage réel de mypy sur ce dépôt (P1-000) :
+
+    1. La valeur doit être un ENTIER décimal de secondes. Vérifié : libpq 16
+       rejette `connect_timeout=2.0` avec « invalid integer value ». Un float
+       ne survit ici que grâce à une coercition implicite de psycopg — s'y
+       fier est fragile, et une troncature `int()` arrondit vers le bas.
+    2. Le plancher est de 2 secondes, et la valeur 0 signifie pour libpq
+       « attendre INDÉFINIMENT ». Une configuration à 0.5 produirait donc une
+       sonde SANS AUCUN délai de garde : l'exact inverse de l'exigence §36, et
+       un incident invisible tant que la base répond.
+
+    On borne donc explicitement à un entier >= 2 plutôt que de déléguer à une
+    conversion implicite.
+    """
+    return max(2, int(round(timeout)))
+
+
 class HealthView(View):
     """
     Liveness — vérifie uniquement que le processus répond. NE dépend
@@ -31,7 +55,7 @@ class HealthView(View):
     panne, ce qui aggrave l'incident.
     """
 
-    def get(self, request):
+    def get(self, request: HttpRequest) -> JsonResponse:
         return JsonResponse(
             {
                 "status": "ok",
@@ -48,7 +72,7 @@ class ReadinessView(View):
     sonde (§36 master prompt).
     """
 
-    def get(self, request):
+    def get(self, request: HttpRequest) -> JsonResponse:
         timeout = settings.HEALTH_DEPENDENCY_TIMEOUT_SECONDS
         checks = {
             "database": self._check_database(timeout),
@@ -105,7 +129,9 @@ class ReadinessView(View):
             statement_timeout_ms = max(int(timeout * 1000), 1)
             params["options"] = f"{existing_options} -c statement_timeout={statement_timeout_ms}".strip()
 
-            with psycopg.connect(connect_timeout=timeout, **params) as probe_connection:
+            with psycopg.connect(
+                connect_timeout=libpq_connect_timeout(timeout), **params
+            ) as probe_connection:
                 with probe_connection.cursor() as cursor:
                     cursor.execute("SELECT 1")
                     cursor.fetchone()

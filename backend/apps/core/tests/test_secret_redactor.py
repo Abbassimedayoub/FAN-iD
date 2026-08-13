@@ -1,4 +1,5 @@
 """SecretRedactor : masque tous les motifs, y compris imbriqués (§55 master prompt)."""
+
 import json
 import logging
 

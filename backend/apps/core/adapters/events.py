@@ -52,7 +52,7 @@ class UnimplementedEventPublisher(EventPublisher):
 class RecordingPublisher(EventPublisher):
     """Tests — capture les événements publiés pour assertion, sans effet de bord."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.published: list[dict] = []
 
     def publish(self, event: dict) -> None:

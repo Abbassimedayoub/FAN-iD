@@ -2,6 +2,7 @@
 Tables `outbox_event` et `consumed_event` (§21/§22 master prompt, §3.1 Source B,
 ADR-S-03). Garantissent l'invariant I-5 : aucun effet de bord validé n'est perdu.
 """
+
 import uuid
 
 from django.db import models
@@ -46,11 +47,9 @@ class OutboxEvent(models.Model):
         app_label = "core"
         db_table = "outbox_event"
         constraints = [
-            models.CheckConstraint(check=models.Q(attempts__gte=0), name="ck_outbox_attempts_nonneg"),
+            models.CheckConstraint(condition=models.Q(attempts__gte=0), name="ck_outbox_attempts_nonneg"),
             models.CheckConstraint(
-                check=models.Q(
-    status__in=["PENDING", "PUBLISHED", "FAILED", "DEAD"]
-),
+                condition=models.Q(status__in=["PENDING", "PUBLISHED", "FAILED", "DEAD"]),
                 name="ck_outbox_status_valid",
             ),
         ]
@@ -73,7 +72,7 @@ class OutboxEvent(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"OutboxEvent({self.event_type}, status={self.status}, attempts={self.attempts})"
 
 

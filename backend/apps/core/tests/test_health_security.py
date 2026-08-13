@@ -4,6 +4,7 @@ dans /health/ready (aucun test ici ne nécessite une vraie base : psycopg est
 mocké pour observer précisément les paramètres passés et le comportement en
 cas d'échec).
 """
+
 from unittest import mock
 
 from apps.core.views import ReadinessView
@@ -16,9 +17,10 @@ def test_check_database_applies_real_connect_and_statement_timeout():
     fake_cursor.__enter__.return_value = fake_cursor
     fake_connection.cursor.return_value = fake_cursor
 
-    with mock.patch("apps.core.views.connections") as mocked_connections, mock.patch(
-        "psycopg.connect", return_value=fake_connection
-    ) as mocked_connect:
+    with (
+        mock.patch("apps.core.views.connections") as mocked_connections,
+        mock.patch("psycopg.connect", return_value=fake_connection) as mocked_connect,
+    ):
         mocked_connections.__getitem__.return_value.get_connection_params.return_value = {
             "host": "postgres",
             "dbname": "fanid",
@@ -33,10 +35,14 @@ def test_check_database_applies_real_connect_and_statement_timeout():
 
 
 def test_check_database_never_leaks_exception_text_to_response():
-    sensitive_message = "connection to server at postgres-internal-host.vpc failed: password authentication failed for user fanid_prod"
+    sensitive_message = (
+        "connection to server at postgres-internal-host.vpc failed: "
+        "password authentication failed for user fanid_prod"
+    )
 
-    with mock.patch("apps.core.views.connections") as mocked_connections, mock.patch(
-        "psycopg.connect", side_effect=RuntimeError(sensitive_message)
+    with (
+        mock.patch("apps.core.views.connections") as mocked_connections,
+        mock.patch("psycopg.connect", side_effect=RuntimeError(sensitive_message)),
     ):
         mocked_connections.__getitem__.return_value.get_connection_params.return_value = {}
 
@@ -71,7 +77,10 @@ def test_check_celery_never_leaks_exception_text_to_response():
 
 
 def test_check_celery_no_heartbeat_is_a_safe_fixed_string_not_removed():
-    """Le message fixe 'no heartbeat' n'est pas dérivé d'une exception — il reste (§P1.B.2, pas une sur-correction)."""
+    """Le message fixe 'no heartbeat' n'est pas dérivé d'une exception.
+
+    Il est donc conservé (§P1.B.2) : ce n'est pas une sur-correction.
+    """
     with mock.patch("config.celery.app") as mocked_app:
         mocked_app.control.ping.return_value = []
         result = ReadinessView._check_celery(timeout=2.0)

@@ -10,7 +10,7 @@ class FakeGateway(PaymentGateway):
     (`StripeGateway`) livrée au Sprint 3 avec la logique d'achat.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.created_intents: list[dict] = []
 
     def create_intent(self, amount_cents: int, currency: str, metadata: dict) -> Any:

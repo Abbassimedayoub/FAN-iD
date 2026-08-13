@@ -6,6 +6,7 @@ Nécessite une vraie base PostgreSQL (voir docker-compose.yml) : ces tests
 s'exécutent via `docker compose exec api pytest`, pas dans ce sandbox sans
 réseau/Docker (voir SPRINT_TEST_REPORT.md).
 """
+
 from unittest import mock
 
 import pytest

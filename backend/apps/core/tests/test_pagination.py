@@ -1,4 +1,5 @@
 """Pagination par curseur : stabilité de l'ordre même à timestamps égaux (§55)."""
+
 from apps.core.pagination import CursorPagination, StandardPagination
 
 

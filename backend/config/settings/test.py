@@ -8,6 +8,7 @@ Différences volontaires par rapport à dev :
   appelées, pas via l'exécution "magique" synchrone qui masquerait des bugs
   de sérialisation ou de propagation de traceparent (§2.4 Source B).
 """
+
 from .base import *  # noqa: F401,F403
 from .base import env
 

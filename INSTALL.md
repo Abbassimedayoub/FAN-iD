@@ -56,6 +56,15 @@ python manage.py runserver
 
 ## 5. Tests
 
+> **Hors Docker**, la suite exige que `DATABASE_URL`/`REDIS_URL` pointent vers
+> `localhost` sur les ports publiés par le compose — les noms d'hôtes Docker du
+> `.env` ne résolvent pas depuis la machine hôte :
+>
+> ```bash
+> docker compose up -d postgres redis
+> cp .env.local.example .env.local && set -a && . ./.env.local && set +a
+> ```
+
 ```bash
 cd backend
 pytest                       # unitaires + intégration + concurrence, couverture >= 80% sur core

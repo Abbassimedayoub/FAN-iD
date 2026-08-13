@@ -6,6 +6,7 @@ doublon (validation de SKIP LOCKED) ; échec 5 fois ⇒ DEAD + métrique.
 Nécessite PostgreSQL réel (SKIP LOCKED, contraintes CHECK) — voir
 SPRINT_TEST_REPORT.md pour la commande d'exécution.
 """
+
 import threading
 import uuid
 
@@ -46,6 +47,7 @@ def test_publish_event_requires_active_transaction():
             aggregate_id=uuid.uuid4(),
             payload={},
         )
+
 
 @pytest.mark.django_db
 def test_rolled_back_transaction_publishes_no_event():
@@ -89,7 +91,10 @@ def test_relay_dispatches_pending_event_to_matching_consumer():
     try:
         with transaction.atomic():
             event = publish_event(
-                event_type="test.event", aggregate_type="test_aggregate", aggregate_id=uuid.uuid4(), payload={}
+                event_type="test.event",
+                aggregate_type="test_aggregate",
+                aggregate_id=uuid.uuid4(),
+                payload={},
             )
         result = relay.relay_batch(batch_size=10)
 
@@ -113,7 +118,10 @@ def test_two_concurrent_relays_never_process_same_event_twice():
     with transaction.atomic():
         for _ in range(10):
             event = publish_event(
-                event_type="test.event", aggregate_type="test_aggregate", aggregate_id=uuid.uuid4(), payload={}
+                event_type="test.event",
+                aggregate_type="test_aggregate",
+                aggregate_id=uuid.uuid4(),
+                payload={},
             )
             event_ids.append(event.id)
 
@@ -154,7 +162,10 @@ def test_event_failing_five_times_becomes_dead(settings):
     try:
         with transaction.atomic():
             event = publish_event(
-                event_type="test.poison", aggregate_type="test_aggregate", aggregate_id=uuid.uuid4(), payload={}
+                event_type="test.poison",
+                aggregate_type="test_aggregate",
+                aggregate_id=uuid.uuid4(),
+                payload={},
             )
 
         for attempt in range(1, 6):
@@ -181,6 +192,7 @@ def test_consumed_event_primary_key_deduplicates():
 
     with pytest.raises(IntegrityError):
         ConsumedEvent.objects.create(consumer_name="c1", event_id=event_id)
+
 
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_relays_one_event_is_processed_exactly_once():
@@ -250,6 +262,7 @@ def test_two_concurrent_relays_one_event_is_processed_exactly_once():
     finally:
         relay._CONSUMER_REGISTRY.clear()
 
+
 @pytest.mark.django_db
 def test_same_event_can_be_consumed_independently_by_two_consumers():
     event_id = uuid.uuid4()
@@ -264,9 +277,13 @@ def test_same_event_can_be_consumed_independently_by_two_consumers():
         event_id=event_id,
     )
 
-    assert ConsumedEvent.objects.filter(
-        event_id=event_id,
-    ).count() == 2
+    assert (
+        ConsumedEvent.objects.filter(
+            event_id=event_id,
+        ).count()
+        == 2
+    )
+
 
 @pytest.mark.django_db
 def test_dead_event_updates_fanid_outbox_dead_metric(settings):

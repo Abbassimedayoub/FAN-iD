@@ -16,7 +16,10 @@ direct — voir la règle absolue et le mécanisme `BaseConsumer.defer()` dans
 Backoff exponentiel (2s, 8s, 32s, 2min, 8min) puis `DEAD` après 5 tentatives
 — jamais de rejeu infini (§21 master prompt).
 """
+
 import logging
+from datetime import timedelta
+from typing import Any
 
 from django.conf import settings
 from django.db import transaction
@@ -33,7 +36,7 @@ logger = logging.getLogger("fanid.outbox")
 _CONSUMER_REGISTRY: list = []
 
 
-def register_consumer(consumer) -> None:
+def register_consumer(consumer: Any) -> None:
     _CONSUMER_REGISTRY.append(consumer)
 
 
@@ -105,7 +108,7 @@ def _mark_failed_or_dead(event: OutboxEvent, exc: Exception) -> None:
     else:
         delay = backoff_schedule[min(event.attempts - 1, len(backoff_schedule) - 1)]
         event.status = OutboxEvent.Status.FAILED
-        event.available_at = timezone.now() + timezone.timedelta(seconds=delay)
+        event.available_at = timezone.now() + timedelta(seconds=delay)
         logger.warning(
             "outbox_event_retry_scheduled",
             extra={"event_id": str(event.id), "attempts": event.attempts, "delay_seconds": delay},

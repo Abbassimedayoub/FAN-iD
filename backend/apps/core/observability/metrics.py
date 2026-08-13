@@ -9,23 +9,22 @@ Source B §5.3) mais restent à zéro jusqu'à ce que les sprints correspondants
 appellent réellement `.inc()` depuis du code métier réel — ce ne sont PAS des
 compteurs factices pour "faire joli" sur un dashboard.
 """
-import time
 
+import time
+from collections.abc import Callable
+
+from django.http import HttpRequest, HttpResponse
 from prometheus_client import Counter, Gauge, Histogram
 
 # --- RED : Rate, Errors, Duration (par endpoint) ---
-http_requests_total = Counter(
-    "http_requests_total", "Nombre de requêtes HTTP", ["method", "route", "status"]
-)
+http_requests_total = Counter("http_requests_total", "Nombre de requêtes HTTP", ["method", "route", "status"])
 http_request_duration_seconds = Histogram(
     "http_request_duration_seconds",
     "Durée des requêtes HTTP",
     ["method", "route"],
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
 )
-http_requests_in_flight = Gauge(
-    "http_requests_in_flight", "Requêtes HTTP en cours de traitement", ["route"]
-)
+http_requests_in_flight = Gauge("http_requests_in_flight", "Requêtes HTTP en cours de traitement", ["route"])
 
 # --- USE : Utilization, Saturation, Errors (par ressource) ---
 db_connections_active = Gauge("db_connections_active", "Connexions PostgreSQL actives")
@@ -50,9 +49,7 @@ fanid_scan_total = Counter("fanid_scan_total", "Scans de billets", ["result", "r
 fanid_scan_duration_seconds = Histogram("fanid_scan_duration_seconds", "Durée de validation d'un scan")
 fanid_purchase_total = Counter("fanid_purchase_total", "Achats", ["status"])
 fanid_stock_hold_active = Gauge("fanid_stock_hold_active", "Réservations de stock actives")
-fanid_totp_verification_total = Counter(
-    "fanid_totp_verification_total", "Vérifications TOTP", ["result"]
-)
+fanid_totp_verification_total = Counter("fanid_totp_verification_total", "Vérifications TOTP", ["result"])
 
 
 class MetricsMiddleware:
@@ -62,10 +59,10 @@ class MetricsMiddleware:
     de middlewares en amont.
     """
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
-    def __call__(self, request):
+    def __call__(self, request: HttpRequest) -> HttpResponse:
         route = self._route_template(request)
         http_requests_in_flight.labels(route=route).inc()
         start = time.monotonic()
@@ -80,7 +77,7 @@ class MetricsMiddleware:
         return response
 
     @staticmethod
-    def _route_template(request) -> str:
+    def _route_template(request: HttpRequest) -> str:
         match = getattr(request, "resolver_match", None)
         if match is not None and getattr(match, "route", None):
             return match.route

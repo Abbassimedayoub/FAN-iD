@@ -6,6 +6,7 @@ Appelé une seule fois au démarrage du processus (voir `apps/core/apps.py`
 `ready()` — PAS ici au niveau module, pour éviter une double instrumentation
 sous le rechargeur de développement Django, qui importe les modules deux fois).
 """
+
 import logging
 
 logger = logging.getLogger("fanid.observability")

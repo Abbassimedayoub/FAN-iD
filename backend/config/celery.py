@@ -47,9 +47,7 @@ _celery_imports = [
 ]
 
 if os.environ.get("FANID_IMPORT_TEST_TASKS") == "1":
-    _celery_imports.append(
-        "apps.core.tests.test_trace_http_celery_real"
-    )
+    _celery_imports.append("apps.core.tests.test_trace_http_celery_real")
 
 app.conf.imports = tuple(_celery_imports)
 

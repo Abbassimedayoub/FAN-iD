@@ -7,8 +7,8 @@ de garde.
 Nécessite PostgreSQL réel pour une vraie concurrence multi-connexion (§62
 master prompt) — voir SPRINT_TEST_REPORT.md pour la commande d'exécution.
 """
+
 import threading
-import time
 from datetime import timedelta
 
 import pytest
@@ -30,13 +30,15 @@ def test_five_concurrent_requests_same_key_yield_one_execution(user):
     deuxième exécution réelle.
     """
     key = "purchase-key-concurrent-1"
-    results = []
+    results: list[tuple[str, bool | None]] = []
     lock = threading.Lock()
 
     def worker():
         connections.close_all()  # chaque thread a sa propre connexion DB
         try:
-            outcome = service.begin(key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="h1")
+            outcome = service.begin(
+                key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="h1"
+            )
             with lock:
                 results.append(("ok", outcome.replayed))
         except exceptions.RequestInProgressError:
@@ -61,7 +63,9 @@ def test_five_concurrent_requests_same_key_yield_one_execution(user):
 @pytest.mark.django_db
 def test_same_key_different_body_is_rejected(user):
     key = "purchase-key-2"
-    outcome = service.begin(key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a")
+    outcome = service.begin(
+        key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a"
+    )
     service.complete(outcome.record, response_status=201, response_body={"order_id": "1"})
 
     with pytest.raises(exceptions.IdempotencyKeyReuseError) as exc_info:
@@ -73,10 +77,14 @@ def test_same_key_different_body_is_rejected(user):
 @pytest.mark.django_db
 def test_same_key_same_body_replays_completed_response(user):
     key = "purchase-key-3"
-    outcome = service.begin(key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a")
+    outcome = service.begin(
+        key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a"
+    )
     service.complete(outcome.record, response_status=201, response_body={"order_id": "42"})
 
-    replayed = service.begin(key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a")
+    replayed = service.begin(
+        key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="hash-a"
+    )
 
     assert replayed.replayed is True
     assert replayed.record.response_body == {"order_id": "42"}
@@ -113,9 +121,7 @@ def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settin
     )
 
     # Simule un enregistrement verrouillé il y a plus de 60 secondes.
-    IdempotencyRecord.objects.filter(pk=record.pk).update(
-        locked_at=timezone.now() - timedelta(seconds=61)
-    )
+    IdempotencyRecord.objects.filter(pk=record.pk).update(locked_at=timezone.now() - timedelta(seconds=61))
 
     # Vérifie que la récupération de l'orphelin génère bien un WARNING.
     with patch("apps.core.idempotency.service.logger.warning") as warning_mock:
@@ -131,6 +137,8 @@ def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settin
 
     warning_mock.assert_called_once()
     assert warning_mock.call_args.args[0] == "idempotency_orphan_recovered"
+
+
 @pytest.mark.django_db
 def test_key_is_scoped_per_user_not_global(user, other_user):
     """Deux utilisateurs différents peuvent utiliser la même clé sans interférence."""

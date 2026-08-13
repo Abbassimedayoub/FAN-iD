@@ -10,6 +10,7 @@ sans accès réseau, qui détecte au moins les champs manquants/en trop entre
 `models.py` et la migration correspondante, via une analyse AST du code
 source (aucune exécution, aucun import Django).
 """
+
 from __future__ import annotations
 
 import ast
@@ -138,7 +139,9 @@ def main() -> int:
             extra_in_migration = actual - expected
 
             status = "OK" if not missing_in_migration and not extra_in_migration else "MISMATCH"
-            print(f"[{status}] {model_name} ({models_path.relative_to(BACKEND_DIR)} vs {migration_path.name})")
+            print(
+                f"[{status}] {model_name} ({models_path.relative_to(BACKEND_DIR)} vs {migration_path.name})"
+            )
             if missing_in_migration:
                 print(f"    manquant dans la migration : {sorted(missing_in_migration)}")
                 exit_code = 1

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Utilitaire de ligne de commande Django."""
+
 import os
 import sys
 
@@ -9,9 +10,7 @@ def main():
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
-        raise ImportError(
-            "Django n'est pas installé ou l'environnement virtuel n'est pas activé."
-        ) from exc
+        raise ImportError("Django n'est pas installé ou l'environnement virtuel n'est pas activé.") from exc
     execute_from_command_line(sys.argv)
 
 

@@ -21,10 +21,12 @@ Règles fines (§3.1 Source B / §20 master prompt) :
   `locked_at` + 60s dépassé) ⇒ reprise, avec log WARNING.
 - L'INSERTION est le verrou : pas de SELECT puis INSERT (fenêtre de course).
 """
+
 import hashlib
 import json
 import logging
 from datetime import timedelta
+from typing import Any
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -57,7 +59,7 @@ def _is_orphaned(record: IdempotencyRecord) -> bool:
 
 
 @transaction.atomic
-def begin(*, key: str, user_id, endpoint: str, request_hash: str) -> IdempotencyOutcome:
+def begin(*, key: str, user_id: Any, endpoint: str, request_hash: str) -> IdempotencyOutcome:
     """
     Démarre (ou rejoue) une opération idempotente.
 
@@ -143,7 +145,7 @@ def complete(
     record: IdempotencyRecord,
     *,
     response_status: int,
-    response_body,
+    response_body: Any,
     response_headers: dict | None = None,
 ) -> None:
     """
@@ -171,5 +173,5 @@ def purge_expired() -> int:
     return deleted
 
 
-def serialize_response_body(data) -> bytes:
+def serialize_response_body(data: Any) -> bytes:
     return json.dumps(data, default=str).encode()

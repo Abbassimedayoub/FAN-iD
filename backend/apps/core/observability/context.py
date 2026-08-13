@@ -7,7 +7,9 @@ Celery publiée depuis la vue (lit pour transmettre le correlation_id en tant
 qu'attribut d'événement Outbox — pas le traceparent, qui est un mécanisme OTel
 séparé, cf. config/celery.py).
 """
+
 from contextvars import ContextVar, Token
+
 _correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 
 CORRELATION_ID_HEADER = "X-Correlation-ID"
@@ -15,8 +17,11 @@ CORRELATION_ID_HEADER = "X-Correlation-ID"
 
 def set_correlation_id(value: str | None) -> Token:
     return _correlation_id.set(value)
+
+
 def reset_correlation_id(token: Token) -> None:
     _correlation_id.reset(token)
+
 
 def get_correlation_id() -> str | None:
     return _correlation_id.get()
