@@ -44,3 +44,23 @@ def user_registered_payload(*, role_name: str) -> dict[str, Any]:
     peut apparaitre.
     """
     return {"role": role_name}
+
+
+#: Emis a chaque ouverture de session reussie. Consomme au Sprint 4 par
+#: `notifying` pour l alerte « nouvelle connexion ».
+USER_LOGGED_IN: Final = "identity.user.logged_in"
+
+
+def user_logged_in_payload(*, role_name: str, device_bound: bool) -> dict[str, Any]:
+    """
+    Charge utile de `identity.user.logged_in` v1.
+
+    Ni adresse IP, ni `User-Agent`, ni empreinte. Ces elements existent sur la
+    ligne `session` — a laquelle `aggregate_id` donne acces — et les recopier
+    dans une `outbox` conservee 30 jours et relayee vers un courtier les
+    dupliquerait hors du perimetre que l anonymisation RGPD sait atteindre.
+
+    `device_bound` suffit au consommateur : une connexion depuis un appareil
+    nouvellement lie merite une notification, les autres non.
+    """
+    return {"role": role_name, "device_bound": device_bound}

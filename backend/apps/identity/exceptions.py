@@ -114,3 +114,24 @@ class DeviceMismatchError(AuthError):
 
     default_code = "DEVICE_MISMATCH"
     default_message = "Ce jeton ne provient pas de l appareil associe au compte."
+
+
+class InvalidCredentialsError(AuthError):
+    """
+    401 — adresse inconnue, mot de passe faux, ou compte desactive.
+
+    **Un seul code pour les trois**, et c est le point le plus important de ce
+    fichier. Distinguer « adresse inconnue » de « mot de passe faux » donnerait
+    a un attaquant un oracle d existence : il enumererait les comptes sans
+    jamais deviner un mot de passe.
+
+    Un motif distinct pour « compte desactive » serait pire encore : il
+    confirmerait a la fois que l adresse existe ET que le mot de passe a ete
+    devine.
+
+    Le corps identique ne suffit pas : le TEMPS de reponse doit l etre aussi.
+    Voir `AuthenticationService._verify_credentials` et son hachage factice.
+    """
+
+    default_code = "INVALID_CREDENTIALS"
+    default_message = "Adresse ou mot de passe incorrect."
