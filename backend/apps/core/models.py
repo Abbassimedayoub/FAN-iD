@@ -61,10 +61,16 @@ class VersionedModel(models.Model):
         abstract = True
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        if self.pk and not kwargs.get("force_insert"):
+        # self.pk ne dit PAS si la ligne existe deja : toutes les PK du projet
+        # sont des UUID avec default=uuid.uuid4, donc pk est renseignee AVANT le
+        # premier INSERT. Le test initial incrementait donc la version a l INSERT,
+        # ce que Django refuse : F() est reserve a l UPDATE. _state.adding est le
+        # signal que Django lui-meme utilise pour choisir entre INSERT et UPDATE.
+        is_update = not self._state.adding and not kwargs.get("force_insert")
+        if is_update:
             self.version = models.F("version") + 1
         super().save(*args, **kwargs)
-        if self.pk:
+        if is_update:
             self.refresh_from_db(fields=["version"])
 
 

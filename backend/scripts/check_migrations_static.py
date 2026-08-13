@@ -30,6 +30,13 @@ def _field_names_from_class(class_node: ast.ClassDef) -> set[str]:
             # Ne garder que les assignations qui ressemblent à un champ Django
             # (appel de fonction, ex. models.CharField(...), TextChoices exclu).
             if isinstance(node.value, ast.Call):
+                callee = node.value.func
+                callee_name = callee.attr if isinstance(callee, ast.Attribute) else getattr(callee, "id", "")
+                # `objects = UserManager()` n'est PAS un champ : un manager ou un
+                # queryset est un attribut de classe, absent des migrations. Sans
+                # cette exclusion, le vérificateur le signalerait comme manquant.
+                if callee_name.endswith(("Manager", "QuerySet")):
+                    continue
                 names.add(target)
     return names
 
@@ -48,6 +55,13 @@ def extract_model_fields(models_path: Path) -> dict[str, set[str]]:
 
 
 def extract_migration_fields(migration_path: Path) -> dict[str, set[str]]:
+    """Champs d'un fichier de migration : CreateModel ET AddField.
+
+    Depuis le Sprint 1, un modèle n'est plus décrit par sa seule migration
+    initiale : `identity.User` reçoit ses champs métier par `AddField` dans
+    `0002`/`0004`. Ne lire que `CreateModel` ferait signaler comme manquants
+    des champs parfaitement migrés.
+    """
     tree = ast.parse(migration_path.read_text(encoding="utf-8"))
     result: dict[str, set[str]] = {}
     for node in ast.walk(tree):
@@ -72,14 +86,37 @@ def extract_migration_fields(migration_path: Path) -> dict[str, set[str]]:
                     if isinstance(first, ast.Constant):
                         names.add(first.value)
             result[model_name] = names
+
+        # `AddField(model_name="user", name="date_of_birth", ...)` — le nom du
+        # modèle y est en minuscules, d'où la normalisation à la comparaison.
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "AddField"
+        ):
+            model_name = None
+            field_name = None
+            for kw in node.keywords:
+                if kw.arg == "model_name" and isinstance(kw.value, ast.Constant):
+                    model_name = str(kw.value.value)
+                if kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                    field_name = str(kw.value.value)
+            if model_name and field_name:
+                result.setdefault(model_name, set()).add(field_name)
     return result
 
 
+# Un modèle peut être décrit par PLUSIEURS migrations : on compare aux champs
+# cumulés de toutes celles listées.
 CHECKS = [
     (
         BACKEND_DIR / "apps/identity/models.py",
-        BACKEND_DIR / "apps/identity/migrations/0001_initial.py",
-        {"User": "User"},
+        [
+            BACKEND_DIR / "apps/identity/migrations/0001_initial.py",
+            BACKEND_DIR / "apps/identity/migrations/0002_role_and_user_identity.py",
+            BACKEND_DIR / "apps/identity/migrations/0004_user_role.py",
+        ],
+        {"User": "User", "Role": "Role"},
     ),
     (
         BACKEND_DIR / "apps/core/idempotency/models.py",
@@ -96,7 +133,7 @@ CHECKS = [
 # Champs hérités de AbstractUser que le modèle `identity.User` ne redéclare
 # pas explicitement dans son corps de classe (ils viennent de la classe
 # parente Python) mais qui DOIVENT être présents dans la migration.
-IMPLICIT_PK_FIELDS = {
+IMPLICIT_PK_FIELDS: dict[str, set[str]] = {
     # Modèles dont le corps de classe ne déclare AUCUNE clé primaire
     # explicite : Django ajoute alors implicitement un "id" (BigAutoField,
     # cf. DEFAULT_AUTO_FIELD dans settings/base.py), qui apparaît donc dans
@@ -104,8 +141,13 @@ IMPLICIT_PK_FIELDS = {
     "ConsumedEvent": {"id"},
 }
 
+# Champs apportés par les mixins du socle (`TimeStampedModel`,
+# `VersionedModel`) ou par `AbstractUser`, absents du corps de la classe.
 INHERITED_FIELDS = {
     "User": {
+        "created_at",
+        "updated_at",
+        "version",
         "password",
         "last_login",
         "is_superuser",
@@ -124,24 +166,28 @@ INHERITED_FIELDS = {
 
 def main() -> int:
     exit_code = 0
-    for models_path, migration_path, mapping in CHECKS:
+    for models_path, migration_paths, mapping in CHECKS:
+        if isinstance(migration_paths, Path):
+            migration_paths = [migration_paths]
         model_fields = extract_model_fields(models_path)
-        migration_fields = extract_migration_fields(migration_path)
+        migration_fields: dict[str, set[str]] = {}
+        for migration_path in migration_paths:
+            for key, value in extract_migration_fields(migration_path).items():
+                migration_fields.setdefault(key.lower(), set()).update(value)
 
         for model_name, migration_model_name in mapping.items():
             declared = model_fields.get(model_name, set())
             inherited = INHERITED_FIELDS.get(model_name, set())
             implicit_pk = IMPLICIT_PK_FIELDS.get(model_name, set())
             expected = declared | inherited | implicit_pk
-            actual = migration_fields.get(migration_model_name, set())
+            actual = migration_fields.get(migration_model_name.lower(), set())
 
             missing_in_migration = expected - actual
             extra_in_migration = actual - expected
 
             status = "OK" if not missing_in_migration and not extra_in_migration else "MISMATCH"
-            print(
-                f"[{status}] {model_name} ({models_path.relative_to(BACKEND_DIR)} vs {migration_path.name})"
-            )
+            sources = ", ".join(p.name for p in migration_paths)
+            print(f"[{status}] {model_name} ({models_path.relative_to(BACKEND_DIR)} vs {sources})")
             if missing_in_migration:
                 print(f"    manquant dans la migration : {sorted(missing_in_migration)}")
                 exit_code = 1
