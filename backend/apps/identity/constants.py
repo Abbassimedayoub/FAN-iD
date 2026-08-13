@@ -38,3 +38,72 @@ ROLE_IDS: dict[str, uuid.UUID] = {
     ROLE_SCANNER: uuid.UUID("91e56bcb-d23e-5169-a1f3-655e1e44f277"),
     ROLE_ADMIN: uuid.UUID("58d71579-cab7-576e-b233-27c1c424b8bd"),
 }
+
+
+# ---------------------------------------------------------------- appareils
+
+#: Format de l'empreinte d'appareil (master prompt §24).
+#: L'empreinte est calculée CÔTÉ CLIENT et reste opaque pour le serveur : il ne
+#: la recalcule jamais et n'en déduit rien. Il valide uniquement le format —
+#: 64 caractères hexadécimaux MINUSCULES, soit un SHA-256 canonique. Accepter
+#: les majuscules créerait deux représentations de la même empreinte, donc deux
+#: appareils distincts pour un même téléphone.
+FINGERPRINT_PATTERN = r"^[0-9a-f]{64}$"
+
+PLATFORM_ANDROID = "android"
+PLATFORM_IOS = "ios"
+PLATFORM_WEB = "web"
+DEVICE_PLATFORMS: tuple[str, ...] = (PLATFORM_ANDROID, PLATFORM_IOS, PLATFORM_WEB)
+
+DEVICE_REVOKED_USER_RESET = "USER_RESET"
+DEVICE_REVOKED_ADMIN = "ADMIN"
+DEVICE_REVOKED_PASSWORD_CHANGE = "PASSWORD_CHANGE"
+DEVICE_REVOKED_STALE = "STALE"
+DEVICE_REVOKED_REASONS: tuple[str, ...] = (
+    DEVICE_REVOKED_USER_RESET,
+    DEVICE_REVOKED_ADMIN,
+    DEVICE_REVOKED_PASSWORD_CHANGE,
+    DEVICE_REVOKED_STALE,
+)
+
+# ----------------------------------------------------------------- sessions
+
+#: Niveau d'authentification porté par la session et par le JWT (plan S1 §2.4).
+#: 1 = mot de passe seul. 2 = vérification renforcée (code reçu par email).
+#: Les actions sensibles — réinitialisation d'appareil, changement d'email,
+#: suppression de compte — exigent le niveau 2.
+AUTH_LEVEL_PASSWORD = 1
+AUTH_LEVEL_STEP_UP = 2
+AUTH_LEVELS: tuple[int, ...] = (AUTH_LEVEL_PASSWORD, AUTH_LEVEL_STEP_UP)
+
+SESSION_REVOKED_LOGOUT = "LOGOUT"
+SESSION_REVOKED_ROTATION_REUSE = "ROTATION_REUSE"
+SESSION_REVOKED_PASSWORD_CHANGE = "PASSWORD_CHANGE"
+SESSION_REVOKED_ADMIN = "ADMIN"
+SESSION_REVOKED_DEVICE_RESET = "DEVICE_RESET"
+SESSION_REVOKED_REASONS: tuple[str, ...] = (
+    SESSION_REVOKED_LOGOUT,
+    SESSION_REVOKED_ROTATION_REUSE,
+    SESSION_REVOKED_PASSWORD_CHANGE,
+    SESSION_REVOKED_ADMIN,
+    SESSION_REVOKED_DEVICE_RESET,
+)
+
+# --------------------------------------------------------------------- MFA
+
+MFA_PURPOSE_DEVICE_RESET = "DEVICE_RESET"
+MFA_PURPOSE_STEP_UP = "STEP_UP"
+MFA_PURPOSE_EMAIL_CHANGE = "EMAIL_CHANGE"
+MFA_PURPOSES: tuple[str, ...] = (
+    MFA_PURPOSE_DEVICE_RESET,
+    MFA_PURPOSE_STEP_UP,
+    MFA_PURPOSE_EMAIL_CHANGE,
+)
+
+#: Le code n'est JAMAIS stocké en clair : seul son SHA-256 l'est (plan S1 §3.1).
+#: Ce format est verrouillé par une contrainte CHECK en base — un code à
+#: 6 chiffres inséré tel quel y est rejeté, y compris par une écriture SQL
+#: directe qui contournerait le service.
+CODE_HASH_PATTERN = r"^[0-9a-f]{64}$"
+OTP_MAX_ATTEMPTS = 5
+OTP_TTL_MINUTES = 5

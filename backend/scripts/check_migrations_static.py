@@ -35,7 +35,10 @@ def _field_names_from_class(class_node: ast.ClassDef) -> set[str]:
                 # `objects = UserManager()` n'est PAS un champ : un manager ou un
                 # queryset est un attribut de classe, absent des migrations. Sans
                 # cette exclusion, le vérificateur le signalerait comme manquant.
-                if callee_name.endswith(("Manager", "QuerySet")):
+                if callee_name.endswith(("Manager", "QuerySet")) or callee_name in {
+                    "as_manager",
+                    "from_queryset",
+                }:
                     continue
                 names.add(target)
     return names
@@ -111,12 +114,16 @@ def extract_migration_fields(migration_path: Path) -> dict[str, set[str]]:
 CHECKS = [
     (
         BACKEND_DIR / "apps/identity/models.py",
-        [
-            BACKEND_DIR / "apps/identity/migrations/0001_initial.py",
-            BACKEND_DIR / "apps/identity/migrations/0002_role_and_user_identity.py",
-            BACKEND_DIR / "apps/identity/migrations/0004_user_role.py",
-        ],
-        {"User": "User", "Role": "Role"},
+        # Toutes les migrations de l'app, découvertes automatiquement : lister
+        # les fichiers à la main obligerait à modifier ce script à chaque lot.
+        sorted((BACKEND_DIR / "apps/identity/migrations").glob("0*.py")),
+        {
+            "User": "User",
+            "Role": "Role",
+            "Device": "Device",
+            "Session": "Session",
+            "MfaChallenge": "MfaChallenge",
+        },
     ),
     (
         BACKEND_DIR / "apps/core/idempotency/models.py",
