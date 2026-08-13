@@ -50,3 +50,12 @@ boto3==1.35.36
 
 setuptools==83.0.0
 python-ulid==2.7.0
+
+# PyJWT : signature et verification des jetons d'acces et de rafraichissement.
+# Retenu contre djangorestframework-simplejwt (fiche de dependance S1-A.4) : le
+# plan v2 remplace la liste de revocation de simplejwt par la table `session`,
+# et installer les deux ferait cohabiter DEUX registres de revocation. simplejwt
+# depend lui-meme de PyJWT — on retire une couche, pas une protection.
+# Pas d'extra [crypto] : inutile en HS256. `cryptography` est deja present par
+# ailleurs, donc un passage ulterieur a RS256 ne coutera pas de dependance neuve.
+PyJWT==2.12.1

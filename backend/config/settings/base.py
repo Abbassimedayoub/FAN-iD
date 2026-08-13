@@ -159,9 +159,11 @@ CELERY_TASK_DEFAULT_QUEUE = "default"
 
 # --- DRF ---
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated"
-    ],  # deny-by-default, ADR-S-04 règle 1
+    # Refus par defaut du projet (ADR-S-04 regle 1, lot S1-A.3).
+    # `IsAuthenticated` laissait passer TOUT compte connecte : sur une API que
+    # se partagent supporters, organisateurs, scanners et administrateurs,
+    # « etre connecte » n est pas une autorisation. Voir apps/core/permissions.py.
+    "DEFAULT_PERMISSION_CLASSES": ["apps.core.permissions.DenyAll"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
@@ -176,6 +178,12 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON_RATE", default="60/min"),
         "user": env("THROTTLE_USER_RATE", default="300/min"),
+        # Seuil dedie a l inscription. La reponse 409 sur adresse existante
+        # permet d enumerer les comptes ; on ne supprime pas cette
+        # divulgation — impossible sans chaine d envoi de courriels — on la
+        # rend COUTEUSE. 60/min conviendrait a de la lecture, pas a la
+        # creation de comptes.
+        "register": env("THROTTLE_REGISTER_RATE", default="3/hour"),
     },
 }
 
@@ -184,6 +192,12 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Plateforme de billetterie sécurisée — Sprint 0 (socle plateforme)",
     "VERSION": APP_VERSION,
     "SERVE_INCLUDE_SCHEMA": False,
+    # Exemption EXPLICITE du defaut `DenyAll`. drf-spectacular sert deja son
+    # schema avec ses propres permissions (AllowAny par defaut de la
+    # bibliotheque) : rien ne casserait sans cette ligne. On l ecrit quand
+    # meme, parce qu une ouverture au public qui depend du defaut d une
+    # dependance tierce est une ouverture que personne ne relit.
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
 }
 
 # --- CORS ---
@@ -204,6 +218,24 @@ REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
 REFRESH_COOKIE_SAMESITE = env("REFRESH_COOKIE_SAMESITE", default="Lax")
 REFRESH_COOKIE_PATH = env("REFRESH_COOKIE_PATH", default="/api/v1/auth")
 REFRESH_COOKIE_HTTPONLY = True  # jamais configurable : un refresh lisible en JS est une faille
+
+# --- Jetons JWT (plan S1 §3.3 · fiche de dépendance §64) ---
+# Clé DÉDIÉE, jamais `SECRET_KEY`. En HS256 la même clé signe et vérifie : la
+# partager avec Django transformerait toute fuite de `SECRET_KEY` — un réglage
+# versé dans un ticket, une page d'erreur bavarde — en usurpation d'identité de
+# n'importe quel compte, administrateur compris. Deux secrets, deux rayons
+# d'explosion. Aucune valeur par défaut (§40) : un crash au démarrage vaut mieux
+# qu'un secret devinable en production.
+JWT_SIGNING_KEY = env("JWT_SIGNING_KEY")
+JWT_ALGORITHM = env("JWT_ALGORITHM", default="HS256")
+# `iss` ne sert à rien tant qu'un seul service émet. Il servira le jour où un
+# second émetteur existera, et ce jour-là personne ne pensera à l'ajouter.
+JWT_ISSUER = env("JWT_ISSUER", default="fanid-api")
+# Tolérance d'horloge, bornée et explicite. Une valeur généreuse posée « au cas
+# où » rallonge la durée de vie réelle de chaque jeton, révocation comprise.
+JWT_LEEWAY_SECONDS = env.int("JWT_LEEWAY_SECONDS", default=10)
+JWT_ACCESS_LIFETIME_MINUTES = env.int("JWT_ACCESS_LIFETIME_MINUTES", default=15)
+JWT_REFRESH_LIFETIME_DAYS = env.int("JWT_REFRESH_LIFETIME_DAYS", default=7)
 
 # --- CSRF ---
 # Requis dès qu'un cookie participe à l'authentification. Liste blanche stricte,
