@@ -97,9 +97,6 @@ ASGI_APPLICATION = "config.asgi.application"
 AUTH_USER_MODEL = "identity.User"
 
 # --- Hachage des mots de passe (ADR-S-04 règle 5 / plan S1 §5.1) ---
-# Argon2id en tête : c'est lui qui hache les nouveaux mots de passe. Les
-# suivants ne servent qu'à VÉRIFIER d'anciens hachages et à les remplacer
-# de façon transparente à la connexion suivante.
 PASSWORD_HASHERS = [
     "apps.identity.hashers.FanIdArgon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
@@ -110,7 +107,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {"min_length": 10},  # plan S1 §3.3 : >= 10 caractères
+        "OPTIONS": {"min_length": 10},
     },
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -121,7 +118,7 @@ DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 DATABASES["default"]["ENGINE"] = "django_prometheus.db.backends.postgresql"
 
-# --- Redis (partitionné par DB logique — service unique, cf. .env.example) ---
+# --- Redis ---
 REDIS_URL = env("REDIS_URL")
 REDIS_CACHE_DB = env.int("REDIS_CACHE_DB", default=0)
 REDIS_CHANNEL_LAYER_DB = env.int("REDIS_CHANNEL_LAYER_DB", default=1)
@@ -133,9 +130,6 @@ def _redis_url_with_db(db_index: int) -> str:
     return f"{base}/{db_index}"
 
 
-# URL complète de la base Redis dédiée aux verrous. Isolée du cache : un
-# `cache.clear()` — légitime, fréquent en développement — ne doit pas effacer
-# les verrous d'appareil de tous les utilisateurs connectés.
 REDIS_LOCK_URL = _redis_url_with_db(REDIS_LOCK_DB)
 
 CACHES = {
@@ -164,15 +158,8 @@ CELERY_TASK_DEFAULT_QUEUE = "default"
 
 # --- DRF ---
 REST_FRAMEWORK = {
-    # Refus par defaut du projet (ADR-S-04 regle 1, lot S1-A.3).
-    # `IsAuthenticated` laissait passer TOUT compte connecte : sur une API que
-    # se partagent supporters, organisateurs, scanners et administrateurs,
-    # « etre connecte » n est pas une autorisation. Voir apps/core/permissions.py.
     "DEFAULT_PERMISSION_CLASSES": ["apps.core.permissions.DenyAll"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # JWT en PREMIER : c'est le mécanisme de l'API. `SessionAuthentication`
-        # reste derrière pour la console d'administration Django et la vue de
-        # schéma, qui s'utilisent depuis un navigateur authentifié par cookie.
         "apps.identity.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
@@ -187,25 +174,27 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON_RATE", default="60/min"),
         "user": env("THROTTLE_USER_RATE", default="300/min"),
-        # Seuil dedie a l inscription. La reponse 409 sur adresse existante
-        # permet d enumerer les comptes ; on ne supprime pas cette
-        # divulgation — impossible sans chaine d envoi de courriels — on la
-        # rend COUTEUSE. 60/min conviendrait a de la lecture, pas a la
-        # creation de comptes.
         "register": env("THROTTLE_REGISTER_RATE", default="3/hour"),
+        "login": env("THROTTLE_LOGIN_RATE", default="5/min"),
+        "login_account": env(
+            "THROTTLE_LOGIN_ACCOUNT_RATE",
+            default="10/hour",
+        ),
+        "logout": env("THROTTLE_LOGOUT_RATE", default="20/hour"),
+        "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="5/hour"),
+        # S1-A.6d : quota par session, et non par adresse IP.
+        "refresh": env(
+            "THROTTLE_REFRESH_RATE",
+            default="30/hour",
+        ),
     },
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "FAN id API",
-    "DESCRIPTION": "Plateforme de billetterie sécurisée — Sprint 0 (socle plateforme)",
+    "DESCRIPTION": ("Plateforme de billetterie sécurisée — Sprint 0 (socle plateforme)"),
     "VERSION": APP_VERSION,
     "SERVE_INCLUDE_SCHEMA": False,
-    # Exemption EXPLICITE du defaut `DenyAll`. drf-spectacular sert deja son
-    # schema avec ses propres permissions (AllowAny par defaut de la
-    # bibliotheque) : rien ne casserait sans cette ligne. On l ecrit quand
-    # meme, parce qu une ouverture au public qui depend du defaut d une
-    # dependance tierce est une ouverture que personne ne relit.
     "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
 }
 
@@ -213,45 +202,62 @@ SPECTACULAR_SETTINGS = {
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
 
-# --- Transport du refresh token côté Web (plan S1 §18 / ADR-05) ---
-# Décision : le refresh vit dans un cookie HttpOnly, l'access reste en mémoire.
-# AUCUN domaine de production n'existe à ce jour : tout est piloté par
-# l'environnement, et les défauts ci-dessous ne valent QUE pour le développement
-# local. §70 du prompt d'exécution : ne jamais coder en dur un domaine de
-# production, fût-il plausible — un domaine inventé finit toujours par être
-# déployé tel quel.
-# `REFRESH_COOKIE_DOMAIN` vide => cookie lié à l'hôte (host-only), le bon défaut.
-REFRESH_COOKIE_NAME = env("REFRESH_COOKIE_NAME", default="fanid_refresh")
-REFRESH_COOKIE_DOMAIN = env("REFRESH_COOKIE_DOMAIN", default="") or None
-REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
-REFRESH_COOKIE_SAMESITE = env("REFRESH_COOKIE_SAMESITE", default="Lax")
-REFRESH_COOKIE_PATH = env("REFRESH_COOKIE_PATH", default="/api/v1/auth")
-REFRESH_COOKIE_HTTPONLY = True  # jamais configurable : un refresh lisible en JS est une faille
+# --- Transport du refresh token côté Web ---
+REFRESH_COOKIE_NAME = env(
+    "REFRESH_COOKIE_NAME",
+    default="fanid_refresh",
+)
+REFRESH_COOKIE_DOMAIN = (
+    env(
+        "REFRESH_COOKIE_DOMAIN",
+        default="",
+    )
+    or None
+)
+REFRESH_COOKIE_SECURE = env.bool(
+    "REFRESH_COOKIE_SECURE",
+    default=False,
+)
+REFRESH_COOKIE_SAMESITE = env(
+    "REFRESH_COOKIE_SAMESITE",
+    default="Lax",
+)
+REFRESH_COOKIE_PATH = env(
+    "REFRESH_COOKIE_PATH",
+    default="/api/v1/auth",
+)
+REFRESH_COOKIE_HTTPONLY = True
 
-# --- Jetons JWT (plan S1 §3.3 · fiche de dépendance §64) ---
-# Clé DÉDIÉE, jamais `SECRET_KEY`. En HS256 la même clé signe et vérifie : la
-# partager avec Django transformerait toute fuite de `SECRET_KEY` — un réglage
-# versé dans un ticket, une page d'erreur bavarde — en usurpation d'identité de
-# n'importe quel compte, administrateur compris. Deux secrets, deux rayons
-# d'explosion. Aucune valeur par défaut (§40) : un crash au démarrage vaut mieux
-# qu'un secret devinable en production.
+# --- Jetons JWT ---
 JWT_SIGNING_KEY = env("JWT_SIGNING_KEY")
 JWT_ALGORITHM = env("JWT_ALGORITHM", default="HS256")
-# `iss` ne sert à rien tant qu'un seul service émet. Il servira le jour où un
-# second émetteur existera, et ce jour-là personne ne pensera à l'ajouter.
 JWT_ISSUER = env("JWT_ISSUER", default="fanid-api")
-# Tolérance d'horloge, bornée et explicite. Une valeur généreuse posée « au cas
-# où » rallonge la durée de vie réelle de chaque jeton, révocation comprise.
-JWT_LEEWAY_SECONDS = env.int("JWT_LEEWAY_SECONDS", default=10)
-JWT_ACCESS_LIFETIME_MINUTES = env.int("JWT_ACCESS_LIFETIME_MINUTES", default=15)
-JWT_REFRESH_LIFETIME_DAYS = env.int("JWT_REFRESH_LIFETIME_DAYS", default=7)
+JWT_LEEWAY_SECONDS = env.int(
+    "JWT_LEEWAY_SECONDS",
+    default=10,
+)
+JWT_ACCESS_LIFETIME_MINUTES = env.int(
+    "JWT_ACCESS_LIFETIME_MINUTES",
+    default=15,
+)
+JWT_REFRESH_LIFETIME_DAYS = env.int(
+    "JWT_REFRESH_LIFETIME_DAYS",
+    default=7,
+)
 
 # --- CSRF ---
-# Requis dès qu'un cookie participe à l'authentification. Liste blanche stricte,
-# jamais de wildcard.
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
-CSRF_COOKIE_SAMESITE = env("CSRF_COOKIE_SAMESITE", default="Lax")
-SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=[],
+)
+CSRF_COOKIE_SAMESITE = env(
+    "CSRF_COOKIE_SAMESITE",
+    default="Lax",
+)
+SESSION_COOKIE_SAMESITE = env(
+    "SESSION_COOKIE_SAMESITE",
+    default="Lax",
+)
 
 # --- Internationalisation ---
 LANGUAGE_CODE = "fr-fr"
@@ -265,21 +271,33 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- Idempotence / Outbox (core, §3.1 Source B) ---
-IDEMPOTENCY_RETENTION_HOURS = env.int("IDEMPOTENCY_RETENTION_HOURS", default=24)
-IDEMPOTENCY_ORPHAN_GUARD_SECONDS = env.int("IDEMPOTENCY_ORPHAN_GUARD_SECONDS", default=60)
-OUTBOX_RELAY_BATCH_SIZE = env.int("OUTBOX_RELAY_BATCH_SIZE", default=100)
-OUTBOX_RELAY_INTERVAL_SECONDS = env.int("OUTBOX_RELAY_INTERVAL_SECONDS", default=2)
-OUTBOX_MAX_ATTEMPTS = env.int("OUTBOX_MAX_ATTEMPTS", default=5)
-OUTBOX_RETENTION_DAYS = env.int("OUTBOX_RETENTION_DAYS", default=30)
-OUTBOX_BACKOFF_SCHEDULE_SECONDS = [2, 8, 32, 120, 480]  # 2s,8s,32s,2min,8min — §21 master prompt
+# --- Idempotence / Outbox ---
+IDEMPOTENCY_RETENTION_HOURS = env.int(
+    "IDEMPOTENCY_RETENTION_HOURS",
+    default=24,
+)
+IDEMPOTENCY_ORPHAN_GUARD_SECONDS = env.int(
+    "IDEMPOTENCY_ORPHAN_GUARD_SECONDS",
+    default=60,
+)
+OUTBOX_RELAY_BATCH_SIZE = env.int(
+    "OUTBOX_RELAY_BATCH_SIZE",
+    default=100,
+)
+OUTBOX_RELAY_INTERVAL_SECONDS = env.int(
+    "OUTBOX_RELAY_INTERVAL_SECONDS",
+    default=2,
+)
+OUTBOX_MAX_ATTEMPTS = env.int(
+    "OUTBOX_MAX_ATTEMPTS",
+    default=5,
+)
+OUTBOX_RETENTION_DAYS = env.int(
+    "OUTBOX_RETENTION_DAYS",
+    default=30,
+)
+OUTBOX_BACKOFF_SCHEDULE_SECONDS = [2, 8, 32, 120, 480]
 
-# Planification statique (§21 master prompt : relais toutes les 2s ; purge
-# quotidienne). `django_celery_beat` reste installé pour permettre une
-# planification pilotable en base aux sprints suivants (ex. rappels
-# métier), mais le Sprint 0 n'a besoin que de ces deux tâches fixes — la
-# DatabaseScheduler aurait exigé un seed de données au premier démarrage
-# pour un gain nul à ce stade (YAGNI, §5 master prompt).
 CELERY_BEAT_SCHEDULE = {
     "outbox-relay": {
         "task": "core.outbox.relay_batch",
@@ -287,29 +305,40 @@ CELERY_BEAT_SCHEDULE = {
     },
     "outbox-purge-published": {
         "task": "core.outbox.purge_published",
-        "schedule": 86400.0,  # quotidien
+        "schedule": 86400.0,
     },
     "idempotency-purge-expired": {
         "task": "core.idempotency.purge_expired",
-        "schedule": 86400.0,  # quotidien
+        "schedule": 86400.0,
     },
 }
 
-# --- Secrets (SecretProvider port, §2.3 Source B) ---
-SECRET_PROVIDER_BACKEND = env("SECRET_PROVIDER", default="env")
-SSM_PARAMETER_PREFIX = env("SSM_PARAMETER_PREFIX", default="/fanid/dev/")
+# --- Secrets ---
+SECRET_PROVIDER_BACKEND = env(
+    "SECRET_PROVIDER",
+    default="env",
+)
+SSM_PARAMETER_PREFIX = env(
+    "SSM_PARAMETER_PREFIX",
+    default="/fanid/dev/",
+)
 
-# --- django-migration-linter (ADR-S-08) ---
-# Restreint aux apps du projet : l'historique de `django_celery_beat` contient
-# 6 migrations que le linter juge risquées (ADD unique, ALTER COLUMN, DROP
-# COLUMN, NOT NULL). Migrations tierces, non corrigeables — leur présence
-# faisait échouer la porte CI sur du code que nous ne maîtrisons pas (P1-000).
-MIGRATION_LINTER_OPTIONS = {"include_apps": ["core", "identity", "organizing"]}
+# --- django-migration-linter ---
+MIGRATION_LINTER_OPTIONS = {
+    "include_apps": [
+        "core",
+        "identity",
+        "organizing",
+    ]
+}
 
 # --- Health / readiness ---
-HEALTH_DEPENDENCY_TIMEOUT_SECONDS = env.float("HEALTH_DEPENDENCY_TIMEOUT_SECONDS", default=2.0)
+HEALTH_DEPENDENCY_TIMEOUT_SECONDS = env.float(
+    "HEALTH_DEPENDENCY_TIMEOUT_SECONDS",
+    default=2.0,
+)
 
-# --- Logging (JSON structuré + rédaction, §28 master prompt / §5.3 Source B) ---
+# --- Logging ---
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
 LOGGING = {
     "version": 1,
@@ -327,15 +356,36 @@ LOGGING = {
             "filters": ["correlation"],
         },
     },
-    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
     "loggers": {
-        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "fanid": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "celery": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "fanid": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "celery": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
     },
 }
 
 # --- OpenTelemetry ---
-OTEL_SERVICE_NAME = env("OTEL_SERVICE_NAME", default="fanid-api")
-OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="http://otel-collector:4317")
+OTEL_SERVICE_NAME = env(
+    "OTEL_SERVICE_NAME",
+    default="fanid-api",
+)
+OTEL_EXPORTER_OTLP_ENDPOINT = env(
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    default="http://otel-collector:4317",
+)
 OTEL_ENABLED = True

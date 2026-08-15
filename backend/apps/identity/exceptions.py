@@ -135,3 +135,37 @@ class InvalidCredentialsError(AuthError):
 
     default_code = "INVALID_CREDENTIALS"
     default_message = "Adresse ou mot de passe incorrect."
+
+
+class InvalidCurrentPasswordError(ValidationBusinessError):
+    """
+    400 `VALIDATION_ERROR` — le mot de passe actuel ne correspond pas.
+
+    **Pourquoi 400 et non 401**, alors que « identifiants faux » vaut 401
+    ailleurs : l appelant EST authentifie, son jeton est valide, et c est un
+    champ du corps qui est faux. Un 401 declencherait les intercepteurs des
+    clients React et Flutter — tentative de rafraichissement, puis deconnexion
+    — pour une simple faute de frappe sur l ancien mot de passe.
+
+    Le code reste `VALIDATION_ERROR` : le tableau §3.4 du plan est gele et le
+    prevoit explicitement pour les erreurs « par champ ». La classe Python est
+    distincte pour que le service exprime sa regle, mais le contrat publie ne
+    gagne pas un code de plus — S1-B et S1-C seront ecrits contre le tableau.
+    """
+
+    default_code = "VALIDATION_ERROR"
+    default_message = "Le mot de passe actuel est incorrect."
+
+
+class PasswordUnchangedError(ValidationBusinessError):
+    """
+    400 `VALIDATION_ERROR` — le nouveau mot de passe est identique a l ancien.
+
+    Refuse plutot qu accepte silencieusement : un changement qui ne change rien
+    revoquerait quand meme TOUTES les sessions du compte. L utilisateur serait
+    deconnecte partout au prix d une operation sans effet, ce qui est le pire
+    des deux mondes.
+    """
+
+    default_code = "VALIDATION_ERROR"
+    default_message = "Le nouveau mot de passe doit etre different de l ancien."

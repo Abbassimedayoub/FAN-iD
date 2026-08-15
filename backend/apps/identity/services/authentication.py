@@ -35,17 +35,21 @@ import dataclasses
 import functools
 import logging
 import secrets
+import uuid
+from typing import Any
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
+from django.utils import timezone
 
 from apps.core.outbox.publisher import publish_event
 
 from ..events import AGGREGATE_USER, USER_LOGGED_IN, user_logged_in_payload
-from ..exceptions import InvalidCredentialsError
-from ..models import Device, User
+from ..exceptions import InvalidCredentialsError, InvalidCurrentPasswordError, PasswordUnchangedError
+from ..models import Device, Session, User
+from ..tokens import TokenInvalidError, TokenType, decode_token
 from .devices import DeviceBindingService
-from .tokens import IssuedPair, TokenService
+from .tokens import REASON_LOGOUT, REASON_PASSWORD_CHANGE, IssuedPair, TokenService
 
 logger = logging.getLogger("fanid.identity")
 
@@ -89,6 +93,28 @@ class LoginCommand:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class LoginResult:
+    user: User
+    device: Device | None
+    pair: IssuedPair
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RefreshCommand:
+    """
+    Entree du rafraichissement.
+
+    `fingerprint` n est exige que si la session porte un appareil. Une session
+    ouverte depuis un navigateur, ou par un role exempte (ADR-03), n en a pas :
+    lui en reclamer une reviendrait a inventer une donnee que le client ne peut
+    pas produire.
+    """
+
+    refresh: str
+    fingerprint: str | None = None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RefreshResult:
     user: User
     device: Device | None
     pair: IssuedPair
@@ -187,3 +213,141 @@ class AuthenticationService:
             platform=command.platform or "",
             label=command.label,
         )
+
+    # -- rafraichissement ----------------------------------------------------
+
+    def refresh(self, command: RefreshCommand) -> RefreshResult:
+        """
+        Tourne un refresh et emet une nouvelle paire.
+
+        **L ordre est l inverse de celui de la connexion, et pour la meme
+        raison.** A la connexion, l appareil passe APRES le mot de passe pour ne
+        pas reveler l existence d un compte. Ici, l appareil passe AVANT la
+        rotation pour ne pas CONSOMMER le jeton du porteur legitime : tourner
+        d abord puis refuser sur l appareil transformerait chaque refus en
+        deconnexion definitive, y compris quand le client se contente d oublier
+        son empreinte.
+
+        Le controle d appareil ne court-circuite jamais la rotation quand la
+        session est introuvable — voir `_session_for`.
+        """
+        session = self._session_for(command.refresh)
+        if session is not None and session.device is not None:
+            self._binding.assert_fingerprint(device=session.device, fingerprint=command.fingerprint)
+
+        pair = TokenService.rotate(command.refresh)
+
+        logger.info(
+            "auth.refresh.success",
+            extra={"session_id": str(pair.session.pk), "device_bound": pair.session.device is not None},
+        )
+        return RefreshResult(user=pair.session.user, device=pair.session.device, pair=pair)
+
+    @staticmethod
+    def _session_for(raw_refresh: str) -> Session | None:
+        """
+        Retrouve la session dont ce refresh est le jeton COURANT — sans verrou.
+
+        Lecture seule, dans le seul but de connaitre l appareil attendu avant de
+        rotationner. Le verrou pessimiste reste ou il doit etre, dans
+        `TokenService.rotate`.
+
+        **Un jeton deja tourne ne trouve rien ici, et c est voulu.** On renvoie
+        `None` sans rien refuser : la rotation DOIT s executer pour constater la
+        reutilisation et revoquer la famille. Refuser des maintenant laisserait
+        vivre une famille compromise — le controle passerait au vert pendant que
+        la protection ne s appliquerait jamais.
+        """
+        claims = decode_token(raw_refresh, expected_type=TokenType.REFRESH)
+        try:
+            jti = uuid.UUID(str(claims.get("jti")))
+        except (TypeError, ValueError):
+            # Un jeton signe par nous ne devrait jamais en arriver la, mais
+            # « ne devrait jamais » n est pas une garantie : passe tel quel a un
+            # `UUIDField`, ce claim produirait une 500 au lieu d un 401.
+            raise TokenInvalidError() from None
+
+        return (
+            Session.objects.select_related("user", "user__role", "device")
+            .filter(refresh_jti=jti, revoked_at__isnull=True, expires_at__gt=timezone.now())
+            .first()
+        )
+
+    # -- deconnexion ---------------------------------------------------------
+
+    def logout(self, *, session_id: Any) -> int:
+        """
+        Revoque la session courante. Renvoie le nombre de lignes touchees.
+
+        **Une seule session, pas la famille.** Se deconnecter d un appareil ne
+        doit pas fermer les autres : `revoke_family` est reserve a la detection
+        de reutilisation, ou l on ne sait pas lequel des porteurs est
+        l attaquant. Ici on le sait — c est celui qui demande.
+
+        Idempotence STRUCTURELLE et non par cle (ADR-S1-03) : un second appel
+        presente un jeton dont la session est deja revoquee, et
+        `JWTAuthentication` le refuse avant meme d arriver ici. Aucun double
+        effet possible, donc aucun besoin de rejouer une reponse.
+        """
+        session = Session.objects.filter(pk=session_id).first()
+        if session is None:
+            # La session a disparu entre l authentification et ici — purge
+            # concurrente, revocation par un administrateur. Il n y a rien a
+            # revoquer, et l appelant obtient le meme resultat.
+            return 0
+
+        revoked = TokenService.revoke_session(session, REASON_LOGOUT)
+        logger.info(
+            "auth.session.revoked",
+            extra={"session_id": str(session.pk), "reason": REASON_LOGOUT},
+        )
+        return revoked
+
+    # -- changement de mot de passe ------------------------------------------
+
+    def change_password(self, *, user: User, current_password: str, new_password: str) -> int:
+        """
+        Change le mot de passe et revoque TOUTES les sessions du compte.
+
+        **Y compris celle de l appelant.** Un mot de passe qu on change parce
+        qu on le croit compromis ne sert a rien si les sessions ouvertes avec
+        l ancien survivent — et epargner le navigateur qui declenche
+        l operation serait exactement l exception dont un attaquant profiterait,
+        puisque c est peut-etre lui qui la declenche. Le client se reconnecte.
+
+        **L appareil n est PAS revoque.** Le liberer ouvrirait le verrou au
+        moment precis ou le compte est presume compromis : le premier a se
+        connecter avec le nouveau mot de passe lierait son appareil, et rien ne
+        garantit que ce soit le proprietaire. Laisser la liaison en place refuse
+        au contraire tout appareil etranger. Le plan n exige pas cette
+        revocation ; la constante `DEVICE_REVOKED_PASSWORD_CHANGE` existe pour
+        le parcours de reinitialisation (S1-A.7), pas pour ce chemin.
+
+        La verification precede toute ecriture, et l ecriture est atomique avec
+        la revocation : une panne entre les deux laisserait un mot de passe
+        change avec les anciennes sessions vivantes — le pire etat possible.
+        """
+        if not user.check_password(current_password):
+            logger.warning(
+                "auth.password_change.failed",
+                extra={"user_id": str(user.pk), "reason": "bad_current_password"},
+            )
+            raise InvalidCurrentPasswordError(
+                details={"current_password": ["Le mot de passe actuel est incorrect."]}
+            )
+
+        if user.check_password(new_password):
+            raise PasswordUnchangedError(
+                details={"new_password": ["Le nouveau mot de passe doit etre different de l ancien."]}
+            )
+
+        with transaction.atomic():
+            user.set_password(new_password)
+            user.save(update_fields=["password"])
+            revoked = TokenService.revoke_all_for_user(user, REASON_PASSWORD_CHANGE)
+
+        logger.info(
+            "auth.session.revoked",
+            extra={"user_id": str(user.pk), "reason": REASON_PASSWORD_CHANGE, "sessions": revoked},
+        )
+        return revoked

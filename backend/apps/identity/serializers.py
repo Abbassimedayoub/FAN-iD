@@ -23,6 +23,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
 
+from .constants import CLIENT_MOBILE, CLIENT_WEB, DEVICE_PLATFORMS
 from .models import User
 
 
@@ -40,7 +41,11 @@ class RegistrationSerializer(serializers.Serializer):
     """
 
     email = serializers.EmailField(max_length=254)
-    password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+    password = serializers.CharField(
+        write_only=True,
+        max_length=128,
+        trim_whitespace=False,
+    )
     # Obligatoires (AB-06). Un billet nominatif controle a l entree a besoin
     # d un nom : la donnee a donc un usage identifie, ce qui la rend conforme a
     # la minimisation RGPD. `allow_blank=False` est le defaut de DRF, mais un
@@ -50,7 +55,12 @@ class RegistrationSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=150)
     date_of_birth = serializers.DateField()
     terms_accepted = serializers.BooleanField()
-    phone = serializers.CharField(max_length=32, required=False, allow_blank=True, allow_null=True)
+    phone = serializers.CharField(
+        max_length=32,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
 
     def validate_date_of_birth(self, value: datetime.date) -> datetime.date:
         """
@@ -90,6 +100,101 @@ class RegistrationSerializer(serializers.Serializer):
         return value
 
 
+class LoginSerializer(serializers.Serializer):
+    """
+    Corps de `POST /api/v1/auth/login`.
+
+    **`client` est obligatoire, et ce n est pas de la bureaucratie.** Il decide
+    du TRANSPORT du jeton de rafraichissement : cookie HttpOnly pour le web,
+    corps de reponse pour le mobile. Les deux ne se cumulent jamais — un refresh
+    present dans le corps est lisible en JavaScript, et le cookie HttpOnly ne
+    protegerait alors plus rien.
+
+    Deduire le client du `User-Agent` serait plus discret et beaucoup moins sur :
+    cet en-tete se falsifie, change a chaque version de navigateur, et
+    transformerait une decision de securite en heuristique.
+
+    `client` n est pas une donnee de confiance et ne doit jamais influencer les
+    autorisations. Il choisit uniquement le canal de transport du refresh.
+
+    Un navigateur qui declare `mobile` peut donc degrader la protection de son
+    propre refresh, mais ne doit obtenir aucun privilege supplementaire.
+
+    `fingerprint` reste facultatif : un supporter sur navigateur n a pas
+    d empreinte stable a fournir, et l inventer a partir de l IP ou du
+    `User-Agent` serait instable et disproportionne (RGPD).
+    """
+
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(
+        write_only=True,
+        max_length=128,
+        trim_whitespace=False,
+    )
+    client = serializers.ChoiceField(choices=[CLIENT_WEB, CLIENT_MOBILE])
+    fingerprint = serializers.CharField(
+        max_length=64,
+        required=False,
+        allow_null=True,
+    )
+    platform = serializers.ChoiceField(
+        choices=list(DEVICE_PLATFORMS),
+        required=False,
+        allow_null=True,
+    )
+
+    # `label` est le SEUL nom de champ de ce module qui percute un attribut de
+    # `Field` : la classe de base possede deja `label`, l intitule affichable
+    # d un champ, type `str | None`. Le stub voit donc une redefinition
+    # incompatible la ou DRF fait simplement ce qu il fait pour tous les champs
+    # declaratifs — remplacer l attribut de classe par la valeur validee sur
+    # l instance. Le renommer casserait le contrat d API (le client envoie bien
+    # `label`), d ou l exception locale plutot qu un contournement global.
+    label = serializers.CharField(  # type: ignore[assignment]
+        max_length=60,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+
+
+class RefreshSerializer(serializers.Serializer):
+    """
+    Corps de `POST /api/v1/auth/refresh`.
+
+    **`client` ne sert pas qu a formater la reponse : il designe la SOURCE de
+    lecture du jeton.** `web` lit le cookie et IGNORE le corps ; `mobile` lit le
+    corps et IGNORE le cookie. Une source non declaree reste non lue, meme
+    lorsqu elle porte un jeton parfaitement valide — c est ce qui empeche le
+    cumul des deux transports interdit au lot S1-A.6c.
+
+    `refresh` n est donc utile qu au client mobile. Le rendre obligatoire
+    casserait le client web, dont le jeton n est pas dans le corps ; sa presence
+    reelle est verifiee par la vue, seule a savoir quelle source elle doit lire.
+
+    `fingerprint` est exigee des que la session porte un appareil. C est le
+    service qui tranche, pas le serialiseur : la reponse depend de l etat de la
+    session, pas de la forme du corps.
+    """
+
+    client = serializers.ChoiceField(choices=[CLIENT_WEB, CLIENT_MOBILE])
+    # `max_length` borne l entree AVANT le decodage. Un JWT du projet fait
+    # quelques centaines d octets ; laisser le champ libre reviendrait a offrir
+    # a chaque appel non authentifie une verification de signature sur un corps
+    # de plusieurs mega-octets. `trim_whitespace=False` parce qu un jeton n a
+    # pas d espaces a rogner, et qu en rogner masquerait un client fautif.
+    refresh = serializers.CharField(max_length=4096, required=False, allow_blank=True, trim_whitespace=False)
+    fingerprint = serializers.CharField(max_length=64, required=False, allow_blank=True, allow_null=True)
+
+
+class DeviceSerializer(serializers.Serializer):
+    """L appareil lie, tel que le client a besoin de le connaitre."""
+
+    id = serializers.UUIDField(read_only=True)
+    label = serializers.CharField(read_only=True)  # type: ignore[assignment]  # cf. LoginSerializer.label
+    bound_at = serializers.DateTimeField(read_only=True)
+
+
 class UserPublicSerializer(serializers.Serializer):
     """
     Representation renvoyee au client.
@@ -109,3 +214,36 @@ class UserPublicSerializer(serializers.Serializer):
 
     def get_role(self, obj: Any) -> str:
         return str(obj.role.name)
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """
+    Corps de `POST /api/v1/auth/password/change`.
+
+    Repartition habituelle : le serialiseur valide la FORME du nouveau mot de
+    passe — longueur, robustesse, similarite avec le compte — et le SERVICE
+    porte les regles metier : le mot de passe actuel est-il le bon, le nouveau
+    differe-t-il de l ancien.
+
+    L utilisateur reel passe en contexte, pas un candidat reconstruit comme a
+    l inscription : ici il existe deja, donc `UserAttributeSimilarityValidator`
+    peut comparer le nouveau mot de passe a l adresse ET au nom du compte. Sans
+    ce passage, ce validateur n aurait rien a comparer et ne servirait a rien.
+
+    `trim_whitespace=False` sur les deux champs : rogner les espaces d un mot de
+    passe en modifie silencieusement la valeur.
+    """
+
+    current_password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+
+    def validate_new_password(self, value: str) -> str:
+        """Applique `AUTH_PASSWORD_VALIDATORS` contre l utilisateur reel."""
+        user = getattr(self.context.get("request"), "user", None)
+        if not getattr(user, "is_authenticated", False):
+            user = None
+        try:
+            validate_password(value, user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+        return value
