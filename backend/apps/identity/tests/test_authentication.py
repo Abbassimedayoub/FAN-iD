@@ -58,13 +58,30 @@ def fan(db, roles) -> User:
 
 
 def request_with(token: str | None, *, scheme: str = "Bearer"):
-    headers = {} if token is None else {"HTTP_AUTHORIZATION": f"{scheme} {token}".strip()}
-    return factory.get("/api/v1/whatever", **headers)
+    # En-tete passe en argument nomme : `**headers` est vu par mypy comme le
+    # parametre `data` de `APIRequestFactory.get`, pas comme les entrees de META.
+    if token is None:
+        return factory.get("/api/v1/whatever")
+    return factory.get("/api/v1/whatever", HTTP_AUTHORIZATION=f"{scheme} {token}".strip())
 
 
 # ===========================================================================
 # Chemin nominal
 # ===========================================================================
+
+
+def test_a_session_without_any_device_authenticates(auth, fan):
+    """
+    Un supporter sans appareil lie, dont le jeton ne porte pas de `did` : les
+    deux sont absents, ils concordent. Le cas inverse — un `did` designant un
+    appareil revoque — reste refuse.
+    """
+    pair = TokenService.issue_pair(user=fan)
+
+    resolved, claims = auth.authenticate(request_with(pair.access))
+
+    assert resolved.pk == fan.pk
+    assert claims["did"] is None
 
 
 def test_a_valid_token_resolves_the_user(auth, fan):
@@ -190,7 +207,12 @@ def test_an_expired_session_is_refused_even_if_the_access_token_is_still_valid(a
     passe doit fermer l acces sans attendre l expiration du jeton.
     """
     pair = TokenService.issue_pair(user=fan)
-    Session.objects.filter(pk=pair.session.pk).update(expires_at=timezone.now() - datetime.timedelta(days=1))
+    # L emission ET l expiration sont antidatees : `ck_session_expiry_after_issue`
+    # refuse — a juste titre — une session qui expirerait avant d avoir ete emise.
+    Session.objects.filter(pk=pair.session.pk).update(
+        issued_at=timezone.now() - datetime.timedelta(days=8),
+        expires_at=timezone.now() - datetime.timedelta(days=1),
+    )
 
     with pytest.raises(TokenInvalidError):
         auth.authenticate(request_with(pair.access))

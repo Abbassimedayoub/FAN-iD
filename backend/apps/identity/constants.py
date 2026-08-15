@@ -115,3 +115,18 @@ OTP_TTL_MINUTES = 5
 #: tests de contrainte de S1-A.1a verifient que les deux disent la meme chose —
 #: 16 ans pile accepte, la veille refuse.
 MINIMUM_AGE_YEARS = 16
+
+
+# ------------------------------------------------------------------ clients
+#: Type de client declare a la connexion. Il decide du TRANSPORT du jeton de
+#: rafraichissement : cookie HttpOnly pour le web, corps de reponse pour le
+#: mobile. Les deux ne se cumulent jamais — un refresh present dans le corps est
+#: lisible en JavaScript, et le cookie HttpOnly ne protegerait alors plus rien.
+#:
+#: Declare par le client plutot que devine depuis le `User-Agent` : cet en-tete
+#: se falsifie et change a chaque version de navigateur. Un navigateur qui
+#: declarerait `mobile` degraderait SA PROPRE securite, celle de personne
+#: d autre.
+CLIENT_WEB = "web"
+CLIENT_MOBILE = "mobile"
+CLIENTS: tuple[str, ...] = (CLIENT_WEB, CLIENT_MOBILE)

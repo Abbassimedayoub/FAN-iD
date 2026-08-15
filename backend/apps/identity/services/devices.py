@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime
 import re
+import secrets
 from typing import Any
 
 from django.db import IntegrityError, transaction
@@ -205,6 +206,12 @@ class DeviceBindingService:
             # n autorise RIEN par lui-meme.
             device = Device.objects.active().for_user(user).first()
             if device is None:
+                # Aucun appareil actif. Un `did` ABSENT concorde avec cette
+                # absence : il n y a rien a faire respecter. Un `did` PRESENT
+                # designe en revanche un appareil qui n est plus actif —
+                # revoque — et c est precisement le cas qu on veut fermer.
+                if device_id is None:
+                    return None
                 raise DeviceMismatchError()
             expected = str(device.pk)
             self._lock.acquire(str(user.pk), expected, LOCK_TTL_SECONDS)
@@ -213,6 +220,40 @@ class DeviceBindingService:
             raise DeviceMismatchError()
 
         return Device.objects.active().for_user(user).filter(pk=expected).first()
+
+    def assert_fingerprint(self, *, device: Device, fingerprint: str | None) -> None:
+        """
+        Verifie qu une empreinte presentee correspond a l appareil de la session.
+
+        Utilisee au RAFRAICHISSEMENT. Sans elle, le verrou d appareil ne
+        protegerait que l instant de la connexion : un refresh exfiltre
+        fonctionnerait depuis n importe quelle machine pendant toute sa duree de
+        vie, et la detection de reutilisation n interviendrait qu APRES coup —
+        une fois que le voleur et la victime ont tous deux tourne le jeton.
+        Entre le vol et cette collision, l attaquant est libre.
+
+        Un appareil REVOQUE est refuse ici aussi. Sans ce controle, revoquer un
+        appareil n empecherait pas une session deja ouverte de se prolonger
+        indefiniment de rotation en rotation : la revocation ne prendrait effet
+        qu a l expiration du refresh, soit des jours plus tard.
+
+        La comparaison est a temps constant. L empreinte n est pas un secret
+        cryptographique, mais elle est le seul facteur qui distingue le porteur
+        legitime du voleur a cet instant : la comparer avec `==` en laisserait
+        fuiter la valeur caractere par caractere a qui sait mesurer.
+        """
+        if device.revoked_at is not None:
+            raise DeviceMismatchError()
+        # Comparaison sur les OCTETS : `compare_digest` refuse les chaines non
+        # ASCII en levant `TypeError`, et une empreinte exotique envoyee par un
+        # client bricole produirait alors une 500 la ou un 401 est du.
+        #
+        # Aucune validation de FORME non plus, deliberement : une empreinte
+        # malformee ne correspondra tout simplement pas, et lui reserver une
+        # erreur distincte creerait deux reponses la ou une seule suffit.
+        presented = (fingerprint or "").encode("utf-8")
+        if not secrets.compare_digest(device.fingerprint.encode("utf-8"), presented):
+            raise DeviceMismatchError()
 
     # -- revocation ---------------------------------------------------------
 
