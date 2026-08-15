@@ -31,3 +31,7 @@ OTEL_ENABLED = False
 # Le middleware de log applicatif reste actif (comportement testé), mais le
 # niveau racine est relevé pour ne pas polluer la sortie pytest.
 LOGGING["root"]["level"] = "WARNING"  # noqa: F405
+
+# Capture en mémoire : si un test oublie d injecter son expéditeur,
+# il capturera le code au lieu de le journaliser.
+NOTIFICATION_BACKEND = "memory"

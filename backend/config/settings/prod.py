@@ -41,3 +41,7 @@ OTEL_TRACES_SAMPLE_RATE = env.float(
 )  # 20% + conservation des erreurs (voir tracing.py)
 
 LOGGING["root"]["level"] = "INFO"  # noqa: F405
+
+# Pas de défaut : un canal de notification absent doit empêcher le démarrage,
+# pas se replier en silence sur la console.
+NOTIFICATION_BACKEND = env("NOTIFICATION_BACKEND")

@@ -32,6 +32,7 @@ def test_production_settings_module_defines_required_security_headers(monkeypatc
     # cookie, une liste blanche CSRF explicite devient obligatoire. `prod.py` la
     # lit SANS défaut (§41), le test doit donc la fournir comme les autres.
     monkeypatch.setenv("CSRF_TRUSTED_ORIGINS", "https://app.example.test")
+    monkeypatch.setenv("NOTIFICATION_BACKEND", "memory")
 
     # `import_module` ne réexécute pas un module déjà dans `sys.modules` : on
     # vide le cache pour que le module soit VRAIMENT évalué avec l'environnement

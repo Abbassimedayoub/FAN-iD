@@ -11,6 +11,10 @@ class CoreConfig(AppConfig):
     verbose_name = "Core (socle transverse)"
 
     def ready(self) -> None:
+        # Enregistre les controles systeme avant tout retour anticipe.
+        # L'import suffit : @register() attache les controles au registre Django.
+        from . import checks  # noqa: F401
+
         # Ne pas instrumenter pendant makemigrations/migrate/collectstatic — bruit
         # inutile et connexion réseau au collecteur non pertinente pour ces commandes.
         management_commands_to_skip = {"makemigrations", "migrate", "collectstatic", "shell"}

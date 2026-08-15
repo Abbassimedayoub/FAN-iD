@@ -262,10 +262,10 @@ SESSION_COOKIE_SAMESITE = env(
     default="Lax",
 )
 
-# --- Notifications (S1-A.7) ---
-# `console` journalise le code au lieu de l envoyer : DEVELOPPEMENT UNIQUEMENT.
-# La production doit surcharger cette variable des qu un adaptateur reel existe.
-NOTIFICATION_BACKEND = env("NOTIFICATION_BACKEND", default="console")
+SESSION_COOKIE_SAMESITE = env(
+    "SESSION_COOKIE_SAMESITE",
+    default="Lax",
+)
 
 # --- Internationalisation ---
 LANGUAGE_CODE = "fr-fr"
