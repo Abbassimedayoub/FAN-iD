@@ -55,18 +55,11 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from ..constants import AUTH_LEVEL_PASSWORD
+from ..constants import AUTH_LEVEL_PASSWORD, SESSION_REVOKED_ROTATION_REUSE
 from ..models import Device, Session, User
 from ..tokens import TokenInvalidError, TokenReuseDetectedError, TokenType, decode_token, encode_token
 
 logger = logging.getLogger("fanid.identity")
-
-#: Motifs de revocation. Contraints en base par `ck_session_revoked_reason_valid`.
-REASON_LOGOUT = "LOGOUT"
-REASON_ROTATION_REUSE = "ROTATION_REUSE"
-REASON_PASSWORD_CHANGE = "PASSWORD_CHANGE"
-REASON_ADMIN = "ADMIN"
-REASON_DEVICE_RESET = "DEVICE_RESET"
 
 
 class _ReuseSignal(Exception):
@@ -240,7 +233,7 @@ class TokenService:
             #
             # On sort donc de la transaction AVANT de revoquer, en signalant le
             # constat par une exception interne.
-            revoked = TokenService.revoke_family(signal.family_id, REASON_ROTATION_REUSE, now=moment)
+            revoked = TokenService.revoke_family(signal.family_id, SESSION_REVOKED_ROTATION_REUSE, now=moment)
             logger.warning(
                 "auth.token.reuse_detected",
                 extra={"family_id": str(signal.family_id), "sessions_revoked": revoked},

@@ -19,6 +19,8 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.core.http import FanIdApiRequest
+
 from .authentication import default_binding_service
 from .constants import CLIENT_WEB
 from .models import User
@@ -359,12 +361,8 @@ class LogoutView(APIView):
             429: OpenApiResponse(description="Trop de tentatives"),
         },
     )
-    def post(self, request: Request) -> Response:
-        # `getattr` et non `request.session_id` : l attribut est pose par
-        # `JWTAuthentication` mais n est pas declare sur `FanIdRequest`
-        # (dette ouverte au lot S1-A.6a). Le lire en dur ferait echouer mypy.
-        session_id = getattr(request, "session_id", None)
-        build_authentication_service().logout(session_id=session_id)
+    def post(self, request: FanIdApiRequest) -> Response:
+        build_authentication_service().logout(session_id=request.session_id)
 
         response = Response(status=status.HTTP_204_NO_CONTENT)
         clear_refresh_cookie(response)

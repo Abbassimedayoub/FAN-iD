@@ -18,12 +18,12 @@ from django.db import connection
 from django.utils import timezone
 
 from apps.identity.models import Session, User
-from apps.identity.services.tokens import (
-    REASON_LOGOUT,
-    REASON_PASSWORD_CHANGE,
-    REASON_ROTATION_REUSE,
-    TokenService,
+from apps.identity.constants import (
+    SESSION_REVOKED_LOGOUT,
+    SESSION_REVOKED_PASSWORD_CHANGE,
+    SESSION_REVOKED_ROTATION_REUSE,
 )
+from apps.identity.services.tokens import TokenService
 from apps.identity.tokens import (
     TokenExpiredError,
     TokenInvalidError,
@@ -160,7 +160,7 @@ def test_a_refresh_from_a_revoked_session_is_invalid_not_a_reuse(fan):
     apres deconnexion — frequents, benins — rendrait l alerte inutilisable.
     """
     pair = TokenService.issue_pair(user=fan)
-    TokenService.revoke_session(pair.session, REASON_LOGOUT)
+    TokenService.revoke_session(pair.session, SESSION_REVOKED_LOGOUT)
 
     with pytest.raises(TokenInvalidError) as caught:
         TokenService.rotate(pair.refresh)
@@ -189,7 +189,7 @@ def test_replaying_a_rotated_refresh_revokes_the_whole_family(fan):
 
     session = Session.objects.get(pk=original.session.pk)
     assert session.revoked_at is not None
-    assert session.revoked_reason == REASON_ROTATION_REUSE
+    assert session.revoked_reason == SESSION_REVOKED_ROTATION_REUSE
 
     # Le jeton honnete tombe aussi : c est le prix, et il est assume.
     with pytest.raises(TokenInvalidError):
@@ -244,11 +244,11 @@ def test_changing_a_password_must_be_able_to_close_every_session(fan):
     first = TokenService.issue_pair(user=fan)
     second = TokenService.issue_pair(user=fan)
 
-    closed = TokenService.revoke_all_for_user(fan, REASON_PASSWORD_CHANGE)
+    closed = TokenService.revoke_all_for_user(fan, SESSION_REVOKED_PASSWORD_CHANGE)
 
     assert closed == 2
     for pair in (first, second):
-        assert Session.objects.get(pk=pair.session.pk).revoked_reason == REASON_PASSWORD_CHANGE
+        assert Session.objects.get(pk=pair.session.pk).revoked_reason == SESSION_REVOKED_PASSWORD_CHANGE
         with pytest.raises(TokenInvalidError):
             TokenService.rotate(pair.refresh)
 
@@ -260,10 +260,10 @@ def test_revoking_twice_reports_no_second_victim(fan):
     vol effacerait `ROTATION_REUSE` des journaux d audit.
     """
     pair = TokenService.issue_pair(user=fan)
-    TokenService.revoke_family(pair.session.family_id, REASON_ROTATION_REUSE)
+    TokenService.revoke_family(pair.session.family_id, SESSION_REVOKED_ROTATION_REUSE)
 
-    assert TokenService.revoke_family(pair.session.family_id, REASON_LOGOUT) == 0
-    assert Session.objects.get(pk=pair.session.pk).revoked_reason == REASON_ROTATION_REUSE
+    assert TokenService.revoke_family(pair.session.family_id, SESSION_REVOKED_LOGOUT) == 0
+    assert Session.objects.get(pk=pair.session.pk).revoked_reason == SESSION_REVOKED_ROTATION_REUSE
 
 
 # ===========================================================================
@@ -322,7 +322,7 @@ def test_two_concurrent_rotations_never_produce_two_valid_pairs(roles):
     assert isinstance(losers[0], TokenReuseDetectedError), diagnostic
 
     session = Session.objects.get(pk=pair.session.pk)
-    assert session.revoked_reason == REASON_ROTATION_REUSE
+    assert session.revoked_reason == SESSION_REVOKED_ROTATION_REUSE
 
 
 @pytest.mark.django_db(transaction=True)

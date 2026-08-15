@@ -36,7 +36,6 @@ import functools
 import logging
 import secrets
 import uuid
-from typing import Any
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
@@ -44,12 +43,13 @@ from django.utils import timezone
 
 from apps.core.outbox.publisher import publish_event
 
+from ..constants import SESSION_REVOKED_LOGOUT, SESSION_REVOKED_PASSWORD_CHANGE
 from ..events import AGGREGATE_USER, USER_LOGGED_IN, user_logged_in_payload
 from ..exceptions import InvalidCredentialsError, InvalidCurrentPasswordError, PasswordUnchangedError
 from ..models import Device, Session, User
 from ..tokens import TokenInvalidError, TokenType, decode_token
 from .devices import DeviceBindingService
-from .tokens import REASON_LOGOUT, REASON_PASSWORD_CHANGE, IssuedPair, TokenService
+from .tokens import IssuedPair, TokenService
 
 logger = logging.getLogger("fanid.identity")
 
@@ -275,7 +275,7 @@ class AuthenticationService:
 
     # -- deconnexion ---------------------------------------------------------
 
-    def logout(self, *, session_id: Any) -> int:
+    def logout(self, *, session_id: uuid.UUID) -> int:
         """
         Revoque la session courante. Renvoie le nombre de lignes touchees.
 
@@ -296,10 +296,10 @@ class AuthenticationService:
             # revoquer, et l appelant obtient le meme resultat.
             return 0
 
-        revoked = TokenService.revoke_session(session, REASON_LOGOUT)
+        revoked = TokenService.revoke_session(session, SESSION_REVOKED_LOGOUT)
         logger.info(
             "auth.session.revoked",
-            extra={"session_id": str(session.pk), "reason": REASON_LOGOUT},
+            extra={"session_id": str(session.pk), "reason": SESSION_REVOKED_LOGOUT},
         )
         return revoked
 
@@ -344,10 +344,10 @@ class AuthenticationService:
         with transaction.atomic():
             user.set_password(new_password)
             user.save(update_fields=["password"])
-            revoked = TokenService.revoke_all_for_user(user, REASON_PASSWORD_CHANGE)
+            revoked = TokenService.revoke_all_for_user(user, SESSION_REVOKED_PASSWORD_CHANGE)
 
         logger.info(
             "auth.session.revoked",
-            extra={"user_id": str(user.pk), "reason": REASON_PASSWORD_CHANGE, "sessions": revoked},
+            extra={"user_id": str(user.pk), "reason": SESSION_REVOKED_PASSWORD_CHANGE, "sessions": revoked},
         )
         return revoked

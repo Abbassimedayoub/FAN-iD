@@ -22,7 +22,8 @@ from apps.identity.exceptions import DeviceMismatchError
 from apps.identity.models import Device, Session, User
 from apps.identity.services.authentication import AuthenticationService, LoginCommand, RefreshCommand
 from apps.identity.services.devices import DeviceBindingService
-from apps.identity.services.tokens import REASON_ROTATION_REUSE, TokenService
+from apps.identity.constants import SESSION_REVOKED_ROTATION_REUSE
+from apps.identity.services.tokens import TokenService
 from apps.identity.tokens import (
     TokenExpiredError,
     TokenInvalidError,
@@ -172,7 +173,7 @@ def test_replaying_a_rotated_refresh_revokes_the_whole_family(service, fan):
 
     session = Session.objects.get(pk=opened.pair.session.pk)
     assert session.revoked_at is not None
-    assert session.revoked_reason == REASON_ROTATION_REUSE
+    assert session.revoked_reason == SESSION_REVOKED_ROTATION_REUSE
 
 
 def test_the_revocation_survives_the_refusal(service, fan):
