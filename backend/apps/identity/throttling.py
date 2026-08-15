@@ -107,3 +107,20 @@ class RefreshSessionRateThrottle(SimpleRateThrottle):
             "scope": self.scope,
             "ident": sid.strip(),
         }
+
+
+class DeviceResetAccountRateThrottle(LoginAccountRateThrottle):
+    """
+    Plafonne les demandes de reinitialisation visant UN MEME compte.
+
+    Herite du hachage et de la normalisation de l adresse — un seul endroit ou
+    cette logique existe. Seule la portee change.
+
+    **C est l axe qui protege la victime.** Une demande de reinitialisation
+    envoie un courriel : sans plafond par compte, mille adresses IP suffisent a
+    noyer la boite d une personne ciblee, et le quota par origine n y peut rien.
+    Trois par heure laisse largement de quoi se tromper, et rend le harcelement
+    inoperant.
+    """
+
+    scope = "device_reset_account"

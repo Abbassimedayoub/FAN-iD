@@ -247,3 +247,31 @@ class PasswordChangeSerializer(serializers.Serializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(list(exc.messages)) from exc
         return value
+
+
+class DeviceResetRequestSerializer(serializers.Serializer):
+    """
+    Corps de `POST /api/v1/devices/reset/request`.
+
+    Les memes champs que la connexion, et pour la meme raison : l utilisateur
+    est verrouille dehors, seuls ses identifiants peuvent le designer. Aucun
+    `client` ici — cette route n emet aucun jeton, donc rien a transporter.
+    """
+
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+
+
+class DeviceResetConfirmSerializer(serializers.Serializer):
+    """
+    Corps de `POST /api/v1/devices/reset/confirm`.
+
+    `code` n est PAS contraint a six chiffres. Un refus de forme renverrait
+    `VALIDATION_ERROR` la ou un code faux renvoie `OTP_INVALID` : deux reponses
+    distinctes, donc un moyen de distinguer « mal saisi » de « mauvais », et une
+    tentative qui ne serait pas comptee. La borne de longueur reste, pour ne pas
+    hacher un corps arbitraire.
+    """
+
+    challenge_id = serializers.UUIDField()
+    code = serializers.CharField(max_length=16, trim_whitespace=True)

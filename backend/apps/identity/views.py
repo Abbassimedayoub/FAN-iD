@@ -19,12 +19,15 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.core.adapters.notifications import build_notification_sender
 from apps.core.http import FanIdApiRequest
 
 from .authentication import default_binding_service
-from .constants import CLIENT_WEB
+from .constants import CLIENT_WEB, OTP_TTL_MINUTES
 from .models import User
 from .serializers import (
+    DeviceResetConfirmSerializer,
+    DeviceResetRequestSerializer,
     DeviceSerializer,
     LoginSerializer,
     PasswordChangeSerializer,
@@ -33,8 +36,9 @@ from .serializers import (
     UserPublicSerializer,
 )
 from .services.authentication import AuthenticationService, LoginCommand, RefreshCommand
+from .services.device_reset import DeviceResetService
 from .services.registration import RegistrationService
-from .throttling import LoginAccountRateThrottle, RefreshSessionRateThrottle
+from .throttling import DeviceResetAccountRateThrottle, LoginAccountRateThrottle, RefreshSessionRateThrottle
 from .tokens import TokenInvalidError
 
 
@@ -422,3 +426,111 @@ class PasswordChangeView(APIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         clear_refresh_cookie(response)
         return response
+
+
+def build_device_reset_service() -> DeviceResetService:
+    """Assemble le service de reinitialisation — seul point remplace par les tests."""
+    return DeviceResetService(binding=default_binding_service(), sender=build_notification_sender())
+
+
+class DeviceResetRequestView(APIView):
+    """
+    `POST /api/v1/devices/reset/request` — demande un code de deliaison.
+
+    **Anonyme, et ce n est pas un oubli** (ADR-S1-04). `IsAuthenticated`, que le
+    plan §3.3 prevoyait, est incompatible avec le parcours §1.1 : `DEVICE_LOCKED`
+    n emet aucun jeton, donc l utilisateur verrouille dehors ne peut appeler
+    aucune route authentifiee. La preuve, ici, ce sont les identifiants.
+
+    **La reponse est identique dans tous les cas** — compte inconnu, mot de
+    passe faux, succes. Le `challenge_id` est toujours present, fabrique quand
+    les identifiants sont faux : sa presence ne doit jamais dire si le compte
+    existe. `expires_in_seconds` est une constante, donc muet lui aussi.
+
+    Deux axes de quota. Par COMPTE (3/h) : c est lui qui empeche de noyer la
+    boite d une personne ciblee depuis mille adresses. Par ORIGINE (20/h) :
+    simple garde-fou anti-inondation, volontairement large pour ne pas bloquer
+    un NAT d operateur ou le wifi d un stade.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes: list[Any] = []
+    throttle_classes = [ScopedRateThrottle, DeviceResetAccountRateThrottle]
+    throttle_scope = "device_reset_request"
+
+    @extend_schema(
+        operation_id="device_reset_request",
+        summary="Demander un code de reinitialisation d appareil",
+        request=DeviceResetRequestSerializer,
+        responses={
+            200: OpenApiResponse(
+                description=(
+                    "Reponse identique que le compte existe ou non. `challenge_id` est "
+                    "toujours present ; il ne designe un defi reel que si les identifiants "
+                    "etaient valides."
+                )
+            ),
+            400: OpenApiResponse(description="Corps invalide"),
+            429: OpenApiResponse(description="Trop de demandes"),
+        },
+        auth=[],
+    )
+    def post(self, request: Request) -> Response:
+        serializer = DeviceResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result = build_device_reset_service().request(
+            email=serializer.validated_data["email"],
+            password=serializer.validated_data["password"],
+        )
+
+        return Response(
+            {
+                "challenge_id": str(result.challenge_id),
+                "expires_in_seconds": int(OTP_TTL_MINUTES) * 60,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class DeviceResetConfirmView(APIView):
+    """
+    `POST /api/v1/devices/reset/confirm` — verifie le code et delie l appareil.
+
+    Renvoie `204`. **Aucun jeton n est emis** : la preuve apportee ici vaut pour
+    cette action et rien d autre. L utilisateur se reconnecte par
+    `POST /auth/login`, et c est cette connexion qui liera le nouvel appareil,
+    par le chemin deja eprouve du lot S1-A.6c.
+
+    `Session.auth_level` n est pas eleve : il n existe aucune session a elever
+    au moment ou cette route s execute. Le `[COUPE-B]` du §2.4 est donc sans
+    objet dans ce sprint (ADR-S1-04).
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes: list[Any] = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "device_reset_confirm"
+
+    @extend_schema(
+        operation_id="device_reset_confirm",
+        summary="Confirmer la reinitialisation avec le code recu",
+        request=DeviceResetConfirmSerializer,
+        responses={
+            204: OpenApiResponse(description="Appareil delie, sessions revoquees, defi consomme"),
+            400: OpenApiResponse(
+                description="OTP_INVALID — defi introuvable, expire, consomme, ou code faux"
+            ),
+            429: OpenApiResponse(description="OTP_MAX_ATTEMPTS — cinq tentatives atteintes, defi consomme"),
+        },
+        auth=[],
+    )
+    def post(self, request: Request) -> Response:
+        serializer = DeviceResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        build_device_reset_service().confirm(
+            challenge_id=serializer.validated_data["challenge_id"],
+            code=serializer.validated_data["code"],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)

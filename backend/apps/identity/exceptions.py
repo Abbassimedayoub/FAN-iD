@@ -12,7 +12,7 @@ va bien de `identity` vers `core`, jamais l inverse.
 
 from __future__ import annotations
 
-from apps.core.exceptions import AuthError, PermissionBusinessError, ValidationBusinessError
+from apps.core.exceptions import AuthError, PermissionBusinessError, RateLimitError, ValidationBusinessError
 
 
 class EmailAlreadyExistsError(ValidationBusinessError):
@@ -169,3 +169,37 @@ class PasswordUnchangedError(ValidationBusinessError):
 
     default_code = "VALIDATION_ERROR"
     default_message = "Le nouveau mot de passe doit etre different de l ancien."
+
+
+class OtpInvalidError(ValidationBusinessError):
+    """
+    400 `OTP_INVALID` — defi introuvable, expire, deja consomme, ou code faux.
+
+    **Un seul code pour quatre situations, deliberement.** Distinguer « expire »
+    de « introuvable » confirmerait qu un defi a existe pour cet identifiant,
+    donc qu un compte a demande une reinitialisation. Le tableau §3.4 du plan
+    prevoit `OTP_EXPIRED` ; il reste inutilise ici pour cette raison, et
+    l ADR-S1-04 le consigne.
+
+    Le detail precis part dans les journaux, ou il sert au diagnostic sans etre
+    offert a qui essaie des identifiants au hasard.
+    """
+
+    default_code = "OTP_INVALID"
+    default_message = "Code invalide ou expire."
+
+
+class OtpMaxAttemptsError(RateLimitError):
+    """
+    429 `OTP_MAX_ATTEMPTS` — le plafond de cinq tentatives est atteint.
+
+    Sous-classe de `RateLimitError` pour heriter du 429 sans creer une seconde
+    base a ce statut ; seul le code change, parce que le tableau §3.4 le fige a
+    `OTP_MAX_ATTEMPTS` et que S1-B comme S1-C seront ecrits contre lui.
+
+    A ce stade le defi est **consomme definitivement** : meme presente ensuite,
+    le bon code ne le rouvrira pas. L utilisateur repasse par une demande.
+    """
+
+    default_code = "OTP_MAX_ATTEMPTS"
+    default_message = "Trop de tentatives. Demandez un nouveau code."

@@ -17,12 +17,12 @@ import pytest
 from django.db import connection
 from django.utils import timezone
 
-from apps.identity.models import Session, User
 from apps.identity.constants import (
     SESSION_REVOKED_LOGOUT,
     SESSION_REVOKED_PASSWORD_CHANGE,
     SESSION_REVOKED_ROTATION_REUSE,
 )
+from apps.identity.models import Session, User
 from apps.identity.services.tokens import TokenService
 from apps.identity.tokens import (
     TokenExpiredError,

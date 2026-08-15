@@ -64,3 +64,38 @@ def user_logged_in_payload(*, role_name: str, device_bound: bool) -> dict[str, A
     nouvellement lie merite une notification, les autres non.
     """
     return {"role": role_name, "device_bound": device_bound}
+
+
+#: Emis quand un code de reinitialisation est REELLEMENT cree. Le chemin
+#: anti-enumeration — identifiants faux, adresse inconnue — n emet rien : un
+#: evenement par tentative transformerait l `outbox` en journal des adresses
+#: essayees, ce que la charge utile s interdit par ailleurs.
+DEVICE_RESET_REQUESTED: Final = "identity.device.reset.requested"
+
+
+def device_reset_requested_payload(*, device_bound: bool) -> dict[str, Any]:
+    """
+    Charge utile de `identity.device.reset.requested` v1.
+
+    Ni adresse, ni code, ni empreinte, ni identifiant de defi. `device_bound`
+    suffit au consommateur : une demande de reinitialisation sur un compte qui
+    n a aucun appareil lie n a pas le meme sens qu une demande sur un compte
+    verrouille, et c est la seule nuance qu une alerte a besoin de connaitre.
+    """
+    return {"device_bound": device_bound}
+
+
+#: Emis quand le code a ete verifie et l appareil delie.
+DEVICE_RESET_CONFIRMED: Final = "identity.device.reset.confirmed"
+
+
+def device_reset_confirmed_payload(*, device_revoked: bool, sessions_revoked: int) -> dict[str, Any]:
+    """
+    Charge utile de `identity.device.reset.confirmed` v1.
+
+    Le nombre de sessions fermees est une donnee d audit utile — une
+    reinitialisation qui en ferme huit merite un regard — et ne designe
+    personne. L identifiant de l appareil n y figure pas : il est deja perime a
+    la lecture, puisque la ligne est revoquee.
+    """
+    return {"device_revoked": device_revoked, "sessions_revoked": sessions_revoked}

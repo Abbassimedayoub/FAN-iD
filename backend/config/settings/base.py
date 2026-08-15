@@ -181,6 +181,9 @@ REST_FRAMEWORK = {
             default="10/hour",
         ),
         "logout": env("THROTTLE_LOGOUT_RATE", default="20/hour"),
+        "device_reset_request": env("THROTTLE_RESET_REQUEST_RATE", default="20/hour"),
+        "device_reset_account": env("THROTTLE_RESET_ACCOUNT_RATE", default="3/hour"),
+        "device_reset_confirm": env("THROTTLE_RESET_CONFIRM_RATE", default="30/hour"),
         "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="5/hour"),
         # S1-A.6d : quota par session, et non par adresse IP.
         "refresh": env(
@@ -258,6 +261,11 @@ SESSION_COOKIE_SAMESITE = env(
     "SESSION_COOKIE_SAMESITE",
     default="Lax",
 )
+
+# --- Notifications (S1-A.7) ---
+# `console` journalise le code au lieu de l envoyer : DEVELOPPEMENT UNIQUEMENT.
+# La production doit surcharger cette variable des qu un adaptateur reel existe.
+NOTIFICATION_BACKEND = env("NOTIFICATION_BACKEND", default="console")
 
 # --- Internationalisation ---
 LANGUAGE_CODE = "fr-fr"

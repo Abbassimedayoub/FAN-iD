@@ -17,12 +17,15 @@ import pytest
 from django.utils import timezone
 
 from apps.core.adapters.device_lock import FakeDeviceLock
-from apps.identity.constants import DEVICE_REVOKED_USER_RESET, PLATFORM_ANDROID
+from apps.identity.constants import (
+    DEVICE_REVOKED_USER_RESET,
+    PLATFORM_ANDROID,
+    SESSION_REVOKED_ROTATION_REUSE,
+)
 from apps.identity.exceptions import DeviceMismatchError
 from apps.identity.models import Device, Session, User
 from apps.identity.services.authentication import AuthenticationService, LoginCommand, RefreshCommand
 from apps.identity.services.devices import DeviceBindingService
-from apps.identity.constants import SESSION_REVOKED_ROTATION_REUSE
 from apps.identity.services.tokens import TokenService
 from apps.identity.tokens import (
     TokenExpiredError,
