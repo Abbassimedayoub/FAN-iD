@@ -52,6 +52,41 @@ fanid_stock_hold_active = Gauge("fanid_stock_hold_active", "Réservations de sto
 fanid_totp_verification_total = Counter("fanid_totp_verification_total", "Vérifications TOTP", ["result"])
 
 
+# --- Métriques métier du Sprint 1 (§5.4 du plan de sprint) ---
+
+fanid_auth_login_total = Counter(
+    "fanid_auth_login_total",
+    "Tentatives de connexion par résultat",
+    ["result"],
+)
+
+fanid_auth_token_refresh_total = Counter(
+    "fanid_auth_token_refresh_total",
+    "Rotations de jeton de rafraîchissement par résultat",
+    ["result"],
+)
+
+fanid_auth_token_reuse_detected_total = Counter(
+    "fanid_auth_token_reuse_detected_total",
+    "Réutilisations détectées d'un jeton de rafraîchissement déjà tourné",
+)
+
+fanid_device_reset_total = Counter(
+    "fanid_device_reset_total",
+    "Confirmations de réinitialisation d'appareil par résultat",
+    ["result"],
+)
+
+fanid_authz_denied_total = Counter(
+    "fanid_authz_denied_total",
+    "Refus d'autorisation par action et par rôle",
+    ["action", "role"],
+)
+
+# Valeur fermée utilisée lorsque Subject.role vaut None.
+AUTHZ_ROLE_ANONYMOUS = "anonymous"
+
+
 class MetricsMiddleware:
     """
     Middleware RED — positionné au plus près de la vue (§2.5 Source B) pour

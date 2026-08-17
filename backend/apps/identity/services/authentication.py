@@ -41,13 +41,20 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.observability.metrics import fanid_auth_login_total, fanid_auth_token_refresh_total
 from apps.core.outbox.publisher import publish_event
 
 from ..constants import SESSION_REVOKED_LOGOUT, SESSION_REVOKED_PASSWORD_CHANGE
 from ..events import AGGREGATE_USER, USER_LOGGED_IN, user_logged_in_payload
-from ..exceptions import InvalidCredentialsError, InvalidCurrentPasswordError, PasswordUnchangedError
+from ..exceptions import (
+    DeviceLockedError,
+    DeviceMismatchError,
+    InvalidCredentialsError,
+    InvalidCurrentPasswordError,
+    PasswordUnchangedError,
+)
 from ..models import Device, Session, User
-from ..tokens import TokenInvalidError, TokenType, decode_token
+from ..tokens import TokenExpiredError, TokenInvalidError, TokenReuseDetectedError, TokenType, decode_token
 from .devices import DeviceBindingService
 from .tokens import IssuedPair, TokenService
 
@@ -133,21 +140,30 @@ class AuthenticationService:
         """
         user = self._verify_credentials(command)
 
-        with transaction.atomic():
-            device = self._bind_device(user, command)
-            pair = TokenService.issue_pair(
-                user=user,
-                device=device,
-                ip=command.ip,
-                user_agent=command.user_agent,
-            )
-            publish_event(
-                event_type=USER_LOGGED_IN,
-                aggregate_type=AGGREGATE_USER,
-                aggregate_id=user.pk,
-                actor_id=user.pk,
-                payload=user_logged_in_payload(role_name=user.role.name, device_bound=device is not None),
-            )
+        try:
+            with transaction.atomic():
+                device = self._bind_device(user, command)
+                pair = TokenService.issue_pair(
+                    user=user,
+                    device=device,
+                    ip=command.ip,
+                    user_agent=command.user_agent,
+                )
+                publish_event(
+                    event_type=USER_LOGGED_IN,
+                    aggregate_type=AGGREGATE_USER,
+                    aggregate_id=user.pk,
+                    actor_id=user.pk,
+                    payload=user_logged_in_payload(
+                        role_name=user.role.name,
+                        device_bound=device is not None,
+                    ),
+                )
+        except DeviceLockedError:
+            fanid_auth_login_total.labels(result="device_locked").inc()
+            raise
+
+        fanid_auth_login_total.labels(result="success").inc()
 
         # Ni adresse, ni empreinte, ni jeton. Le `correlation_id` pose par le
         # middleware relie cette ligne a la requete, qui porte le reste.
@@ -176,10 +192,12 @@ class AuthenticationService:
             # l exterieur, et suffit a enumerer les comptes.
             check_password(command.password, _decoy_hash())
             logger.info("auth.login.failed", extra={"reason": "unknown_email"})
+            fanid_auth_login_total.labels(result="bad_credentials").inc()
             raise InvalidCredentialsError()
 
         if not user.check_password(command.password):
             logger.info("auth.login.failed", extra={"reason": "bad_password"})
+            fanid_auth_login_total.labels(result="bad_credentials").inc()
             raise InvalidCredentialsError()
 
         if not user.is_active or user.anonymized_at is not None:
@@ -187,6 +205,7 @@ class AuthenticationService:
             # confirmerait que l adresse existe — et qu on a devine le mot de
             # passe, ce qui est encore pire.
             logger.warning("auth.login.failed", extra={"reason": "inactive_account"})
+            fanid_auth_login_total.labels(result="inactive").inc()
             raise InvalidCredentialsError()
 
         return user
@@ -231,15 +250,36 @@ class AuthenticationService:
         Le controle d appareil ne court-circuite jamais la rotation quand la
         session est introuvable — voir `_session_for`.
         """
-        session = self._session_for(command.refresh)
-        if session is not None and session.device is not None:
-            self._binding.assert_fingerprint(device=session.device, fingerprint=command.fingerprint)
+        try:
+            session = self._session_for(command.refresh)
+            if session is not None and session.device is not None:
+                self._binding.assert_fingerprint(
+                    device=session.device,
+                    fingerprint=command.fingerprint,
+                )
 
-        pair = TokenService.rotate(command.refresh)
+            pair = TokenService.rotate(command.refresh)
+        except TokenExpiredError:
+            fanid_auth_token_refresh_total.labels(result="expired").inc()
+            raise
+        except TokenReuseDetectedError:
+            fanid_auth_token_refresh_total.labels(result="reuse_detected").inc()
+            raise
+        except DeviceMismatchError:
+            fanid_auth_token_refresh_total.labels(result="device_mismatch").inc()
+            raise
+        except TokenInvalidError:
+            fanid_auth_token_refresh_total.labels(result="invalid").inc()
+            raise
+
+        fanid_auth_token_refresh_total.labels(result="success").inc()
 
         logger.info(
             "auth.refresh.success",
-            extra={"session_id": str(pair.session.pk), "device_bound": pair.session.device is not None},
+            extra={
+                "session_id": str(pair.session.pk),
+                "device_bound": pair.session.device is not None,
+            },
         )
         return RefreshResult(user=pair.session.user, device=pair.session.device, pair=pair)
 

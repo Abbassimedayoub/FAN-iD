@@ -55,6 +55,8 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.observability.metrics import fanid_auth_token_reuse_detected_total
+
 from ..constants import AUTH_LEVEL_PASSWORD, SESSION_REVOKED_ROTATION_REUSE
 from ..models import Device, Session, User
 from ..tokens import TokenInvalidError, TokenReuseDetectedError, TokenType, decode_token, encode_token
@@ -234,6 +236,7 @@ class TokenService:
             # On sort donc de la transaction AVANT de revoquer, en signalant le
             # constat par une exception interne.
             revoked = TokenService.revoke_family(signal.family_id, SESSION_REVOKED_ROTATION_REUSE, now=moment)
+            fanid_auth_token_reuse_detected_total.inc()
             logger.warning(
                 "auth.token.reuse_detected",
                 extra={"family_id": str(signal.family_id), "sessions_revoked": revoked},

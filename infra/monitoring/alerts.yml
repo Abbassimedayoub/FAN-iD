@@ -1,0 +1,20 @@
+groups:
+  - name: fanid-auth
+    rules:
+      - alert: FanidAuthTokenReuseDetected
+        expr: increase(fanid_auth_token_reuse_detected_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Réutilisation de refresh token détectée"
+          description: "Une réutilisation de refresh token a été détectée dans les 5 dernières minutes."
+
+      - alert: FanidAuthBadCredentialsSpike
+        expr: sum(rate(fanid_auth_login_total{result="bad_credentials"}[1m])) * 60 > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pic d'échecs d'authentification"
+          description: "Le volume de bad_credentials dépasse 50 tentatives par minute depuis 2 minutes."

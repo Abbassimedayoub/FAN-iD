@@ -2,10 +2,16 @@ name: ci-backend
 
 on:
   pull_request:
-    paths: ["backend/**", ".github/workflows/ci-backend.yml", ".importlinter"]
+    paths:
+      - "backend/**"
+      - "infra/monitoring/**"
+      - ".github/workflows/ci-backend.yml"
+      - ".importlinter"
   push:
     branches: [main, develop]
-    paths: ["backend/**"]
+    paths:
+      - "backend/**"
+      - "infra/monitoring/**"
 
 defaults:
   run:

@@ -47,6 +47,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.interfaces import NotificationSender
+from apps.core.observability.metrics import fanid_device_reset_total
 from apps.core.outbox.publisher import publish_event
 
 from ..constants import (
@@ -221,9 +222,13 @@ class DeviceResetService:
         outcome, result = self._settle(challenge_id, code)
 
         if outcome == "exhausted":
+            fanid_device_reset_total.labels(result="exhausted").inc()
             raise OtpMaxAttemptsError()
         if outcome == "invalid":
+            fanid_device_reset_total.labels(result="invalid").inc()
             raise OtpInvalidError()
+
+        fanid_device_reset_total.labels(result="success").inc()
         assert result is not None
         return result
 

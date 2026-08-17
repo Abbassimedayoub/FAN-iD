@@ -33,6 +33,8 @@ from typing import Any, ClassVar
 
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from apps.core.observability.metrics import AUTHZ_ROLE_ANONYMOUS, fanid_authz_denied_total
+
 from .authz import Action, Decision, Reason, Resource, authorize, may_attempt
 from .authz.context import subject_from_request
 
@@ -98,18 +100,40 @@ class BasePolicyPermission(BasePermission):
         action = self.get_action(request, view)
         if action is None:
             return self._deny_misconfigured(view)
-        return self._resolve(may_attempt(subject_from_request(request), action), action)
+
+        subject = subject_from_request(request)
+        return self._resolve(
+            may_attempt(subject, action),
+            action,
+            role=subject.role,
+        )
 
     def has_object_permission(self, request: Any, view: Any, obj: Any) -> bool:
         action = self.get_action(request, view)
         if action is None:
             return self._deny_misconfigured(view)
-        decision = authorize(subject_from_request(request), action, self.get_resource(request, view, obj))
-        return self._resolve(decision, action)
+
+        subject = subject_from_request(request)
+        decision = authorize(
+            subject,
+            action,
+            self.get_resource(request, view, obj),
+        )
+        return self._resolve(
+            decision,
+            action,
+            role=subject.role,
+        )
 
     # -- traduction ---------------------------------------------------------
 
-    def _resolve(self, decision: Decision, action: Action) -> bool:
+    def _resolve(
+        self,
+        decision: Decision,
+        action: Action,
+        *,
+        role: str | None,
+    ) -> bool:
         if decision.allowed:
             return True
 
@@ -127,9 +151,20 @@ class BasePolicyPermission(BasePermission):
         # requete, qui porte le reste. Ces trois champs sont de cardinalite
         # bornee, donc reutilisables tels quels comme etiquettes de metrique au
         # lot S1-A.9.
+        metric_role = role if role is not None else AUTHZ_ROLE_ANONYMOUS
+
+        fanid_authz_denied_total.labels(
+            action=str(action),
+            role=metric_role,
+        ).inc()
+
         logger.warning(
             "authorization.denied",
-            extra={"authz_action": str(action), "authz_reason": decision.reason.value},
+            extra={
+                "authz_action": str(action),
+                "authz_reason": decision.reason.value,
+                "authz_role": metric_role,
+            },
         )
         return False
 
