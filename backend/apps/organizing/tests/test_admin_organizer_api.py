@@ -100,7 +100,7 @@ def call(
         **headers,
     )
     force_authenticate(request, user=user)
-    setattr(request, "auth_level", auth_level)
+    setattr(request, "auth_level", auth_level)  # noqa: B010
 
     return view.as_view()(request, organizer_id=organizer_id)
 
@@ -325,3 +325,124 @@ def test_unknown_organizer_returns_404(factory, admin):
     )
 
     assert response.status_code == 404, response.data
+
+
+def list_call(factory: APIRequestFactory, *, user, query: str = ""):
+    request = factory.get(f"/api/v1/admin/organizers/{query}")
+    force_authenticate(request, user=user)
+    setattr(request, "auth_level", AUTH_LEVEL_STEP_UP)  # noqa: B010
+    from apps.organizing.views import AdminOrganizerListView
+
+    return AdminOrganizerListView.as_view()(request)
+
+
+def test_admin_can_list_organizers(factory, admin, organizer):
+    response = list_call(factory, user=admin)
+
+    assert response.status_code == 200, response.data
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == str(organizer.pk)
+
+
+def test_organizer_cannot_list_all_organizers(factory, organizer_user, organizer):
+    response = list_call(factory, user=organizer_user)
+
+    assert response.status_code == 403, response.data
+
+
+def test_fan_cannot_list_all_organizers(factory, fan, organizer):
+    response = list_call(factory, user=fan)
+
+    assert response.status_code == 403, response.data
+
+
+def test_scanner_cannot_list_all_organizers(factory, roles, organizer):
+    scanner = User.objects.create_user(
+        email="scanner-list@example.test",
+        password=PASSWORD,
+        first_name="Scan",
+        last_name="Ner",
+        date_of_birth=datetime.date(1994, 5, 1),
+        terms_accepted_at=timezone.now(),
+        role=roles["SCANNER"],
+    )
+
+    response = list_call(factory, user=scanner)
+
+    assert response.status_code == 403, response.data
+
+
+def test_admin_list_filters_by_validation_status(factory, admin, organizer, roles):
+    approved_user = User.objects.create_user(
+        email="approved-list@example.test",
+        password=PASSWORD,
+        first_name="Approved",
+        last_name="Org",
+        date_of_birth=datetime.date(1991, 6, 1),
+        terms_accepted_at=timezone.now(),
+        role=roles["ORGANIZER"],
+    )
+    approved = Organizer.objects.create(
+        user=approved_user,
+        org_name="Approved Venue",
+        contact_email="approved@example.test",
+        validation_status=ORGANIZER_APPROVED,
+    )
+
+    response = list_call(
+        factory,
+        user=admin,
+        query="?validation_status=APPROVED",
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == str(approved.pk)
+
+
+def test_admin_list_is_paginated(factory, admin, roles):
+    for index in range(25):
+        user = User.objects.create_user(
+            email=f"list-{index}@example.test",
+            password=PASSWORD,
+            first_name="List",
+            last_name=str(index),
+            date_of_birth=datetime.date(1990, 1, 1),
+            terms_accepted_at=timezone.now(),
+            role=roles["ORGANIZER"],
+        )
+        Organizer.objects.create(
+            user=user,
+            org_name=f"Venue {index:02d}",
+            contact_email=f"venue-{index}@example.test",
+        )
+
+    response = list_call(factory, user=admin)
+
+    assert response.status_code == 200, response.data
+    assert response.data["count"] == 25
+    assert len(response.data["results"]) == 20
+
+
+def test_admin_list_page_size_is_capped_at_100(factory, admin, roles):
+    for index in range(105):
+        user = User.objects.create_user(
+            email=f"cap-{index}@example.test",
+            password=PASSWORD,
+            first_name="Cap",
+            last_name=str(index),
+            date_of_birth=datetime.date(1990, 1, 1),
+            terms_accepted_at=timezone.now(),
+            role=roles["ORGANIZER"],
+        )
+        Organizer.objects.create(
+            user=user,
+            org_name=f"Cap Venue {index:03d}",
+            contact_email=f"cap-{index}@example.test",
+        )
+
+    response = list_call(factory, user=admin, query="?page_size=999")
+
+    assert response.status_code == 200, response.data
+    assert response.data["count"] == 105
+    assert len(response.data["results"]) == 100

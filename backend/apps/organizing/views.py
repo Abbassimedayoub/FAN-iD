@@ -10,7 +10,27 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db import IntegrityError
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.core.concurrency import format_etag, parse_if_match
+from apps.core.exceptions import ConflictError
+from apps.core.pagination import StandardPagination
+from apps.identity.api import Action, ActionPermission, grant_organizer_role
+
 from .models import Organizer
+from .permissions import OrganizerRecordPermission
+from .serializers import (
+    OrganizerApplySerializer,
+    OrganizerRejectSerializer,
+    OrganizerSerializer,
+    organizer_apply_data,
+)
+from .services.onboarding import OrganizerOnboardingService
 
 
 class OrganizerScopedMixin:
@@ -64,21 +84,6 @@ class OrganizerScopedMixin:
 # ---------------------------------------------------------------------------
 # S1-A.8b — candidature et dossier courant
 # ---------------------------------------------------------------------------
-
-from django.db import IntegrityError
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.request import Request
-from rest_framework.response import Response
-from rest_framework.views import APIView
-
-from apps.core.concurrency import format_etag
-from apps.core.exceptions import ConflictError
-from apps.identity.api import Action, ActionPermission, grant_organizer_role
-
-from .permissions import OrganizerRecordPermission
-from .serializers import OrganizerApplySerializer, OrganizerSerializer, organizer_apply_data
-
 
 class OrganizerApplyView(APIView):
     """POST /api/v1/organizers/apply."""
@@ -146,12 +151,6 @@ class OrganizerMeView(OrganizerScopedMixin, APIView):
 # ---------------------------------------------------------------------------
 # S1-A.8b — decisions administratives
 # ---------------------------------------------------------------------------
-
-from apps.core.concurrency import parse_if_match
-
-from .serializers import OrganizerRejectSerializer
-from .services.onboarding import OrganizerOnboardingService
-
 
 class OrganizerAdminActionView(APIView):
     """
@@ -243,3 +242,46 @@ class OrganizerSuspendView(OrganizerAdminActionView):
             expected_version=expected_version,
         )
         return self.response_for(organizer)
+
+
+# ---------------------------------------------------------------------------
+# S1-A.8b — liste d administration
+# ---------------------------------------------------------------------------
+
+
+class AdminOrganizerListView(APIView):
+    """
+    GET /api/v1/admin/organizers/.
+
+    Le second controle explicite est indispensable pour une liste : DRF
+    n appelle jamais has_object_permission() sur les elements d un queryset.
+
+    Resource() vide est volontaire :
+    - ADMIN / Scope.ANY passe ;
+    - ORGANIZER ou SCANNER / Scope.OWN_ORGANIZER echoue fail-closed.
+    """
+
+    permission_classes = [IsAuthenticated, ActionPermission]
+    required_action = Action.ORGANIZER_READ
+
+    def get(self, request: Request) -> Response:
+        permission = ActionPermission()
+
+        if not permission.has_object_permission(request, self, object()):
+            self.permission_denied(
+                request,
+                message=permission.message,
+                code=permission.code,
+            )
+
+        queryset = Organizer.objects.all().order_by("created_at", "pk")
+
+        validation_status = request.query_params.get("validation_status")
+        if validation_status:
+            queryset = queryset.filter(validation_status=validation_status)
+
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+
+        serializer = OrganizerSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
