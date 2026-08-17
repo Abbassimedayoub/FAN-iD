@@ -59,7 +59,7 @@ class Grant:
 # Tout humain authentifie gere son propre compte, quel que soit son role. Ce
 # bloc est factorise parce que le dupliquer quatre fois inviterait a le laisser
 # diverger par inadvertance. L exhaustivite reste prouvee : la matrice de test
-# reecrit les 48 cellules en clair, sans reutiliser cette table (§ double
+# reecrit les 56 cellules en clair, sans reutiliser cette table (§ double
 # saisie). Factoriser l implementation, jamais la verification.
 _SELF_SERVICE: Final[Mapping[Action, Grant]] = MappingProxyType(
     {
@@ -123,6 +123,8 @@ POLICY: Final[Mapping[str, Mapping[Action, Grant]]] = MappingProxyType(
                 Action.ORGANIZER_READ: Grant(Scope.ANY),
                 Action.ORGANIZER_UPDATE: Grant(Scope.ANY),
                 Action.ORGANIZER_APPROVE: Grant(Scope.ANY, step_up=True),
+                Action.ORGANIZER_REJECT: Grant(Scope.ANY, step_up=True),
+                Action.ORGANIZER_SUSPEND: Grant(Scope.ANY, step_up=True),
                 # Pas de TICKET_SCAN : separation des fonctions. Un
                 # administrateur n a aucune raison metier de valider un billet
                 # a l entree ; s il doit le faire, on lui attribue le role

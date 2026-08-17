@@ -33,20 +33,27 @@ ROLE_NAMES_BY_ID: Final[dict[uuid.UUID, str]] = {role_id: name for name, role_id
 UNKNOWN_ROLE: Final = "__unknown__"
 
 
-def resolve_organizer_id(user: Any) -> uuid.UUID | None:
+def _organizer_id_from(request: Any) -> uuid.UUID | None:
     """
-    Organisateur de rattachement du sujet, ou `None`.
+    Organisateur de rattachement, LU SUR LA REQUETE.
 
-    Renvoie `None` au Sprint 1 : le modele `Organizer` n existe pas encore (lot
-    S1-A.8). La consequence est explicite et voulue — toute action de portee
-    `OWN_ORGANIZER` est refusee aujourd hui avec
-    `RESOURCE_ATTRIBUTE_MISSING`. Aucun point de terminaison ne l exerce encore,
-    et refuser est le bon comportement par defaut d une regle incomplete.
+    `identity` ignore qu `organizing` existe (ADR-S1-05) : c est le contexte
+    proprietaire qui pose ce primitif avant que DRF ne controle les
+    permissions. Le mecanisme est exactement celui d `auth_level`, quelques
+    lignes plus bas.
 
-    Cette fonction existe des maintenant pour que S1-A.8 n ait qu un corps a
-    ecrire, sans toucher ni au moteur, ni aux adaptateurs, ni a la matrice.
+    Le controle de type n est pas une concession au verificateur : une valeur
+    inattendue doit produire l ABSENCE de droit, pas une exception au milieu
+    d un controle d autorisation. Une requete non enrichie donne donc `None`,
+    et le moteur refuse toute portee `OWN_ORGANIZER` avec
+    `RESOURCE_ATTRIBUTE_MISSING`.
+
+    Remplace `resolve_organizer_id()`, supprimee au lot S1-A.8a : la remplir
+    aurait coute une requete SQL par controle d autorisation, sur le chemin le
+    plus chaud de l API.
     """
-    return None
+    value = getattr(request, "organizer_id", None)
+    return value if isinstance(value, uuid.UUID) else None
 
 
 def subject_from_request(request: Any) -> Subject:
@@ -77,5 +84,5 @@ def subject_from_request(request: Any) -> Subject:
         # BAS — un contexte incomplet refuse les actions renforcees au lieu de
         # les accorder.
         auth_level=int(getattr(request, "auth_level", AUTH_LEVEL_PASSWORD)),
-        organizer_id=resolve_organizer_id(user),
+        organizer_id=_organizer_id_from(request),
     )

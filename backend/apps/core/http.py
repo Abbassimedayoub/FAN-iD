@@ -59,3 +59,8 @@ class FanIdApiRequest(Request):
     #: 1 = mot de passe, 2 = verification renforcee. Lu sur la SESSION, jamais
     #: sur le jeton, pour qu une retrogradation prenne effet immediatement.
     auth_level: int
+
+    #: Organisateur de rattachement, pose par le contexte proprietaire
+    #: avant le controle des permissions (ADR-S1-05). Absent partout
+    #: ailleurs : son absence REFUSE la portee `OWN_ORGANIZER`.
+    organizer_id: uuid.UUID | None

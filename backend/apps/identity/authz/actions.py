@@ -27,7 +27,7 @@ from enum import StrEnum
 
 
 class Action(StrEnum):
-    """Les douze actions du perimetre Sprint 1."""
+    """Les quatorze actions du perimetre Sprint 1."""
 
     # --- Compte personnel -----------------------------------------------
     USER_READ_SELF = "identity:user:read_self"
@@ -45,6 +45,8 @@ class Action(StrEnum):
     ORGANIZER_READ = "organizing:organizer:read"
     ORGANIZER_UPDATE = "organizing:organizer:update"
     ORGANIZER_APPROVE = "organizing:organizer:approve"
+    ORGANIZER_REJECT = "organizing:organizer:reject"
+    ORGANIZER_SUSPEND = "organizing:organizer:suspend"
 
     # --- Controle d acces -------------------------------------------------
     TICKET_SCAN = "access:ticket:scan"

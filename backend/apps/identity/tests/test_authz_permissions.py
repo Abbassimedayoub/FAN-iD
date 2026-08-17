@@ -189,9 +189,15 @@ def test_the_owner_lookup_can_target_the_user_object_itself():
 
 def test_an_organizer_scoped_resource_is_refused_while_no_organizer_is_resolved():
     """
-    `resolve_organizer_id` renvoie `None` tant que S1-A.8 n existe pas.
+    La requete ne porte pas d organisateur : le refus est la bonne reponse.
 
-    Le refus est donc attendu, et ce test documente le jour ou il changera.
+    Depuis le lot S1-A.8a, `organizer_id` n est plus resolu par `identity` mais
+    POSE sur la requete par le contexte proprietaire (ADR-S1-05). Une requete
+    non enrichie — cas de la quasi-totalite de l API — donne donc un sujet sans
+    organisateur, et le moteur refuse avec `RESOURCE_ATTRIBUTE_MISSING`.
+
+    Ce test fige la garantie fail-closed : l oubli d enrichissement REFUSE, il
+    n ouvre pas par omission.
     """
     view = SimpleNamespace(required_action=Action.TICKET_SCAN, action=None, policy_actions={})
     permission = OrganizerResourcePermission()
