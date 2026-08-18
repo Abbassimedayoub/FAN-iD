@@ -58,4 +58,4 @@ python-ulid==2.7.0
 # depend lui-meme de PyJWT — on retire une couche, pas une protection.
 # Pas d'extra [crypto] : inutile en HS256. `cryptography` est deja present par
 # ailleurs, donc un passage ulterieur a RS256 ne coutera pas de dependance neuve.
-PyJWT==2.12.1
+PyJWT==2.13.0

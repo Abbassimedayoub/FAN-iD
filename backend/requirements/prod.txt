@@ -1,5 +1,5 @@
 -r base.txt
 
 gunicorn==23.0.0
-uvicorn[standard]==0.31.1
+uvicorn[standard]
 sentry-sdk==2.16.0

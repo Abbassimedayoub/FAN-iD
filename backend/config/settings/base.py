@@ -336,11 +336,28 @@ SSM_PARAMETER_PREFIX = env(
 
 # --- django-migration-linter ---
 MIGRATION_LINTER_OPTIONS = {
+    # Deux migrations HISTORIQUES, déjà appliquées, sont écartées nommément.
+    #
+    # Elles ajoutent des colonnes NOT NULL sur des tables peuplées via le motif
+    # canonique `default` temporaire + `preserve_default=False`. Le linter
+    # signale ce motif sans distinguer l'usage correct de la faute qu'il vise.
+    # Une migration appliquée ne se réécrit pas pour faire taire un
+    # avertissement — principe posé au lot P1-001.
+    #
+    # `ignore_name` et non `exclude_migration_tests` : désarmer NOT_NULL ou
+    # ALTER_COLUMN les neutraliserait pour TOUTES les migrations à venir, alors
+    # que le Sprint 2 ajoutera des colonnes sur des tables peuplées et que
+    # c'est exactement ce que ce contrôle doit attraper. Ici, deux migrations
+    # sont écartées ; tout le reste du dépôt reste vérifié.
+    "ignore_name": [
+        "0002_role_and_user_identity",
+        "0004_user_role",
+    ],
     "include_apps": [
         "core",
         "identity",
         "organizing",
-    ]
+    ],
 }
 
 # --- Health / readiness ---
