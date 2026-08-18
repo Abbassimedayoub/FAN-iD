@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+/* Focus visible obligatoire (WCAG 2.1 AA, §4.3 Source B) — jamais supprimé globalement. */
+:focus-visible {
+  outline: 2px solid theme("colors.cyan");
+  outline-offset: 2px;
+}
