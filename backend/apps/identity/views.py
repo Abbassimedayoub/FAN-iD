@@ -41,6 +41,8 @@ from .serializers import (
     RefreshSerializer,
     RegistrationSerializer,
     SessionSerializer,
+    StepUpConfirmSerializer,
+    StepUpRequestSerializer,
     UserMeSerializer,
     UserPublicSerializer,
 )
@@ -48,6 +50,7 @@ from .services.authentication import AuthenticationService, LoginCommand, Refres
 from .services.device_reset import DeviceResetService
 from .services.profile import ProfileService
 from .services.registration import RegistrationService
+from .services.step_up import StepUpService
 from .services.tokens import TokenService
 from .throttling import DeviceResetAccountRateThrottle, LoginAccountRateThrottle, RefreshSessionRateThrottle
 from .tokens import TokenInvalidError
@@ -437,6 +440,80 @@ class PasswordChangeView(APIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         clear_refresh_cookie(response)
         return response
+
+
+def build_step_up_service() -> StepUpService:
+    """Assemble le service STEP_UP — point remplacable par les tests."""
+    return StepUpService(sender=build_notification_sender())
+
+
+class StepUpRequestView(APIView):
+    """POST /api/v1/auth/step-up/request."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "step_up_request"
+
+    @extend_schema(
+        operation_id="auth_step_up_request",
+        summary="Demander un code de verification renforcee",
+        request=StepUpRequestSerializer,
+        responses={
+            200: OpenApiResponse(description="Challenge STEP_UP cree et code envoye."),
+            401: OpenApiResponse(description="Non authentifie"),
+            429: OpenApiResponse(description="Trop de demandes"),
+        },
+    )
+    def post(self, request: FanIdApiRequest) -> Response:
+        serializer = StepUpRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result = build_step_up_service().request(
+            user=cast(User, request.user),
+            session_id=request.session_id,
+        )
+
+        return Response(
+            {
+                "challenge_id": str(result.challenge_id),
+                "expires_in_seconds": int(OTP_TTL_MINUTES) * 60,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class StepUpConfirmView(APIView):
+    """POST /api/v1/auth/step-up/confirm."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "step_up_confirm"
+
+    @extend_schema(
+        operation_id="auth_step_up_confirm",
+        summary="Confirmer la verification renforcee",
+        request=StepUpConfirmSerializer,
+        responses={
+            204: OpenApiResponse(description="Session courante elevee au niveau STEP_UP."),
+            400: OpenApiResponse(
+                description=("OTP_INVALID — challenge inconnu, expire, consomme " "ou code incorrect")
+            ),
+            401: OpenApiResponse(description="Non authentifie"),
+            429: OpenApiResponse(description=("OTP_MAX_ATTEMPTS ou limitation de debit")),
+        },
+    )
+    def post(self, request: FanIdApiRequest) -> Response:
+        serializer = StepUpConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        build_step_up_service().confirm(
+            user=cast(User, request.user),
+            session_id=request.session_id,
+            challenge_id=serializer.validated_data["challenge_id"],
+            code=serializer.validated_data["code"],
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def build_device_reset_service() -> DeviceResetService:

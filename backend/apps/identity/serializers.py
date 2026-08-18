@@ -350,3 +350,20 @@ class DeviceResetConfirmSerializer(serializers.Serializer):
 
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(max_length=16, trim_whitespace=True)
+
+
+class StepUpRequestSerializer(serializers.Serializer):
+    """Corps vide de POST /api/v1/auth/step-up/request."""
+
+
+class StepUpConfirmSerializer(serializers.Serializer):
+    """
+    Confirmation du challenge STEP_UP.
+
+    Comme pour DEVICE_RESET, le code reste volontairement peu contraint :
+    une mauvaise valeur doit compter comme tentative OTP et produire
+    OTP_INVALID, pas contourner le compteur via VALIDATION_ERROR.
+    """
+
+    challenge_id = serializers.UUIDField()
+    code = serializers.CharField(max_length=16, trim_whitespace=True)
