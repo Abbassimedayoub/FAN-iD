@@ -1,0 +1,80 @@
+[importlinter]
+root_package = apps
+include_external_packages = True
+
+# Regle absolue (ADR-S-01) : core ne depend d aucun bounded context metier.
+[importlinter:contract:core-is-independent]
+name = core must not depend on any bounded context
+type = forbidden
+source_modules =
+    apps.core
+forbidden_modules =
+    apps.identity
+    apps.organizing
+    apps.catalog
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
+
+# Les contextes SANS communication synchrone restent mutuellement independants.
+# `organizing` en est retire : il porte la premiere dependance synchrone du
+# projet, encadree par les deux contrats explicites ci-dessous (ADR-S1-05).
+[importlinter:contract:contexts-are-independent]
+name = bounded contexts must not import each other directly
+type = independence
+modules =
+    apps.identity
+    apps.catalog
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
+
+# ADR-S1-05 : le sens de la dependance suit le domaine. Un compte existe sans
+# organisateur ; l inverse est impossible. `identity` ignore donc totalement
+# l existence des autres contextes — contrat PLUS STRICT que l independance
+# generique, et c est lui qui garantit l absence de cycle.
+[importlinter:contract:identity-is-independent]
+name = identity must not depend on any bounded context
+type = forbidden
+source_modules =
+    apps.identity
+forbidden_modules =
+    apps.organizing
+    apps.catalog
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
+
+# Liste BLANCHE, pas liste noire : `apps.identity` est interdit en entier,
+# descendants compris, et une seule exception est declaree. Un module ajoute
+# demain dans `identity` est donc interdit par defaut — ce qui manquait a la
+# strategie M-3 de l audit, qui se rabattait sur la revue de code.
+#
+# `unmatched_ignore_imports_alerting` vaut `error` par defaut : le jour ou plus
+# personne n importera `identity.api` depuis `organizing`, cette derogation
+# devenue inutile fera echouer la CI au lieu de dormir ici.
+[importlinter:contract:organizing-reaches-identity-through-api-only]
+name = organizing may only reach identity through its public api
+type = forbidden
+source_modules =
+    apps.organizing
+forbidden_modules =
+    apps.identity
+    apps.catalog
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
+ignore_imports =
+    apps.organizing.** -> apps.identity.api

@@ -1,0 +1,43 @@
+name: deploy
+
+# Coquille du Sprint 0 (§52 master prompt) : le déploiement AWS complet est
+# hors périmètre (§42/§78 Source B — S5). Ce pipeline valide dès maintenant
+# que l'image de PRODUCTION construit et démarre — ce n'est PAS un fichier
+# décoratif qui ne fait rien (§52 master prompt), mais il ne pousse vers
+# AUCUN environnement tant qu'un déploiement réel n'est pas explicitement
+# demandé et confirmé (§41/§42 master prompt : pas de ressource AWS coûteuse
+# sans confirmation explicite).
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", "docker-compose.yml"]
+  workflow_dispatch: {}
+
+jobs:
+  build-production-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image de production (stage prod, utilisateur non-root)
+        run: docker build -t fanid-api:prod-candidate --target prod backend
+
+      - name: Vérifier la taille de l'image (< 400 Mo, §5.2 Source B)
+        run: |
+          SIZE_MB=$(docker image inspect fanid-api:prod-candidate --format='{{.Size}}' | awk '{print int($1/1024/1024)}')
+          echo "Taille de l'image : ${SIZE_MB} Mo"
+          if [ "$SIZE_MB" -gt 400 ]; then
+            echo "::error::Image de production > 400 Mo (${SIZE_MB} Mo) — cible §5.2 Source B dépassée."
+            exit 1
+          fi
+
+      - name: Démarrage minimal de l'image (smoke test, sans dépendances externes)
+        run: |
+          docker run --rm fanid-api:prod-candidate python -c "import django; print('django ok', django.get_version())"
+
+      # --- Déploiement AWS réel : intentionnellement absent de ce Sprint 0 ---
+      # Provisionnement EC2/RDS/ElastiCache/S3/SSM différé au Sprint 5 (§78
+      # Source B), et à confirmation explicite de l'utilisateur avant toute
+      # ressource facturable (§41/§42 master prompt).

@@ -1,0 +1,273 @@
+name: ci-backend
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "infra/monitoring/**"
+      - ".github/workflows/ci-backend.yml"
+      - ".importlinter"
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "infra/monitoring/**"
+
+defaults:
+  run:
+    working-directory: backend
+
+env:
+  DJANGO_SETTINGS_MODULE: config.settings.test
+  DJANGO_SECRET_KEY: ci-test-secret-key-not-for-prod-xxxxxxxxxxxxxxxxxxxx
+  JWT_SIGNING_KEY: ci-test-jwt-signing-key-not-for-prod-xxxxxxxxxxxxxxxxxxxxxxxx
+  DATABASE_URL: postgresql://fanid:fanid@localhost:5432/fanid_test
+  REDIS_URL: redis://localhost:6379/0
+  CELERY_BROKER_URL: redis://localhost:6379/3
+  CELERY_RESULT_BACKEND: redis://localhost:6379/4
+  APP_VERSION: ci
+  COMMIT_SHA: ${{ github.sha }}
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    # Cible CI < 6 minutes (§5.2 Source B) : cache pip + services en parallèle du checkout.
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:15.8-alpine
+        env:
+          POSTGRES_DB: fanid_test
+          POSTGRES_USER: fanid
+          POSTGRES_PASSWORD: fanid
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fanid" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # nécessaire pour le scan de secrets sur l'historique complet
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements/test.txt
+
+      - name: Vérification statique migrations vs modèles (sans Django, fail-fast)
+        run: python3 scripts/check_migrations_static.py
+
+      - name: Installer les dépendances
+        run: pip install -r requirements/test.txt
+
+      # --- Porte 1 : lint & format ---
+      - name: Black (format)
+        run: black --check .
+      - name: isort (imports)
+        run: isort --check-only .
+      - name: Flake8 (lint)
+        run: flake8 .
+
+      # --- Porte 2 : types ---
+      - name: mypy (core, mode strict progressif)
+        run: mypy apps/core
+
+      # --- Porte 3+4 : tests + couverture (>= 80% sur core, jamais en baisse) ---
+      - name: pytest (unitaires + intégration + concurrence)
+        run: pytest -n auto
+
+      # --- Porte 5 : migrations ---
+      - name: makemigrations --check (dérive de schéma)
+        run: python manage.py makemigrations --check --dry-run
+      - name: django-migration-linter
+        run: python manage.py lintmigrations
+
+      # --- Porte 6 : architecture (import-linter) ---
+      - name: import-linter (core indépendant, pas de dépendance circulaire)
+        run: lint-imports --config=../.importlinter
+
+      # --- Porte 7 : sécurité ---
+      - name: Bandit (haute sévérité)
+        run: bandit -r apps config -ll
+      - name: pip-audit
+        run: pip-audit -r requirements/prod.txt
+      - name: detect-secrets (historique complet, bloquant)
+        working-directory: .
+        run: |
+          pip install detect-secrets
+          cp .secrets.baseline /tmp/secrets-baseline-before.json
+          detect-secrets scan --baseline .secrets.baseline
+
+          python3 - <<'PY_CHECK'
+          import json
+
+          def load(path):
+              with open(path, encoding="utf-8") as f:
+                  return json.load(f)
+
+          before = load("/tmp/secrets-baseline-before.json")
+          after = load(".secrets.baseline")
+
+          # La baseline versionnee doit etre entierement auditee AVANT le scan.
+          real = []
+          unaudited = []
+
+          for filename, entries in before.get("results", {}).items():
+              for entry in entries:
+                  item = (
+                      filename,
+                      entry.get("line_number"),
+                      entry.get("type"),
+                  )
+                  if entry.get("is_secret") is True:
+                      real.append(item)
+                  elif entry.get("is_secret") is not False:
+                      unaudited.append(item)
+
+          # Une nouvelle detection apparait dans `after` mais pas dans la
+          # baseline auditée `before`. `generated_at` est volontairement ignore.
+          def fingerprints(data):
+              return {
+                  (
+                      filename,
+                      entry.get("type"),
+                      entry.get("hashed_secret"),
+                  )
+                  for filename, entries in data.get("results", {}).items()
+                  for entry in entries
+              }
+
+          approved = fingerprints(before)
+          detected = fingerprints(after)
+
+          new_findings = sorted(
+              detected - approved,
+              key=lambda item: tuple(str(x) for x in item),
+          )
+
+          if real:
+              print("ERROR: secrets reels marques dans la baseline:")
+              for item in real:
+                  print(item)
+
+          if unaudited:
+              print("ERROR: detections de baseline non auditees:")
+              for item in unaudited:
+                  print(item)
+
+          if new_findings:
+              print("ERROR: nouvelles detections:")
+              for filename, secret_type, _hashed_secret in new_findings:
+                  print(f"{filename} [{secret_type}]")
+
+          if real or unaudited or new_findings:
+              raise SystemExit(1)
+
+          print(
+              "Secret gate OK: baseline auditée et aucune nouvelle detection."
+          )
+          PY_CHECK
+
+          # Le scan modifie seulement les metadonnees comme `generated_at`
+          # quand aucune nouvelle detection n'existe.
+          cp /tmp/secrets-baseline-before.json .secrets.baseline
+
+      # --- Porte 8 : build + démarrage réel de la stack Docker + probes ---
+      - name: Build image Docker (stage dev)
+        working-directory: .
+        run: docker build -t fanid-api:ci --target dev backend
+
+      - name: docker compose up (stack complète)
+        working-directory: .
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+
+      - name: Attendre que tous les services soient healthy
+        working-directory: .
+        run: |
+          services="postgres redis api ws worker beat nginx otel-collector"
+          deadline=$((SECONDS + 120))
+          for service in $services; do
+            cid=$(docker compose ps -q "$service")
+            if [ -z "$cid" ]; then
+              echo "::error::service '$service' absent de 'docker compose ps'"
+              docker compose ps
+              exit 1
+            fi
+          done
+          while true; do
+            unhealthy=""
+            for service in $services; do
+              cid=$(docker compose ps -q "$service")
+              status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$cid")
+              if [ "$status" != "healthy" ] && [ "$status" != "no-healthcheck" ]; then
+                unhealthy="$unhealthy $service:$status"
+              fi
+            done
+            if [ -z "$unhealthy" ]; then
+              echo "Tous les services sont healthy."
+              break
+            fi
+            if [ $SECONDS -ge $deadline ]; then
+              echo "::error::Timeout (120s) en attente des healthchecks —$unhealthy"
+              docker compose ps
+              docker compose logs --tail=100
+              exit 1
+            fi
+            echo "En attente :$unhealthy"
+            sleep 5
+          done
+
+      - name: Vérifier /health, /health/ready, /metrics, /schema
+        working-directory: .
+        run: |
+          set -euo pipefail
+
+          echo "=== health API ==="
+          curl -fsS http://localhost:8000/api/v1/health |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] == "ok"'
+
+          echo "=== readiness API ==="
+          curl -fsS http://localhost:8000/api/v1/health/ready |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] in {"ok", "degraded"}'
+
+          echo "=== metrics ==="
+          curl -fsS http://localhost:8000/metrics |
+            grep -q '^http_requests_total'
+
+          echo "=== OpenAPI ==="
+          curl -fsS             -H "Accept: application/json"             http://localhost:8000/api/v1/schema/ |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); assert "openapi" in d'
+
+          echo "=== nginx edge ==="
+          curl -fsS http://localhost:8080/api/v1/health |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] == "ok"'
+
+          echo "Toutes les probes CI sont OK."
+
+      - name: docker compose logs (diagnostic, toujours exécuté)
+        if: always()
+        working-directory: .
+        run: |
+          if [ -f .env ]; then
+            docker compose logs --tail=200
+          else
+            echo ".env absent : stack Docker non demarree, logs ignores."
+          fi
+
+      - name: docker compose down
+        if: always()
+        working-directory: .
+        run: |
+          if [ -f .env ]; then
+            docker compose down -v --remove-orphans
+          else
+            echo ".env absent : aucun compose down necessaire."
+          fi
