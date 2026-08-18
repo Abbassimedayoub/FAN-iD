@@ -262,3 +262,9 @@ class MethodScopedActionPermission(SelfResourcePermission):
         attribute = "read_action" if safe else "write_action"
         action = getattr(view, attribute, None) or getattr(self, attribute, None)
         return action if isinstance(action, Action) else None
+
+
+class SelfUserPermission(MethodScopedActionPermission):
+    """Permission de libre-service lorsque la ressource EST le User."""
+
+    owner_lookup = "pk"

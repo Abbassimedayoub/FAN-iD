@@ -8,36 +8,47 @@ lignes appartient a un service.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, cast
 
 from django.conf import settings
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from apps.core.adapters.notifications import build_notification_sender
+from apps.core.concurrency import format_etag, parse_if_match
+from apps.core.exceptions import NotFoundBusinessError, StaleResourceError
 from apps.core.http import FanIdApiRequest
 
 from .authentication import default_binding_service
-from .constants import CLIENT_WEB, OTP_TTL_MINUTES
-from .models import User
+from .authz import Action
+from .constants import CLIENT_WEB, OTP_TTL_MINUTES, SESSION_REVOKED_LOGOUT
+from .models import Device, Session, User
+from .permissions import ActionPermission, SelfResourcePermission, SelfUserPermission
 from .serializers import (
+    DeviceHistorySerializer,
     DeviceResetConfirmSerializer,
     DeviceResetRequestSerializer,
     DeviceSerializer,
     LoginSerializer,
     PasswordChangeSerializer,
+    ProfileUpdateSerializer,
     RefreshSerializer,
     RegistrationSerializer,
+    SessionSerializer,
+    UserMeSerializer,
     UserPublicSerializer,
 )
 from .services.authentication import AuthenticationService, LoginCommand, RefreshCommand
 from .services.device_reset import DeviceResetService
+from .services.profile import ProfileService
 from .services.registration import RegistrationService
+from .services.tokens import TokenService
 from .throttling import DeviceResetAccountRateThrottle, LoginAccountRateThrottle, RefreshSessionRateThrottle
 from .tokens import TokenInvalidError
 
@@ -534,3 +545,158 @@ class DeviceResetConfirmView(APIView):
             code=serializer.validated_data["code"],
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Libre-service du compte — fermeture du §3.3
+# ---------------------------------------------------------------------------
+
+logger = logging.getLogger("fanid.identity")
+
+
+def build_profile_service() -> ProfileService:
+    """Assemble le service de profil — point unique remplaçable par les tests."""
+    return ProfileService()
+
+
+class MeView(APIView):
+    """GET/PATCH /api/v1/auth/me."""
+
+    permission_classes = [IsAuthenticated, SelfUserPermission]
+    read_action = Action.USER_READ_SELF
+    write_action = Action.USER_UPDATE_SELF
+
+    # La lecture garde le quota authentifié général (300/min), tandis que
+    # l'écriture porte la portée dédiée 20/h du §3.3.
+    throttle_scope = "profile_update"
+
+    def get_throttles(self) -> list[Any]:
+        if self.request.method in SAFE_METHODS:
+            return [UserRateThrottle()]
+        return [ScopedRateThrottle()]
+
+    def get_object(self, request: Request) -> User:
+        user = User.objects.select_related("role").get(pk=request.user.pk)
+        self.check_object_permissions(request, user)
+        return user
+
+    @staticmethod
+    def response_for(user: User) -> Response:
+        response = Response(
+            UserMeSerializer(user).data,
+            status=status.HTTP_200_OK,
+        )
+        response["ETag"] = format_etag(user.version)
+        return response
+
+    def get(self, request: Request) -> Response:
+        return self.response_for(self.get_object(request))
+
+    def patch(self, request: Request) -> Response:
+        user = self.get_object(request)
+        expected_version = parse_if_match(request.headers.get("If-Match"))
+
+        serializer = ProfileUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        changes = dict(serializer.validated_data)
+
+        # Un PATCH vide ou composé uniquement de champs hors contrat est un
+        # no-op : pas de nouvelle version artificielle. La précondition reste
+        # néanmoins vérifiée, comme pour toute écriture optimiste.
+        if not changes:
+            if expected_version != user.version:
+                raise StaleResourceError(details={"current_version": user.version})
+            return self.response_for(user)
+
+        user = build_profile_service().update(
+            user_id=user.pk,
+            expected_version=expected_version,
+            changes=changes,
+        )
+        return self.response_for(user)
+
+
+class SessionListView(APIView):
+    """GET /api/v1/auth/sessions — sessions actives du sujet uniquement."""
+
+    permission_classes = [IsAuthenticated, ActionPermission]
+    required_action = Action.SESSION_LIST_SELF
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "sessions_list"
+
+    def get_queryset(self):
+        user = cast(User, self.request.user)
+        return Session.objects.for_user(user).active().select_related("device").order_by("-issued_at")
+
+    def get(self, request: Request) -> Response:
+        sessions = self.get_queryset()
+        serializer = SessionSerializer(
+            sessions,
+            many=True,
+            context={"request": request},
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SessionRevokeView(APIView):
+    """DELETE /api/v1/auth/sessions/{id} — révocation self-service."""
+
+    permission_classes = [IsAuthenticated, SelfResourcePermission]
+    required_action = Action.SESSION_REVOKE_SELF
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "session_revoke"
+
+    def get_object(self, request: Request, session_id: Any) -> Session:
+        # Filtrer AVANT le lookup évite de révéler par 403 l'existence d'une
+        # session appartenant à un autre compte.
+        session = Session.objects.for_user(cast(User, request.user)).filter(pk=session_id).first()
+        if session is None:
+            raise NotFoundBusinessError()
+
+        self.check_object_permissions(request, session)
+        return session
+
+    def delete(self, request: Request, session_id: Any) -> Response:
+        session = self.get_object(request, session_id)
+
+        TokenService.revoke_session(
+            session,
+            SESSION_REVOKED_LOGOUT,
+        )
+
+        logger.info(
+            "auth.session.revoked",
+            extra={
+                "session_id": str(session.pk),
+                "reason": SESSION_REVOKED_LOGOUT,
+            },
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DeviceMeView(APIView):
+    """GET /api/v1/devices/me — appareil actif et historique récent."""
+
+    permission_classes = [IsAuthenticated, ActionPermission]
+    required_action = Action.DEVICE_LIST_SELF
+    throttle_classes = [UserRateThrottle]
+
+    def get_queryset(self):
+        user = cast(User, self.request.user)
+        return Device.objects.for_user(user)
+
+    def get(self, request: Request) -> Response:
+        queryset = self.get_queryset()
+
+        active = queryset.active().first()
+        history = list(queryset.revoked().order_by("-revoked_at")[:20])
+
+        return Response(
+            {
+                "active": (DeviceHistorySerializer(active).data if active is not None else None),
+                "history": DeviceHistorySerializer(history, many=True).data,
+            },
+            status=status.HTTP_200_OK,
+        )

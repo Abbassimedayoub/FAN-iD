@@ -216,6 +216,81 @@ class UserPublicSerializer(serializers.Serializer):
         return str(obj.role.name)
 
 
+class UserMeSerializer(serializers.Serializer):
+    """Representation privee du profil de l utilisateur authentifie."""
+
+    id = serializers.UUIDField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    first_name = serializers.CharField(read_only=True)
+    last_name = serializers.CharField(read_only=True)
+    phone = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
+    date_of_birth = serializers.DateField(read_only=True)
+    role = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    version = serializers.IntegerField(read_only=True)
+
+    def get_role(self, obj: Any) -> str:
+        return str(obj.role.name)
+
+
+class ProfileUpdateSerializer(serializers.Serializer):
+    """
+    Entree fermee de PATCH /api/v1/auth/me.
+
+    Email, date de naissance, role, version et etat administratif ne font pas
+    partie du contrat : le sur-postage ne peut donc pas les modifier.
+    """
+
+    first_name = serializers.CharField(max_length=150, required=False)
+    last_name = serializers.CharField(max_length=150, required=False)
+    phone = serializers.CharField(
+        max_length=32,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+
+
+class SessionSerializer(serializers.Serializer):
+    """Session active visible uniquement par son proprietaire."""
+
+    id = serializers.UUIDField(read_only=True)
+    device = serializers.SerializerMethodField()
+    ip = serializers.IPAddressField(read_only=True, allow_null=True)
+    user_agent = serializers.CharField(read_only=True)
+    issued_at = serializers.DateTimeField(read_only=True)
+    last_used_at = serializers.DateTimeField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
+    current = serializers.SerializerMethodField()
+
+    def get_device(self, obj: Any) -> dict[str, Any] | None:
+        device = getattr(obj, "device", None)
+        if device is None:
+            return None
+        return {
+            "id": str(device.pk),
+            "label": device.label,
+        }
+
+    def get_current(self, obj: Any) -> bool:
+        request = self.context.get("request")
+        current_session_id = getattr(request, "session_id", None)
+        return current_session_id == obj.pk
+
+
+class DeviceHistorySerializer(serializers.Serializer):
+    """Appareil visible dans la surface de libre-service."""
+
+    id = serializers.UUIDField(read_only=True)
+    label = serializers.CharField(read_only=True)  # type: ignore[assignment]
+    platform = serializers.CharField(read_only=True)
+    bound_at = serializers.DateTimeField(read_only=True)
+    last_seen_at = serializers.DateTimeField(read_only=True)
+    revoked_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    revoked_reason = serializers.CharField(read_only=True, allow_null=True)
+
+
 class PasswordChangeSerializer(serializers.Serializer):
     """
     Corps de `POST /api/v1/auth/password/change`.

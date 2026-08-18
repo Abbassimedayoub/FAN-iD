@@ -9,11 +9,12 @@ raison de le faire.
 
 from django.urls import path
 
-from .views import DeviceResetConfirmView, DeviceResetRequestView
+from .views import DeviceMeView, DeviceResetConfirmView, DeviceResetRequestView
 
 app_name = "identity_devices"
 
 urlpatterns = [
+    path("me", DeviceMeView.as_view(), name="device-me"),
     path("reset/request", DeviceResetRequestView.as_view(), name="device-reset-request"),
     path("reset/confirm", DeviceResetConfirmView.as_view(), name="device-reset-confirm"),
 ]

@@ -185,6 +185,9 @@ REST_FRAMEWORK = {
         "device_reset_account": env("THROTTLE_RESET_ACCOUNT_RATE", default="3/hour"),
         "device_reset_confirm": env("THROTTLE_RESET_CONFIRM_RATE", default="30/hour"),
         "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="5/hour"),
+        "profile_update": env("THROTTLE_PROFILE_UPDATE_RATE", default="20/hour"),
+        "sessions_list": env("THROTTLE_SESSIONS_LIST_RATE", default="60/hour"),
+        "session_revoke": env("THROTTLE_SESSION_REVOKE_RATE", default="20/hour"),
         # S1-A.6d : quota par session, et non par adresse IP.
         "refresh": env(
             "THROTTLE_REFRESH_RATE",

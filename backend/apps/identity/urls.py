@@ -8,7 +8,16 @@ qu aux routes d authentification, et non a chaque appel de l API.
 
 from django.urls import path
 
-from .views import LoginView, LogoutView, PasswordChangeView, RefreshView, RegistrationView
+from .views import (
+    LoginView,
+    LogoutView,
+    MeView,
+    PasswordChangeView,
+    RefreshView,
+    RegistrationView,
+    SessionListView,
+    SessionRevokeView,
+)
 
 app_name = "identity"
 
@@ -18,4 +27,11 @@ urlpatterns = [
     path("logout", LogoutView.as_view(), name="auth-logout"),
     path("password/change", PasswordChangeView.as_view(), name="auth-password-change"),
     path("token/refresh", RefreshView.as_view(), name="auth-refresh"),
+    path("me", MeView.as_view(), name="auth-me"),
+    path("sessions", SessionListView.as_view(), name="auth-sessions"),
+    path(
+        "sessions/<uuid:session_id>",
+        SessionRevokeView.as_view(),
+        name="auth-session-revoke",
+    ),
 ]
