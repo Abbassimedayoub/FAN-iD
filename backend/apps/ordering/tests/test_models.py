@@ -9,16 +9,7 @@ from apps.ordering.models import ORDER_PENDING, Order, OrderLine, StockHold
 
 
 @pytest.fixture
-def user(db, django_user_model):
-    from apps.identity.models import Role
-
-    Role.objects.get_or_create(
-        name="FAN",
-        defaults={
-            "permissions": {},
-        },
-    )
-
+def user(db, django_user_model, roles):
     return django_user_model.objects.create_user(
         email="buyer@example.test",
         password="Strong-test-password-123",
