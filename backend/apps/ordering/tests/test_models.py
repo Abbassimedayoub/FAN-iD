@@ -12,7 +12,7 @@ from apps.ordering.models import ORDER_PENDING, Order, OrderLine, StockHold
 def user(db, django_user_model, roles):
     return django_user_model.objects.create_user(
         email="buyer@example.test",
-        password="Strong-test-password-123",
+        password="testpassword123",
         date_of_birth=datetime.date(1990, 1, 1),
         terms_accepted_at=timezone.now(),
     )
