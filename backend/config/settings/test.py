@@ -9,6 +9,8 @@ Différences volontaires par rapport à dev :
   de sérialisation ou de propagation de traceparent (§2.4 Source B).
 """
 
+from typing import Any, cast
+
 from .base import *  # noqa: F401,F403
 from .base import env
 
@@ -30,7 +32,7 @@ OTEL_ENABLED = False
 
 # Le middleware de log applicatif reste actif (comportement testé), mais le
 # niveau racine est relevé pour ne pas polluer la sortie pytest.
-LOGGING["root"]["level"] = "WARNING"  # noqa: F405
+cast(dict[str, Any], LOGGING)["root"]["level"] = "WARNING"  # noqa: F405
 
 # Capture en mémoire : si un test oublie d injecter son expéditeur,
 # il capturera le code au lieu de le journaliser.
