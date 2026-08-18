@@ -20,6 +20,7 @@ defaults:
 env:
   DJANGO_SETTINGS_MODULE: config.settings.test
   DJANGO_SECRET_KEY: ci-test-secret-key-not-for-prod-xxxxxxxxxxxxxxxxxxxx
+  JWT_SIGNING_KEY: ci-test-jwt-signing-key-not-for-prod-xxxxxxxxxxxxxxxxxxxxxxxx
   DATABASE_URL: postgresql://fanid:fanid@localhost:5432/fanid_test
   REDIS_URL: redis://localhost:6379/0
   CELERY_BROKER_URL: redis://localhost:6379/3
@@ -238,9 +239,19 @@ jobs:
       - name: docker compose logs (diagnostic, toujours exécuté)
         if: always()
         working-directory: .
-        run: docker compose logs --tail=200
+        run: |
+          if [ -f .env ]; then
+            docker compose logs --tail=200
+          else
+            echo ".env absent : stack Docker non demarree, logs ignores."
+          fi
 
       - name: docker compose down
         if: always()
         working-directory: .
-        run: docker compose down -v --remove-orphans
+        run: |
+          if [ -f .env ]; then
+            docker compose down -v --remove-orphans
+          else
+            echo ".env absent : aucun compose down necessaire."
+          fi
