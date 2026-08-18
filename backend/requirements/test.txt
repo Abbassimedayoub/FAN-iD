@@ -12,6 +12,9 @@ responses==0.25.3
 # --- Qualité / sécurité ---
 
 black==26.3.1
+isort==5.13.2
+flake8==7.1.1
+mypy==1.11.2
 bandit==1.7.10
 pip-audit==2.7.3
 detect-secrets==1.5.0
