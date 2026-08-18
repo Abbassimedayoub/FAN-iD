@@ -54,8 +54,8 @@ export function App() {
     <main className="p-8">
       <h1 className="font-sora text-2xl font-bold text-navy">FAN id — Sprint 0</h1>
       <p className="mt-2 text-navy/70" aria-live={isRefetching ? "polite" : "off"}>
-        Statut plateforme : <strong>{data.status}</strong> (version {data.version}, commit {data.commit})
-        {isRefetching ? " — actualisation…" : ""}
+        Statut plateforme : <strong>{data.status}</strong> (version {data.version}, commit{" "}
+        {data.commit}){isRefetching ? " — actualisation…" : ""}
       </p>
     </main>
   );

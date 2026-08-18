@@ -3,13 +3,7 @@
  * dépend de la CLASSE d'erreur, jamais du code HTTP brut affiché tel quel.
  */
 export type AppErrorClass =
-  | "network"
-  | "auth"
-  | "permission"
-  | "not_found"
-  | "business"
-  | "server"
-  | "unknown";
+  "network" | "auth" | "permission" | "not_found" | "business" | "server" | "unknown";
 
 export interface AppError {
   errorClass: AppErrorClass;

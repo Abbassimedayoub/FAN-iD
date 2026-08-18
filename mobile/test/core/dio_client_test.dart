@@ -16,19 +16,25 @@ void main() {
     test('maps a 401 to AuthFailure', () {
       final exception = DioException(
         requestOptions: RequestOptions(path: '/x'),
-        response: Response(requestOptions: RequestOptions(path: '/x'), statusCode: 401),
+        response: Response(
+            requestOptions: RequestOptions(path: '/x'), statusCode: 401),
       );
       expect(mapDioExceptionToFailure(exception), isA<AuthFailure>());
     });
 
-    test('maps a 409 business error to BusinessFailure preserving the code', () {
+    test('maps a 409 business error to BusinessFailure preserving the code',
+        () {
       final exception = DioException(
         requestOptions: RequestOptions(path: '/x'),
         response: Response(
           requestOptions: RequestOptions(path: '/x'),
           statusCode: 409,
           data: {
-            'error': {'code': 'STOCK_UNAVAILABLE', 'message': 'Plus de stock', 'details': {'available': 0}},
+            'error': {
+              'code': 'STOCK_UNAVAILABLE',
+              'message': 'Plus de stock',
+              'details': {'available': 0}
+            },
           },
         ),
       );
@@ -41,7 +47,8 @@ void main() {
     test('maps a 500 to ServerFailure', () {
       final exception = DioException(
         requestOptions: RequestOptions(path: '/x'),
-        response: Response(requestOptions: RequestOptions(path: '/x'), statusCode: 500),
+        response: Response(
+            requestOptions: RequestOptions(path: '/x'), statusCode: 500),
       );
       expect(mapDioExceptionToFailure(exception), isA<ServerFailure>());
     });

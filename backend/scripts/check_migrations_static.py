@@ -50,7 +50,17 @@ def extract_model_fields(models_path: Path) -> dict[str, set[str]]:
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and any(
             (isinstance(base, ast.Attribute) and base.attr == "Model")
-            or (isinstance(base, ast.Name) and base.id in {"Model", "AbstractUser"})
+            or (
+                isinstance(base, ast.Name)
+                and base.id
+                in {
+                    "Model",
+                    "AbstractUser",
+                    "UUIDModel",
+                    "TimeStampedModel",
+                    "VersionedModel",
+                }
+            )
             for base in node.bases
         ):
             result[node.name] = _field_names_from_class(node)
@@ -141,6 +151,10 @@ CHECKS = [
 # pas explicitement dans son corps de classe (ils viennent de la classe
 # parente Python) mais qui DOIVENT être présents dans la migration.
 IMPLICIT_PK_FIELDS: dict[str, set[str]] = {
+    # `UUIDModel` est abstrait et apporte `id` aux modèles qui en héritent.
+    "Device": {"id"},
+    "Session": {"id"},
+    "MfaChallenge": {"id"},
     # Modèles dont le corps de classe ne déclare AUCUNE clé primaire
     # explicite : Django ajoute alors implicitement un "id" (BigAutoField,
     # cf. DEFAULT_AUTO_FIELD dans settings/base.py), qui apparaît donc dans

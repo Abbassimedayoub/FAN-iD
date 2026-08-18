@@ -10,7 +10,9 @@ describe("toAppError", () => {
   });
 
   it("classifies a 401 as 'auth'", () => {
-    const result = toAppError({ response: { status: 401, data: { error: { code: "NOT_AUTHENTICATED", message: "x" } } } });
+    const result = toAppError({
+      response: { status: 401, data: { error: { code: "NOT_AUTHENTICATED", message: "x" } } },
+    });
     expect(result.errorClass).toBe("auth");
   });
 
@@ -18,7 +20,13 @@ describe("toAppError", () => {
     const result = toAppError({
       response: {
         status: 409,
-        data: { error: { code: "STOCK_UNAVAILABLE", message: "Il ne reste que 2 places.", details: { available: 2 } } },
+        data: {
+          error: {
+            code: "STOCK_UNAVAILABLE",
+            message: "Il ne reste que 2 places.",
+            details: { available: 2 },
+          },
+        },
       },
     });
     expect(result.errorClass).toBe("business");

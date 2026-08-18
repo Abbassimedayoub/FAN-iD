@@ -18,12 +18,14 @@ class FanIdApp extends StatelessWidget {
     return MaterialApp(
       title: 'FAN id',
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1663C7), // primary — cohérent avec les tokens web
+        colorSchemeSeed:
+            const Color(0xFF1663C7), // primary — cohérent avec les tokens web
         useMaterial3: true,
       ),
       home: const FanIdScaffold(
         title: 'FAN id — Sprint 0',
-        body: Center(child: Text('Socle plateforme — aucune fonctionnalité métier.')),
+        body: Center(
+            child: Text('Socle plateforme — aucune fonctionnalité métier.')),
       ),
     );
   }

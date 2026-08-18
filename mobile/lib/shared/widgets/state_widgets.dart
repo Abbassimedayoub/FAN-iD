@@ -8,7 +8,8 @@ import '../../core/errors/failure.dart';
 /// contenu métier lui-même (hors périmètre Sprint 0).
 
 class SkeletonBox extends StatelessWidget {
-  const SkeletonBox({super.key, this.height = 16, this.width = double.infinity});
+  const SkeletonBox(
+      {super.key, this.height = 16, this.width = double.infinity});
 
   final double height;
   final double width;
@@ -21,7 +22,8 @@ class SkeletonBox extends StatelessWidget {
         height: height,
         width: width,
         decoration: BoxDecoration(
-          color: const Color(0x1A0E2A4D), // navy à 10% — cohérent avec le token web
+          color: const Color(
+              0x1A0E2A4D), // navy à 10% — cohérent avec le token web
           borderRadius: BorderRadius.circular(12),
         ),
       ),
@@ -30,7 +32,12 @@ class SkeletonBox extends StatelessWidget {
 }
 
 class EmptyView extends StatelessWidget {
-  const EmptyView({super.key, required this.title, this.description, this.actionLabel, this.onAction});
+  const EmptyView(
+      {super.key,
+      required this.title,
+      this.description,
+      this.actionLabel,
+      this.onAction});
 
   final String title;
   final String? description;
@@ -124,7 +131,11 @@ class FanIdButton extends StatelessWidget {
 }
 
 class FanIdTextField extends StatelessWidget {
-  const FanIdTextField({super.key, required this.label, this.controller, this.obscureText = false});
+  const FanIdTextField(
+      {super.key,
+      required this.label,
+      this.controller,
+      this.obscureText = false});
 
   final String label;
   final TextEditingController? controller;
@@ -135,7 +146,8 @@ class FanIdTextField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscureText,
-      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      decoration:
+          InputDecoration(labelText: label, border: const OutlineInputBorder()),
     );
   }
 }
@@ -148,6 +160,7 @@ class FanIdScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: Text(title)), body: SafeArea(child: body));
+    return Scaffold(
+        appBar: AppBar(title: Text(title)), body: SafeArea(child: body));
   }
 }

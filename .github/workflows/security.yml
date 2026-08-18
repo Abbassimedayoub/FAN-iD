@@ -19,13 +19,82 @@ jobs:
       - name: detect-secrets (historique complet, bloquant)
         run: |
           pip install detect-secrets
+          cp .secrets.baseline /tmp/secrets-baseline-before.json
           detect-secrets scan --baseline .secrets.baseline
-          # AUCUN bypass : un secret nouvellement détecté (diff non vide) ou
-          # un secret déjà connu mais non audité comme faux positif DOIT
-          # faire échouer la CI (§60 master prompt — "la CI doit échouer
-          # réellement en cas de faille de sécurité").
-          git diff --exit-code -- .secrets.baseline
-          detect-secrets audit --report --fail-on-unaudited .secrets.baseline
+
+          python3 - <<'PY_CHECK'
+          import json
+
+          def load(path):
+              with open(path, encoding="utf-8") as f:
+                  return json.load(f)
+
+          before = load("/tmp/secrets-baseline-before.json")
+          after = load(".secrets.baseline")
+
+          # La baseline versionnee doit etre entierement auditee AVANT le scan.
+          real = []
+          unaudited = []
+
+          for filename, entries in before.get("results", {}).items():
+              for entry in entries:
+                  item = (
+                      filename,
+                      entry.get("line_number"),
+                      entry.get("type"),
+                  )
+                  if entry.get("is_secret") is True:
+                      real.append(item)
+                  elif entry.get("is_secret") is not False:
+                      unaudited.append(item)
+
+          # Une nouvelle detection apparait dans `after` mais pas dans la
+          # baseline auditée `before`. `generated_at` est volontairement ignore.
+          def fingerprints(data):
+              return {
+                  (
+                      filename,
+                      entry.get("type"),
+                      entry.get("hashed_secret"),
+                  )
+                  for filename, entries in data.get("results", {}).items()
+                  for entry in entries
+              }
+
+          approved = fingerprints(before)
+          detected = fingerprints(after)
+
+          new_findings = sorted(
+              detected - approved,
+              key=lambda item: tuple(str(x) for x in item),
+          )
+
+          if real:
+              print("ERROR: secrets reels marques dans la baseline:")
+              for item in real:
+                  print(item)
+
+          if unaudited:
+              print("ERROR: detections de baseline non auditees:")
+              for item in unaudited:
+                  print(item)
+
+          if new_findings:
+              print("ERROR: nouvelles detections:")
+              for filename, secret_type, _hashed_secret in new_findings:
+                  print(f"{filename} [{secret_type}]")
+
+          if real or unaudited or new_findings:
+              raise SystemExit(1)
+
+          print(
+              "Secret gate OK: baseline auditée et aucune nouvelle detection."
+          )
+          PY_CHECK
+
+          # Le scan modifie seulement les metadonnees comme `generated_at`
+          # quand aucune nouvelle detection n'existe.
+          cp /tmp/secrets-baseline-before.json .secrets.baseline
 
   dependency-audit:
     runs-on: ubuntu-latest

@@ -63,7 +63,8 @@ async function refreshAccessTokenOnce(): Promise<string> {
 httpClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const original = error.config as
+      (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
 
     if (error.response?.status === 401 && original && !original._retried) {
       original._retried = true;

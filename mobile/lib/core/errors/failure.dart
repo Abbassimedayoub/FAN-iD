@@ -15,7 +15,7 @@ final class AuthFailure extends Failure {
 }
 
 final class PermissionFailure extends Failure {
-  const PermissionFailure([super.message = "Accès interdit"]);
+  const PermissionFailure([super.message = 'Accès interdit']);
 }
 
 final class NotFoundFailure extends Failure {
@@ -32,5 +32,6 @@ final class BusinessFailure extends Failure {
 }
 
 final class ServerFailure extends Failure {
-  const ServerFailure([super.message = "Un problème est survenu de notre côté"]);
+  const ServerFailure(
+      [super.message = 'Un problème est survenu de notre côté']);
 }
