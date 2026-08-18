@@ -24,6 +24,7 @@ from apps.core.adapters.notifications import build_notification_sender
 from apps.core.concurrency import format_etag, parse_if_match
 from apps.core.exceptions import NotFoundBusinessError, StaleResourceError
 from apps.core.http import FanIdApiRequest
+from apps.core.openapi import ERROR_RESPONSE
 
 from .authentication import default_binding_service
 from .authz import Action
@@ -460,8 +461,8 @@ class StepUpRequestView(APIView):
         request=StepUpRequestSerializer,
         responses={
             200: OpenApiResponse(description="Challenge STEP_UP cree et code envoye."),
-            401: OpenApiResponse(description="Non authentifie"),
-            429: OpenApiResponse(description="Trop de demandes"),
+            401: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
         },
     )
     def post(self, request: FanIdApiRequest) -> Response:
@@ -498,8 +499,8 @@ class StepUpConfirmView(APIView):
             400: OpenApiResponse(
                 description=("OTP_INVALID — challenge inconnu, expire, consomme " "ou code incorrect")
             ),
-            401: OpenApiResponse(description="Non authentifie"),
-            429: OpenApiResponse(description=("OTP_MAX_ATTEMPTS ou limitation de debit")),
+            401: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
         },
     )
     def post(self, request: FanIdApiRequest) -> Response:
