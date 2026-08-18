@@ -85,6 +85,7 @@ class OrganizerScopedMixin:
 # S1-A.8b — candidature et dossier courant
 # ---------------------------------------------------------------------------
 
+
 class OrganizerApplyView(APIView):
     """POST /api/v1/organizers/apply."""
 
@@ -151,6 +152,7 @@ class OrganizerMeView(OrganizerScopedMixin, APIView):
 # ---------------------------------------------------------------------------
 # S1-A.8b — decisions administratives
 # ---------------------------------------------------------------------------
+
 
 class OrganizerAdminActionView(APIView):
     """
