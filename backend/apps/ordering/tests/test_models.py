@@ -10,9 +10,11 @@ from apps.ordering.models import ORDER_PENDING, Order, OrderLine, StockHold
 
 @pytest.fixture
 def user(db, django_user_model, roles):
+    test_password = "testpassword123"
+
     return django_user_model.objects.create_user(
         email="buyer@example.test",
-        password="testpassword123",
+        password=test_password,
         date_of_birth=datetime.date(1990, 1, 1),
         terms_accepted_at=timezone.now(),
     )
