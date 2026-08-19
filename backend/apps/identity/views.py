@@ -33,6 +33,7 @@ from .models import Device, Session, User
 from .permissions import ActionPermission, SelfResourcePermission, SelfUserPermission
 from .serializers import (
     DeviceHistorySerializer,
+    DeviceMeResponseSerializer,
     DeviceResetConfirmSerializer,
     DeviceResetRequestSerializer,
     DeviceSerializer,
@@ -667,9 +668,31 @@ class MeView(APIView):
         response["ETag"] = format_etag(user.version)
         return response
 
+    @extend_schema(
+        operation_id="auth_me_get",
+        summary="Lire le profil du compte courant",
+        responses={
+            200: UserMeSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+        },
+    )
     def get(self, request: Request) -> Response:
         return self.response_for(self.get_object(request))
 
+    @extend_schema(
+        operation_id="auth_me_patch",
+        summary="Modifier le profil du compte courant",
+        request=ProfileUpdateSerializer,
+        responses={
+            200: UserMeSerializer,
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            412: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+    )
     def patch(self, request: Request) -> Response:
         user = self.get_object(request)
         expected_version = parse_if_match(request.headers.get("If-Match"))
@@ -707,6 +730,16 @@ class SessionListView(APIView):
         user = cast(User, self.request.user)
         return Session.objects.for_user(user).active().select_related("device").order_by("-issued_at")
 
+    @extend_schema(
+        operation_id="auth_sessions_list",
+        summary="Lister les sessions actives du compte courant",
+        responses={
+            200: SessionSerializer(many=True),
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+    )
     def get(self, request: Request) -> Response:
         sessions = self.get_queryset()
         serializer = SessionSerializer(
@@ -735,6 +768,18 @@ class SessionRevokeView(APIView):
         self.check_object_permissions(request, session)
         return session
 
+    @extend_schema(
+        operation_id="auth_session_revoke",
+        summary="Revoquer une session du compte courant",
+        request=None,
+        responses={
+            204: OpenApiResponse(description="Session revoquee."),
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+    )
     def delete(self, request: Request, session_id: Any) -> Response:
         session = self.get_object(request, session_id)
 
@@ -765,6 +810,15 @@ class DeviceMeView(APIView):
         user = cast(User, self.request.user)
         return Device.objects.for_user(user)
 
+    @extend_schema(
+        operation_id="devices_me_get",
+        summary="Lire l appareil actif et l historique recent",
+        responses={
+            200: DeviceMeResponseSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+        },
+    )
     def get(self, request: Request) -> Response:
         queryset = self.get_queryset()
 

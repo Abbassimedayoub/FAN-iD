@@ -291,6 +291,13 @@ class DeviceHistorySerializer(serializers.Serializer):
     revoked_reason = serializers.CharField(read_only=True, allow_null=True)
 
 
+class DeviceMeResponseSerializer(serializers.Serializer):
+    """Appareil actif et historique recent du compte courant."""
+
+    active = DeviceHistorySerializer(read_only=True, allow_null=True)
+    history = DeviceHistorySerializer(many=True, read_only=True)
+
+
 class PasswordChangeSerializer(serializers.Serializer):
     """
     Corps de `POST /api/v1/auth/password/change`.
