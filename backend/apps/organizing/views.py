@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.db import IntegrityError
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -19,12 +20,14 @@ from rest_framework.views import APIView
 
 from apps.core.concurrency import format_etag, parse_if_match
 from apps.core.exceptions import ConflictError
+from apps.core.openapi import ERROR_RESPONSE
 from apps.core.pagination import StandardPagination
 from apps.identity.api import Action, ActionPermission, grant_organizer_role
 
 from .models import Organizer
 from .permissions import OrganizerRecordPermission
 from .serializers import (
+    AdminOrganizerListResponseSerializer,
     OrganizerApplySerializer,
     OrganizerRejectSerializer,
     OrganizerSerializer,
@@ -92,6 +95,18 @@ class OrganizerApplyView(APIView):
     permission_classes = [IsAuthenticated, ActionPermission]
     required_action = Action.ORGANIZER_CREATE
 
+    @extend_schema(
+        operation_id="organizers_apply",
+        summary="Deposer une candidature organisateur",
+        request=OrganizerApplySerializer,
+        responses={
+            201: OrganizerSerializer,
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+        },
+    )
     def post(self, request: Request) -> Response:
         serializer = OrganizerApplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -131,6 +146,16 @@ class OrganizerMeView(OrganizerScopedMixin, APIView):
     permission_classes = [IsAuthenticated, OrganizerRecordPermission]
     required_action = Action.ORGANIZER_READ
 
+    @extend_schema(
+        operation_id="organizers_me_get",
+        summary="Lire le dossier organisateur courant",
+        responses={
+            200: OrganizerSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+        },
+    )
     def get(self, request: Request) -> Response:
         organizer = Organizer.objects.filter(user_id=request.user.pk).first()
 
@@ -195,6 +220,19 @@ class OrganizerApproveView(OrganizerAdminActionView):
 
     required_action = Action.ORGANIZER_APPROVE
 
+    @extend_schema(
+        operation_id="admin_organizers_approve",
+        summary="Approuver un dossier organisateur",
+        request=None,
+        responses={
+            200: OrganizerSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
     def post(self, request: Request, organizer_id: Any) -> Response:
         organizer = self.get_organizer(request, organizer_id)
         expected_version = self.expected_version(request)
@@ -212,6 +250,20 @@ class OrganizerRejectView(OrganizerAdminActionView):
 
     required_action = Action.ORGANIZER_REJECT
 
+    @extend_schema(
+        operation_id="admin_organizers_reject",
+        summary="Rejeter un dossier organisateur",
+        request=OrganizerRejectSerializer,
+        responses={
+            200: OrganizerSerializer,
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
     def post(self, request: Request, organizer_id: Any) -> Response:
         organizer = self.get_organizer(request, organizer_id)
 
@@ -234,6 +286,19 @@ class OrganizerSuspendView(OrganizerAdminActionView):
 
     required_action = Action.ORGANIZER_SUSPEND
 
+    @extend_schema(
+        operation_id="admin_organizers_suspend",
+        summary="Suspendre un dossier organisateur",
+        request=None,
+        responses={
+            200: OrganizerSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
     def post(self, request: Request, organizer_id: Any) -> Response:
         organizer = self.get_organizer(request, organizer_id)
         expected_version = self.expected_version(request)
@@ -266,6 +331,15 @@ class AdminOrganizerListView(APIView):
     permission_classes = [IsAuthenticated, ActionPermission]
     required_action = Action.ORGANIZER_READ
 
+    @extend_schema(
+        operation_id="admin_organizers_list",
+        summary="Lister les dossiers organisateurs",
+        responses={
+            200: AdminOrganizerListResponseSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+        },
+    )
     def get(self, request: Request) -> Response:
         permission = ActionPermission()
 

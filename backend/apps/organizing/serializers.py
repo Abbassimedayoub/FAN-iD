@@ -63,6 +63,15 @@ class OrganizerRejectSerializer(serializers.Serializer):
         return value
 
 
+class AdminOrganizerListResponseSerializer(serializers.Serializer):
+    """Page standard de dossiers organisateurs pour l administration."""
+
+    count = serializers.IntegerField(read_only=True)
+    next = serializers.URLField(read_only=True, allow_null=True)
+    previous = serializers.URLField(read_only=True, allow_null=True)
+    results = OrganizerSerializer(many=True, read_only=True)
+
+
 def organizer_apply_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Construit la commande fermee transmise au service.
