@@ -6,3 +6,6 @@ class IdentityConfig(AppConfig):
     name = "apps.identity"
     label = "identity"
     verbose_name = "Identity (comptes, rôles, appareils, sessions)"
+
+    def ready(self) -> None:
+        from . import openapi  # noqa: F401
