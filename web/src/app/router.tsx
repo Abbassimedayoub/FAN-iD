@@ -4,6 +4,7 @@ import { LoginForm } from "@/features/auth/LoginForm";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { useAuth } from "@/features/auth/AuthContext";
 import type { AuthUser, UserRole } from "@/features/auth/types";
+import { AdminOrganizerDetailPage } from "@/features/organizers/AdminOrganizerDetailPage";
 import { AdminOrganizersPage } from "@/features/organizers/AdminOrganizersPage";
 
 const HOME_BY_ROLE: Record<UserRole, string> = {
@@ -86,6 +87,15 @@ export function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
             <AdminOrganizersPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/organizers/:organizerId"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminOrganizerDetailPage />
           </ProtectedRoute>
         }
       />

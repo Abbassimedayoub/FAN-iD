@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 import { AdminOrganizersView } from "./AdminOrganizersView";
 import type { OrganizerFilters, OrganizerPage, OrganizerStatus } from "./types";
@@ -10,6 +11,7 @@ function sameFilters(left: OrganizerFilters, right: OrganizerFilters): boolean {
 }
 
 export function AdminOrganizersPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [page, setPage] = useState(1);
@@ -75,6 +77,9 @@ export function AdminOrganizersPage() {
       }}
       onNext={() => {
         setPage((current) => current + 1);
+      }}
+      onOpenOrganizer={(organizerId) => {
+        navigate(`/admin/organizers/${organizerId}`);
       }}
     />
   );

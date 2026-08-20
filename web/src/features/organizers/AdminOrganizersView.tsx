@@ -35,6 +35,7 @@ interface AdminOrganizersViewProps {
   onShowAll: () => void;
   onPrevious: () => void;
   onNext: () => void;
+  onOpenOrganizer?: (organizerId: string) => void;
 }
 
 function OrganizerTableSkeleton() {
@@ -118,6 +119,7 @@ export function AdminOrganizersView({
   onShowAll,
   onPrevious,
   onNext,
+  onOpenOrganizer,
 }: AdminOrganizersViewProps) {
   function handleStatusChange(event: ChangeEvent<HTMLSelectElement>): void {
     const value = event.target.value;
@@ -179,7 +181,7 @@ export function AdminOrganizersView({
           />
         ) : (
           <>
-            <OrganizerTable organizers={data.results} />
+            <OrganizerTable organizers={data.results} onOpenOrganizer={onOpenOrganizer} />
 
             <nav
               aria-label="Pagination des organisateurs"
