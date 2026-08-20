@@ -21,8 +21,12 @@ interface ErrorStateProps {
   onRetry?: () => void;
 }
 
+export function getErrorDisplayMessage(error: AppError): string {
+  return MESSAGES_BY_CLASS[error.errorClass] || error.message;
+}
+
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
-  const displayMessage = MESSAGES_BY_CLASS[error.errorClass] || error.message;
+  const displayMessage = getErrorDisplayMessage(error);
 
   return (
     <div role="alert" className="flex flex-col items-center gap-3 py-12 text-center">

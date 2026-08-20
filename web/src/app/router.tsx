@@ -4,6 +4,7 @@ import { LoginForm } from "@/features/auth/LoginForm";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { useAuth } from "@/features/auth/AuthContext";
 import type { AuthUser, UserRole } from "@/features/auth/types";
+import { AdminOrganizersPage } from "@/features/organizers/AdminOrganizersPage";
 
 const HOME_BY_ROLE: Record<UserRole, string> = {
   ADMIN: "/admin/organizers",
@@ -50,14 +51,6 @@ function OrganizerHomePage() {
   return (
     <main className="p-8">
       <h1 className="font-sora text-2xl font-bold text-navy">Espace organisateur</h1>
-    </main>
-  );
-}
-
-function AdminOrganizersPage() {
-  return (
-    <main className="p-8">
-      <h1 className="font-sora text-2xl font-bold text-navy">Administration des organisateurs</h1>
     </main>
   );
 }
