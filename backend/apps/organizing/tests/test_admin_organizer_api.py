@@ -288,6 +288,7 @@ def test_admin_password_only_requires_step_up(factory, admin, organizer):
     )
 
     assert response.status_code == 403, response.data
+    assert response.data["error"]["code"] == "STEP_UP_REQUIRED"
 
 
 def test_fan_cannot_perform_admin_action(factory, fan, organizer):

@@ -1,7 +1,7 @@
 """custom_exception_handler : chaque classe d'erreur produit le bon corps et le bon statut (§55)."""
 
 import pytest
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, PermissionDenied
 from rest_framework.test import APIRequestFactory
 from rest_framework.views import APIView
 
@@ -68,6 +68,20 @@ def test_drf_exception_is_mapped_to_frozen_contract():
 
     assert response.status_code == 401
     assert response.data["error"]["code"] == "NOT_AUTHENTICATED"
+
+
+def test_drf_exception_preserves_an_explicit_business_code():
+    response = custom_exception_handler(
+        PermissionDenied(
+            detail="Verification renforcee requise.",
+            code="STEP_UP_REQUIRED",
+        ),
+        _context(),
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "STEP_UP_REQUIRED"
+    assert response.data["error"]["message"] == "Verification renforcee requise."
 
 
 def test_unhandled_exception_returns_500_without_technical_detail():

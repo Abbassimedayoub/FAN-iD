@@ -61,7 +61,19 @@ def custom_exception_handler(exc: Exception, context: dict[str, Any]) -> Respons
 
     if response is not None:
         code = _DRF_STATUS_TO_CODE.get(response.status_code, "ERROR")
-        message = str(exc.detail) if hasattr(exc, "detail") else str(exc)
+        detail = getattr(exc, "detail", None)
+
+        # DRF conserve le code explicite d une permission dans ErrorDetail.
+        # On ne preserve que les codes specialises : les codes DRF par defaut
+        # continuent d etre normalises par _DRF_STATUS_TO_CODE afin de garder
+        # le contrat API historique (NOT_AUTHENTICATED, PERMISSION_DENIED, etc.).
+        if isinstance(detail, ErrorDetail):
+            detail_code = str(detail.code)
+            default_code = getattr(exc, "default_code", None)
+            if detail_code != default_code:
+                code = detail_code
+
+        message = str(detail) if detail is not None else str(exc)
         details = response.data if isinstance(response.data, dict) else {"detail": response.data}
         response.data = _error_body(code, message, details)
         return response
