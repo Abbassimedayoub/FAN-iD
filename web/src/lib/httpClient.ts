@@ -1,19 +1,36 @@
 /**
- * Client Axios (§46 master prompt / §4.3 Source B) : injection du Bearer,
- * génération de `X-Correlation-ID`, refresh UNIQUE mis en file (évite le
- * bug classique : N requêtes 401 parallèles déclenchant N refresh, dont
- * N-1 échouent à cause de la rotation et déconnectent l'utilisateur
- * aléatoirement), mapping vers `AppError` typée.
+ * Client HTTP Web FAN id.
  *
- * Le CONTENU métier du refresh (endpoint, rotation, détection de réutilisation)
- * est spécifié et implémenté au Sprint 1 — ce module ne fournit que le
- * mécanisme de verrouillage générique, avec un point d'extension explicite.
+ * Invariants de sécurité :
+ * - access token uniquement en mémoire ;
+ * - refresh uniquement dans le cookie HttpOnly ;
+ * - credentials envoyés avec les requêtes navigateur ;
+ * - un seul refresh réseau pour N réponses 401 concurrentes ;
+ * - une requête n'est rejouée qu'une seule fois ;
+ * - un échec du endpoint de refresh ne déclenche jamais un refresh récursif.
  */
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import axios, {
+  type AxiosError,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from "axios";
 
 import { toAppError } from "./errors";
 
 const CORRELATION_HEADER = "X-Correlation-ID";
+const API_BASE_URL = import.meta.env["VITE_API_URL"] ?? "http://localhost:8000";
+
+interface AuthRequestConfig extends InternalAxiosRequestConfig {
+  _retried?: boolean;
+  _skipAuthRefresh?: boolean;
+}
+
+interface RefreshResponse {
+  access: string;
+}
+
+let accessToken: string | null = null;
+let refreshPromise: Promise<string> | null = null;
 
 function generateCorrelationId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -21,34 +38,59 @@ function generateCorrelationId(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token && token.length > 0 ? token : null;
+}
+
+export function clearAccessToken(): void {
+  accessToken = null;
+}
+
 export const httpClient = axios.create({
-  baseURL: import.meta.env["VITE_API_URL"] ?? "http://localhost:8000",
+  baseURL: API_BASE_URL,
   timeout: 10_000,
+  withCredentials: true,
 });
 
 httpClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const authConfig = config as AuthRequestConfig;
+
   config.headers.set(CORRELATION_HEADER, generateCorrelationId());
 
-  const token = getAccessToken();
-  if (token) {
-    config.headers.set("Authorization", `Bearer ${token}`);
+  if (!authConfig._skipAuthRefresh) {
+    const token = getAccessToken();
+    if (token) {
+      config.headers.set("Authorization", `Bearer ${token}`);
+    }
   }
+
   return config;
 });
 
-// --- Verrou de refresh : une seule requête de refresh à la fois ---
-let refreshPromise: Promise<string> | null = null;
-
-/**
- * Point d'extension Sprint 1 : la vraie logique d'appel réseau au endpoint
- * de refresh (rotation + détection de réutilisation, ADR Source A §Sprint1)
- * sera injectée ici. Le Sprint 0 fournit le VERROU, pas l'appel réseau.
- */
 async function performTokenRefresh(): Promise<string> {
-  throw new Error(
-    "performTokenRefresh() n'est pas implémenté au Sprint 0 — logique de " +
-      "rotation de refresh token livrée au Sprint 1 (identity).",
+  const config = {
+    withCredentials: true,
+    _skipAuthRefresh: true,
+  } as AxiosRequestConfig & { _skipAuthRefresh: true };
+
+  const response = await httpClient.post<RefreshResponse>(
+    "/api/v1/auth/token/refresh",
+    { client: "web" },
+    config,
   );
+
+  const token = response.data?.access;
+
+  if (typeof token !== "string" || token.length === 0) {
+    throw new Error("Réponse de refresh invalide : access token absent");
+  }
+
+  setAccessToken(token);
+  return token;
 }
 
 async function refreshAccessTokenOnce(): Promise<string> {
@@ -57,32 +99,31 @@ async function refreshAccessTokenOnce(): Promise<string> {
       refreshPromise = null;
     });
   }
+
   return refreshPromise;
 }
 
 httpClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const original = error.config as
-      (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const original = error.config as AuthRequestConfig | undefined;
+
+    if (original?._skipAuthRefresh) {
+      return Promise.reject(toAppError(error));
+    }
 
     if (error.response?.status === 401 && original && !original._retried) {
       original._retried = true;
+
       try {
         const newToken = await refreshAccessTokenOnce();
         original.headers.set("Authorization", `Bearer ${newToken}`);
         return httpClient(original);
       } catch {
-        // Refresh impossible : redirection silencieuse vers la connexion
-        // (comportement défini au Sprint 1, taxonomie §4.2 Source B).
+        clearAccessToken();
       }
     }
 
     return Promise.reject(toAppError(error));
   },
 );
-
-// --- Stockage du token — coquille Sprint 0 (implémentation sécurisée Sprint 1) ---
-function getAccessToken(): string | null {
-  return null;
-}
