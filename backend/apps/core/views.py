@@ -49,19 +49,30 @@ def libpq_connect_timeout(timeout: float) -> int:
 
 class HealthView(View):
     """
-    Liveness — vérifie uniquement que le processus répond. NE dépend
-    d'AUCUNE dépendance externe (§35 master prompt) : une sonde de vie qui
-    teste la base redémarre le conteneur quand c'est la base qui est en
-    panne, ce qui aggrave l'incident.
+    Health de bootstrap Sprint 1.
+
+    Le contrat d'acceptation exige que `/api/v1/health` prouve que les deux
+    dépendances nécessaires au démarrage fonctionnel de l'API — PostgreSQL et
+    Redis — sont joignables. La readiness détaillée reste disponible séparément
+    sur `/health/ready`, notamment pour Celery et les latences.
     """
 
     def get(self, request: HttpRequest) -> JsonResponse:
+        timeout = settings.HEALTH_DEPENDENCY_TIMEOUT_SECONDS
+        database = ReadinessView._check_database(timeout)
+        redis = ReadinessView._check_redis(timeout)
+
+        db_status = database["status"]
+        redis_status = redis["status"]
+        healthy = db_status == "ok" and redis_status == "ok"
+
         return JsonResponse(
             {
-                "status": "ok",
-                "version": settings.APP_VERSION,
-                "commit": settings.COMMIT_SHA,
-            }
+                "status": "ok" if healthy else "down",
+                "db": db_status,
+                "redis": redis_status,
+            },
+            status=200 if healthy else 503,
         )
 
 

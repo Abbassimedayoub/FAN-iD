@@ -15,15 +15,51 @@ from rest_framework.test import APIClient
 
 
 @pytest.mark.django_db
-def test_health_liveness_never_touches_database():
-    """Liveness ne doit toucher AUCUNE dépendance (§35 master prompt)."""
+def test_health_returns_the_exact_sprint_1_contract():
     client = APIClient()
-    with mock.patch("django.db.connections") as mocked_connections:
+
+    with (
+        mock.patch(
+            "apps.core.views.ReadinessView._check_database",
+            return_value={"status": "ok"},
+        ),
+        mock.patch(
+            "apps.core.views.ReadinessView._check_redis",
+            return_value={"status": "ok"},
+        ),
+    ):
         response = client.get(reverse("health"))
-        mocked_connections.__getitem__.assert_not_called()
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json() == {
+        "status": "ok",
+        "db": "ok",
+        "redis": "ok",
+    }
+
+
+@pytest.mark.django_db
+def test_health_returns_503_when_a_required_dependency_is_unavailable():
+    client = APIClient()
+
+    with (
+        mock.patch(
+            "apps.core.views.ReadinessView._check_database",
+            return_value={"status": "ok"},
+        ),
+        mock.patch(
+            "apps.core.views.ReadinessView._check_redis",
+            return_value={"status": "degraded", "detail": "hidden"},
+        ),
+    ):
+        response = client.get(reverse("health"))
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "down",
+        "db": "ok",
+        "redis": "degraded",
+    }
 
 
 @pytest.mark.django_db
