@@ -7,11 +7,16 @@ on:
       - "infra/monitoring/**"
       - ".github/workflows/ci-backend.yml"
       - ".importlinter"
+      - ".coverage-baseline.json"
+      - "scripts/coverage_gate.py"
   push:
     branches: [main, develop]
     paths:
       - "backend/**"
       - "infra/monitoring/**"
+      - ".github/workflows/ci-backend.yml"
+      - ".coverage-baseline.json"
+      - "scripts/coverage_gate.py"
 
 defaults:
   run:
@@ -81,6 +86,16 @@ jobs:
       # --- Porte 3+4 : tests + couverture (>= 80% sur core, jamais en baisse) ---
       - name: pytest (unitaires + intégration + concurrence)
         run: pytest -n auto
+
+      - name: Couverture — protéger la référence versionnée
+        working-directory: .
+        env:
+          COVERAGE_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: python3 scripts/coverage_gate.py guard-baseline --stack backend --base "$COVERAGE_BASE_SHA"
+
+      - name: Couverture — non-régression backend
+        working-directory: .
+        run: python3 scripts/coverage_gate.py check --stack backend
 
       # --- Porte 5 : migrations ---
       - name: makemigrations --check (dérive de schéma)

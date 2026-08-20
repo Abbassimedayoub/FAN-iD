@@ -1,0 +1,21 @@
+{
+  "metric": "line",
+  "comparison": {
+    "rounding": "HALF_UP",
+    "decimals": 2
+  },
+  "stacks": {
+    "backend": {
+      "percent": 95.95,
+      "report": "backend/coverage.xml"
+    },
+    "web": {
+      "percent": 94.74,
+      "report": "web/coverage/coverage-summary.json"
+    },
+    "mobile": {
+      "percent": 48.78,
+      "report": "mobile/coverage/lcov.info"
+    }
+  }
+}

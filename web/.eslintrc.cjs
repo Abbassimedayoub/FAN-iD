@@ -1,5 +1,6 @@
 module.exports = {
   root: true,
+  ignorePatterns: ["dist/", "coverage/"],
   env: { browser: true, es2022: true },
   extends: [
     "eslint:recommended",
