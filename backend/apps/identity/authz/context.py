@@ -56,6 +56,17 @@ def _organizer_id_from(request: Any) -> uuid.UUID | None:
     return value if isinstance(value, uuid.UUID) else None
 
 
+def _organizer_is_approved_from(request: Any) -> bool:
+    """
+    Etat d approbation LU SUR LA REQUETE, sans dependance vers `organizing`.
+
+    Seul un booleen explicite est accepte. Une valeur absente ou d un autre type
+    devient False : le contexte incomplet reste fail-closed.
+    """
+    value = getattr(request, "organizer_approved", False)
+    return value if isinstance(value, bool) else False
+
+
 def subject_from_request(request: Any) -> Subject:
     """Construit le sujet d autorisation a partir de la requete entrante."""
     user = getattr(request, "user", None)
@@ -85,4 +96,5 @@ def subject_from_request(request: Any) -> Subject:
         # les accorder.
         auth_level=int(getattr(request, "auth_level", AUTH_LEVEL_PASSWORD)),
         organizer_id=_organizer_id_from(request),
+        organizer_is_approved=_organizer_is_approved_from(request),
     )

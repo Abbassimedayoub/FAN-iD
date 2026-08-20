@@ -15,7 +15,7 @@ d autorisation testable sans base de donnees ni requete HTTP.
 
 from .actions import Action
 from .decisions import ALLOW, Decision, Reason, deny
-from .engine import authorize, may_attempt
+from .engine import authorize, may_attempt, require_approved_organizer
 from .rules import POLICY, Grant, Scope
 from .subject import ANONYMOUS, Resource, Subject
 
@@ -33,4 +33,5 @@ __all__ = [
     "authorize",
     "deny",
     "may_attempt",
+    "require_approved_organizer",
 ]

@@ -18,7 +18,17 @@ import uuid
 
 import pytest
 
-from apps.identity.authz import POLICY, Action, Reason, Resource, Scope, Subject, authorize, may_attempt
+from apps.identity.authz import (
+    POLICY,
+    Action,
+    Reason,
+    Resource,
+    Scope,
+    Subject,
+    authorize,
+    may_attempt,
+    require_approved_organizer,
+)
 from apps.identity.authz.decisions import ALLOW, Decision, deny
 from apps.identity.constants import (
     AUTH_LEVEL_PASSWORD,
@@ -343,7 +353,56 @@ def test_every_irreversible_action_requires_step_up():
 
 
 # ===========================================================================
-# 6. Le pre-controle RBAC et le garde-fou du verdict
+# 6. Pre-requis d approbation organisateur
+# ===========================================================================
+
+
+def test_pending_organizer_is_refused_by_the_approval_gate():
+    subject = Subject(
+        user_id=USER_ID,
+        role=ROLE_ORGANIZER,
+        is_active=True,
+        auth_level=AUTH_LEVEL_STEP_UP,
+        organizer_id=ORG_ID,
+        organizer_is_approved=False,
+    )
+
+    decision = require_approved_organizer(subject)
+
+    assert decision.allowed is False
+    assert decision.reason is Reason.ORGANIZER_NOT_APPROVED
+
+
+def test_approved_organizer_passes_the_approval_gate():
+    subject = Subject(
+        user_id=USER_ID,
+        role=ROLE_ORGANIZER,
+        is_active=True,
+        auth_level=AUTH_LEVEL_STEP_UP,
+        organizer_id=ORG_ID,
+        organizer_is_approved=True,
+    )
+
+    assert require_approved_organizer(subject) is ALLOW
+
+
+def test_non_organizer_cannot_pass_the_gate_even_with_a_true_primitive():
+    subject = Subject(
+        user_id=USER_ID,
+        role=ROLE_FAN,
+        is_active=True,
+        auth_level=AUTH_LEVEL_STEP_UP,
+        organizer_is_approved=True,
+    )
+
+    decision = require_approved_organizer(subject)
+
+    assert decision.allowed is False
+    assert decision.reason is Reason.ROLE_NOT_GRANTED
+
+
+# ===========================================================================
+# 7. Le pre-controle RBAC et le garde-fou du verdict
 # ===========================================================================
 
 

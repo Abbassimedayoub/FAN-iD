@@ -39,6 +39,9 @@ class Subject:
     auth_level: int = 0
     # Renseigne pour un ORGANIZER ou un SCANNER rattache a un organisateur.
     organizer_id: uuid.UUID | None = None
+    # Primitif pose par le contexte proprietaire. False par defaut : une requete
+    # non enrichie ne doit jamais etre consideree comme approuvee par omission.
+    organizer_is_approved: bool = False
 
     @property
     def is_authenticated(self) -> bool:

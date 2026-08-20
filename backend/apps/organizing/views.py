@@ -24,6 +24,7 @@ from apps.core.openapi import ERROR_RESPONSE
 from apps.core.pagination import StandardPagination
 from apps.identity.api import Action, ActionPermission, grant_organizer_role
 
+from .constants import ORGANIZER_APPROVED
 from .models import Organizer
 from .permissions import OrganizerRecordPermission
 from .serializers import (
@@ -66,22 +67,35 @@ class OrganizerScopedMixin:
     """
 
     def initial(self, request: Any, *args: Any, **kwargs: Any) -> None:
-        request.organizer_id = self.resolve_organizer_id(request)
+        organizer_id, organizer_approved = self.resolve_organizer_context(request)
+        request.organizer_id = organizer_id
+        request.organizer_approved = organizer_approved
         super().initial(request, *args, **kwargs)  # type: ignore[misc]
 
     @staticmethod
-    def resolve_organizer_id(request: Any) -> Any:
+    def resolve_organizer_context(request: Any) -> tuple[Any, bool]:
         """
         Une requete, dans le contexte proprietaire de la donnee.
 
-        Le cout ne tombe QUE sur les routes de ce contexte, et jamais sur le
-        chemin chaud d `identity` — dont l invariant « aucune requete SQL par
-        controle d autorisation » reste prouve par `django_assert_num_queries(0)`.
+        Le meme SELECT charge l identifiant et le statut : ajouter le primitif
+        d approbation ne doit pas ajouter une seconde requete SQL.
         """
         user = getattr(request, "user", None)
         if user is None or not getattr(user, "is_authenticated", False):
-            return None
-        return Organizer.objects.filter(user_id=user.pk).values_list("pk", flat=True).first()
+            return None, False
+
+        row = Organizer.objects.filter(user_id=user.pk).values_list("pk", "validation_status").first()
+        if row is None:
+            return None, False
+
+        organizer_id, validation_status = row
+        return organizer_id, validation_status == ORGANIZER_APPROVED
+
+    @staticmethod
+    def resolve_organizer_id(request: Any) -> Any:
+        """Compatibilite : ne renvoie que l identifiant du contexte resolu."""
+        organizer_id, _ = OrganizerScopedMixin.resolve_organizer_context(request)
+        return organizer_id
 
 
 # ---------------------------------------------------------------------------

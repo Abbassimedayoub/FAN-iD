@@ -10,13 +10,13 @@ contrat `flake8`/revue de code est simple : hors de ce paquet, on appelle
 
 Le moteur est une fonction PURE : memes entrees, meme verdict, aucun acces base,
 aucune horloge, aucun aleatoire. C est ce qui rend la matrice exhaustive
-(4 roles x 12 actions, autorisation ET refus) executable en quelques
+(4 roles x 14 actions, autorisation ET refus) executable en quelques
 millisecondes — et donc reellement exhaustive plutot que sondee.
 """
 
 from __future__ import annotations
 
-from ..constants import AUTH_LEVEL_STEP_UP
+from ..constants import AUTH_LEVEL_STEP_UP, ROLE_ORGANIZER
 from .actions import Action
 from .decisions import ALLOW, Decision, Reason, deny
 from .rules import POLICY, Grant, Scope
@@ -70,6 +70,35 @@ def authorize(subject: Subject, action: Action, resource: Resource | None = None
 
     if grant.step_up and subject.auth_level < AUTH_LEVEL_STEP_UP:
         return deny(Reason.STEP_UP_REQUIRED)
+
+    return ALLOW
+
+
+def require_approved_organizer(subject: Subject) -> Decision:
+    """
+    Verifie le pre-requis actor-level `ORGANIZER_APPROVED`.
+
+    Cette regle ne porte sur aucune ressource et ne remplace pas RBAC/ABAC.
+    Une future ecriture metier doit donc composer sa permission d action avec
+    `IsApprovedOrganizer`.
+
+    L etat est un primitif deja pose sur la requete par le contexte proprietaire
+    `organizing` : ce moteur reste pur et ne touche jamais la base.
+    """
+    if not subject.is_authenticated:
+        return deny(Reason.UNAUTHENTICATED)
+
+    if not subject.is_active:
+        return deny(Reason.INACTIVE_SUBJECT)
+
+    if (subject.role or "") not in POLICY:
+        return deny(Reason.UNKNOWN_ROLE)
+
+    if subject.role != ROLE_ORGANIZER:
+        return deny(Reason.ROLE_NOT_GRANTED)
+
+    if not subject.organizer_is_approved:
+        return deny(Reason.ORGANIZER_NOT_APPROVED)
 
     return ALLOW
 

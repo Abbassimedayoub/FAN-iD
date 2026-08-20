@@ -22,13 +22,19 @@ import uuid
 from .authz import Action, Resource, Subject, authorize, may_attempt
 from .constants import ROLE_IDS, ROLE_ORGANIZER
 from .models import User
-from .permissions import ActionPermission, MethodScopedActionPermission, OrganizerResourcePermission
+from .permissions import (
+    ActionPermission,
+    IsApprovedOrganizer,
+    MethodScopedActionPermission,
+    OrganizerResourcePermission,
+)
 
 logger = logging.getLogger("fanid.identity")
 
 __all__ = [
     "Action",
     "ActionPermission",
+    "IsApprovedOrganizer",
     "MethodScopedActionPermission",
     "OrganizerResourcePermission",
     "Resource",

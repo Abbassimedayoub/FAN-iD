@@ -26,6 +26,7 @@ from apps.identity.constants import AUTH_LEVEL_PASSWORD, AUTH_LEVEL_STEP_UP, ROL
 from apps.identity.permissions import (
     ActionPermission,
     BasePolicyPermission,
+    IsApprovedOrganizer,
     MethodScopedActionPermission,
     OrganizerResourcePermission,
     SelfResourcePermission,
@@ -204,6 +205,32 @@ def test_an_organizer_scoped_resource_is_refused_while_no_organizer_is_resolved(
     request = make_request(fake_user("SCANNER"))
     assert permission.has_permission(request, view) is True
     assert permission.has_object_permission(request, view, SimpleNamespace(organizer_id=ORG_ID)) is False
+
+
+# ===========================================================================
+# Approbation organisateur
+# ===========================================================================
+
+
+def test_organizer_approval_permission_is_fail_closed_and_specialized():
+    request = make_request(fake_user("ORGANIZER"))
+
+    permission = IsApprovedOrganizer()
+    assert permission.has_permission(request, _View()) is False
+    assert permission.code == "ORGANIZER_NOT_APPROVED"
+
+    request.organizer_approved = True
+    assert IsApprovedOrganizer().has_permission(request, _View()) is True
+
+
+def test_organizer_approval_permission_does_not_replace_rbac():
+    request = make_request(fake_user("FAN"))
+    request.organizer_approved = True
+
+    permission = IsApprovedOrganizer()
+
+    assert permission.has_permission(request, _View()) is False
+    assert permission.code == "FORBIDDEN"
 
 
 # ===========================================================================

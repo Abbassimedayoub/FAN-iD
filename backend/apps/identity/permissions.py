@@ -35,12 +35,12 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from apps.core.observability.metrics import AUTHZ_ROLE_ANONYMOUS, fanid_authz_denied_total
 
-from .authz import Action, Decision, Reason, Resource, authorize, may_attempt
+from .authz import Action, Decision, Reason, Resource, authorize, may_attempt, require_approved_organizer
 from .authz.context import subject_from_request
 
 logger = logging.getLogger(__name__)
 
-#: Message unique renvoye au client pour TOUT refus, quel qu en soit le motif.
+#: Message opaque renvoye pour tout refus sans action corrective cote client.
 #:
 #: Distinguer « role insuffisant » de « ressource d autrui » transformerait
 #: l API en oracle : en lisant le code d erreur, un attaquant apprendrait quels
@@ -49,12 +49,57 @@ logger = logging.getLogger(__name__)
 FORBIDDEN_MESSAGE = "Vous n avez pas la permission d effectuer cette action."
 FORBIDDEN_CODE = "FORBIDDEN"
 
-#: Seule exception a l opacite : le client DOIT savoir qu une verification
+#: Premiere exception a l opacite : le client DOIT savoir qu une verification
 #: renforcee est attendue, sinon il ne peut rien entreprendre. Ce code ne revele
 #: rien sur la ressource — il n est renvoye qu a un sujet dont l appartenance a
 #: DEJA ete verifiee (cf. l ordre des controles dans `engine.authorize`).
 STEP_UP_MESSAGE = "Une verification d identite renforcee est requise pour cette action."
 STEP_UP_CODE = "STEP_UP_REQUIRED"
+
+ORGANIZER_NOT_APPROVED_MESSAGE = "Votre organisation doit etre approuvee pour effectuer cette action."
+ORGANIZER_NOT_APPROVED_CODE = "ORGANIZER_NOT_APPROVED"
+
+
+def _client_error_for(reason: Reason) -> tuple[str, str]:
+    """Traduit uniquement les refus sur lesquels le client peut agir."""
+    if reason is Reason.STEP_UP_REQUIRED:
+        return STEP_UP_MESSAGE, STEP_UP_CODE
+
+    if reason is Reason.ORGANIZER_NOT_APPROVED:
+        return ORGANIZER_NOT_APPROVED_MESSAGE, ORGANIZER_NOT_APPROVED_CODE
+
+    return FORBIDDEN_MESSAGE, FORBIDDEN_CODE
+
+
+class IsApprovedOrganizer(BasePermission):
+    """
+    Pre-requis actor-level pour les futures ecritures metier organisateur.
+
+    Cette permission ne remplace PAS `ActionPermission` : elle compose avec elle.
+    Le verdict vient du moteur pur ; l adaptateur ne fait que construire le sujet
+    et traduire le refus pour DRF.
+    """
+
+    message: str = FORBIDDEN_MESSAGE
+    code: str = FORBIDDEN_CODE
+
+    def has_permission(self, request: Any, view: Any) -> bool:
+        subject = subject_from_request(request)
+        decision = require_approved_organizer(subject)
+
+        if decision.allowed:
+            return True
+
+        self.message, self.code = _client_error_for(decision.reason)
+
+        logger.warning(
+            "authorization.organizer_approval_denied",
+            extra={
+                "authz_reason": decision.reason.value,
+                "authz_role": (subject.role if subject.role is not None else AUTHZ_ROLE_ANONYMOUS),
+            },
+        )
+        return False
 
 
 class BasePolicyPermission(BasePermission):
@@ -137,13 +182,11 @@ class BasePolicyPermission(BasePermission):
         if decision.allowed:
             return True
 
-        step_up = decision.reason is Reason.STEP_UP_REQUIRED
         # DRF lit `self.message` et `self.code` sur l INSTANCE de permission
         # pour construire la reponse 403. Les permissions sont instanciees a
         # chaque requete par `APIView.get_permissions()`, il n y a donc pas de
         # fuite d etat entre requetes concurrentes.
-        self.message = STEP_UP_MESSAGE if step_up else FORBIDDEN_MESSAGE
-        self.code = STEP_UP_CODE if step_up else FORBIDDEN_CODE
+        self.message, self.code = _client_error_for(decision.reason)
 
         # Journal : action, motif et role suffisent au diagnostic. Ni
         # identifiant d utilisateur ni identifiant de ressource — le

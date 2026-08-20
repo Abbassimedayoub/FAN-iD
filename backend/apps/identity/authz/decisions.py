@@ -12,9 +12,10 @@ Deux exigences opposees se rencontrent ici :
 
 D ou la separation : `Reason` est un code interne, destine aux journaux et aux
 metriques ; il n est jamais renvoye tel quel au client. L adaptateur DRF
-(`permissions.py`) traduit tout refus en un unique `FORBIDDEN` opaque, a une
-exception documentee pres — `STEP_UP_REQUIRED`, que le client DOIT connaitre
-puisqu il a une action a entreprendre, et qui ne revele rien sur la ressource.
+(`permissions.py`) traduit les refus en `FORBIDDEN` opaque, sauf lorsqu une
+action client explicite est possible : `STEP_UP_REQUIRED` pour fournir une
+preuve renforcee, et `ORGANIZER_NOT_APPROVED` pour attendre ou obtenir la
+validation du dossier. Aucun de ces codes ne revele l existence d une ressource.
 
 Les valeurs de `Reason` sont volontairement en nombre fini et sans donnee
 variable : elles servent d etiquette Prometheus. Une etiquette portant un
@@ -46,6 +47,8 @@ class Reason(StrEnum):
     NOT_OWNER = "not_owner"
     #: La ressource ne porte pas l attribut exige par la regle.
     RESOURCE_ATTRIBUTE_MISSING = "resource_attribute_missing"
+    #: L organisateur existe mais n a pas encore ete approuve.
+    ORGANIZER_NOT_APPROVED = "organizer_not_approved"
     #: Droits suffisants, mais verification renforcee exigee et non fournie.
     STEP_UP_REQUIRED = "step_up_required"
 

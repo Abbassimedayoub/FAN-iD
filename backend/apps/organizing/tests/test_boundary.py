@@ -22,9 +22,12 @@ from typing import Any
 import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory, force_authenticate
+from rest_framework.views import APIView
 
-from apps.identity.api import Action, grant_organizer_role
-from apps.organizing.constants import ORGANIZER_PENDING
+from apps.identity.api import Action, IsApprovedOrganizer, grant_organizer_role
+from apps.organizing.constants import ORGANIZER_APPROVED, ORGANIZER_PENDING
 from apps.organizing.models import Organizer
 from apps.organizing.permissions import OrganizerRecordPermission
 from apps.organizing.views import OrganizerScopedMixin
@@ -135,14 +138,88 @@ def test_the_mixin_resolves_the_dossier_of_the_caller(dossier, organizer_user):
     assert resolved == dossier.pk
 
 
+def test_the_mixin_resolves_pending_as_not_approved(dossier, organizer_user):
+    organizer_id, approved = OrganizerScopedMixin.resolve_organizer_context(request_for(organizer_user))
+
+    assert organizer_id == dossier.pk
+    assert approved is False
+
+
+def test_the_mixin_resolves_approved_as_approved(dossier, organizer_user):
+    Organizer.objects.filter(pk=dossier.pk).update(validation_status=ORGANIZER_APPROVED)
+
+    organizer_id, approved = OrganizerScopedMixin.resolve_organizer_context(request_for(organizer_user))
+
+    assert organizer_id == dossier.pk
+    assert approved is True
+
+
+def test_the_mixin_resolves_context_in_one_query(
+    dossier,
+    organizer_user,
+    django_assert_num_queries,
+):
+    with django_assert_num_queries(1):
+        organizer_id, approved = OrganizerScopedMixin.resolve_organizer_context(request_for(organizer_user))
+
+    assert organizer_id == dossier.pk
+    assert approved is False
+
+
 def test_the_mixin_resolves_nothing_for_an_account_without_dossier(organizer_user):
-    assert OrganizerScopedMixin.resolve_organizer_id(request_for(organizer_user)) is None
+    organizer_id, approved = OrganizerScopedMixin.resolve_organizer_context(request_for(organizer_user))
+
+    assert organizer_id is None
+    assert approved is False
 
 
 def test_the_mixin_resolves_nothing_for_an_anonymous_caller():
     anonymous = SimpleNamespace(user=SimpleNamespace(is_authenticated=False))
 
-    assert OrganizerScopedMixin.resolve_organizer_id(anonymous) is None
+    organizer_id, approved = OrganizerScopedMixin.resolve_organizer_context(anonymous)
+
+    assert organizer_id is None
+    assert approved is False
+
+
+# ===========================================================================
+# Pre-requis d approbation sur une future ecriture organisateur
+# ===========================================================================
+
+
+class _ApprovedOrganizerWriteView(OrganizerScopedMixin, APIView):
+    """Faux endpoint S2 : aucune route de production n est ajoutee au Sprint 1."""
+
+    permission_classes = [IsApprovedOrganizer]
+
+    def post(self, request):
+        return Response({"ok": True})
+
+
+def _call_approved_organizer_write(user):
+    request = APIRequestFactory().post(
+        "/fake-organizer-write",
+        {},
+        format="json",
+    )
+    force_authenticate(request, user=user)
+    return _ApprovedOrganizerWriteView.as_view()(request)
+
+
+def test_pending_organizer_gets_organizer_not_approved(dossier, organizer_user):
+    response = _call_approved_organizer_write(organizer_user)
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "ORGANIZER_NOT_APPROVED"
+
+
+def test_approved_organizer_reaches_the_same_fake_write(dossier, organizer_user):
+    Organizer.objects.filter(pk=dossier.pk).update(validation_status=ORGANIZER_APPROVED)
+
+    response = _call_approved_organizer_write(organizer_user)
+
+    assert response.status_code == 200
+    assert response.data == {"ok": True}
 
 
 # ===========================================================================

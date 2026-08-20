@@ -36,6 +36,35 @@ def test_the_organizer_is_read_from_the_request():
     assert subject.organizer_id == ORG_ID
 
 
+def test_the_organizer_approval_is_read_from_the_request():
+    subject = subject_from_request(
+        fake_request(
+            organizer_id=ORG_ID,
+            organizer_approved=True,
+        )
+    )
+
+    assert subject.organizer_is_approved is True
+
+
+def test_an_absent_approval_is_fail_closed():
+    subject = subject_from_request(fake_request(organizer_id=ORG_ID))
+
+    assert subject.organizer_is_approved is False
+
+
+@pytest.mark.parametrize("value", [1, 0, "true", "false", None, object()])
+def test_anything_that_is_not_a_boolean_is_not_approved(value):
+    subject = subject_from_request(
+        fake_request(
+            organizer_id=ORG_ID,
+            organizer_approved=value,
+        )
+    )
+
+    assert subject.organizer_is_approved is False
+
+
 def test_an_absent_organizer_gives_none_rather_than_an_error():
     """
     C est le cas d une requete servie par un contexte qui n enrichit pas — la
@@ -66,4 +95,9 @@ def test_no_query_is_issued_while_building_the_subject(db, django_assert_num_que
     plus chaud de l API, et invisible tant qu on ne compte pas.
     """
     with django_assert_num_queries(0):
-        subject_from_request(fake_request(organizer_id=ORG_ID))
+        subject_from_request(
+            fake_request(
+                organizer_id=ORG_ID,
+                organizer_approved=True,
+            )
+        )
