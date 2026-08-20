@@ -10,7 +10,7 @@
       "report": "backend/coverage.xml"
     },
     "web": {
-      "percent": 99.12,
+      "percent": 99.15,
       "report": "web/coverage/coverage-summary.json"
     },
     "mobile": {
