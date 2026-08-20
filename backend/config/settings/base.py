@@ -10,6 +10,7 @@ un défaut silencieux en production est pire qu'un crash au démarrage.
 from pathlib import Path
 
 import environ
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 APPS_DIR = BASE_DIR / "apps"
@@ -209,6 +210,8 @@ SPECTACULAR_SETTINGS = {
 # --- CORS ---
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (*default_headers, "if-match")
+CORS_EXPOSE_HEADERS = ("ETag",)
 
 # --- Transport du refresh token côté Web ---
 REFRESH_COOKIE_NAME = env(
