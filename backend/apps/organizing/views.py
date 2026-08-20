@@ -326,6 +326,58 @@ class OrganizerSuspendView(OrganizerAdminActionView):
 
 
 # ---------------------------------------------------------------------------
+# S1-B — detail d administration
+# ---------------------------------------------------------------------------
+
+
+class AdminOrganizerDetailView(APIView):
+    """
+    GET /api/v1/admin/organizers/{id}.
+
+    Cette surface est strictement administrative. `ORGANIZER_READ` existe aussi
+    en `OWN_ORGANIZER` pour d autres roles ; comme pour la liste admin, un
+    second controle sur une ressource vide exige donc implicitement `Scope.ANY`
+    et refuse fail-closed les portees proprietaires.
+    """
+
+    permission_classes = [IsAuthenticated, ActionPermission]
+    required_action = Action.ORGANIZER_READ
+
+    @extend_schema(
+        operation_id="admin_organizers_retrieve",
+        summary="Consulter un dossier organisateur",
+        responses={
+            200: OrganizerSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+        },
+    )
+    def get(self, request: Request, organizer_id: Any) -> Response:
+        permission = ActionPermission()
+
+        if not permission.has_object_permission(request, self, object()):
+            self.permission_denied(
+                request,
+                message=permission.message,
+                code=permission.code,
+            )
+
+        organizer = Organizer.objects.filter(pk=organizer_id).first()
+        if organizer is None:
+            from apps.core.exceptions import NotFoundBusinessError
+
+            raise NotFoundBusinessError()
+
+        response = Response(
+            OrganizerSerializer(organizer).data,
+            status=status.HTTP_200_OK,
+        )
+        response["ETag"] = format_etag(organizer.version)
+        return response
+
+
+# ---------------------------------------------------------------------------
 # S1-A.8b — liste d administration
 # ---------------------------------------------------------------------------
 

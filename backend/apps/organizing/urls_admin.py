@@ -6,7 +6,13 @@ Montees sous `/api/v1/admin/organizers/`.
 
 from django.urls import path
 
-from .views import AdminOrganizerListView, OrganizerApproveView, OrganizerRejectView, OrganizerSuspendView
+from .views import (
+    AdminOrganizerDetailView,
+    AdminOrganizerListView,
+    OrganizerApproveView,
+    OrganizerRejectView,
+    OrganizerSuspendView,
+)
 
 app_name = "organizing_admin"
 
@@ -15,6 +21,11 @@ urlpatterns = [
         "",
         AdminOrganizerListView.as_view(),
         name="list",
+    ),
+    path(
+        "<uuid:organizer_id>",
+        AdminOrganizerDetailView.as_view(),
+        name="detail",
     ),
     path(
         "<uuid:organizer_id>/approve",

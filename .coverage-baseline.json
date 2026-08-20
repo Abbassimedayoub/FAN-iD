@@ -6,7 +6,7 @@
   },
   "stacks": {
     "backend": {
-      "percent": 96.03,
+      "percent": 96.06,
       "report": "backend/coverage.xml"
     },
     "web": {

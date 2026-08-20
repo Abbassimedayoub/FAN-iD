@@ -5,6 +5,7 @@ import uuid
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.urls import resolve
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -16,7 +17,12 @@ from apps.organizing.constants import (
     ORGANIZER_SUSPENDED,
 )
 from apps.organizing.models import Organizer
-from apps.organizing.views import OrganizerApproveView, OrganizerRejectView, OrganizerSuspendView
+from apps.organizing.views import (
+    AdminOrganizerDetailView,
+    OrganizerApproveView,
+    OrganizerRejectView,
+    OrganizerSuspendView,
+)
 
 User = get_user_model()
 
@@ -326,6 +332,79 @@ def test_unknown_organizer_returns_404(factory, admin):
     )
 
     assert response.status_code == 404, response.data
+
+
+def detail_call(
+    factory: APIRequestFactory,
+    *,
+    user,
+    organizer_id,
+    auth_level: int = AUTH_LEVEL_PASSWORD,
+):
+    request = factory.get(f"/api/v1/admin/organizers/{organizer_id}")
+    force_authenticate(request, user=user)
+    setattr(request, "auth_level", auth_level)  # noqa: B010
+
+    return AdminOrganizerDetailView.as_view()(request, organizer_id=organizer_id)
+
+
+def test_admin_can_retrieve_organizer_detail_without_step_up(factory, admin, organizer):
+    response = detail_call(
+        factory,
+        user=admin,
+        organizer_id=organizer.pk,
+    )
+
+    assert response.status_code == 200, response.data
+    assert response["ETag"] == '"1"'
+    assert set(response.data) == {
+        "id",
+        "org_name",
+        "validation_status",
+        "commission_rate",
+        "vat_number",
+        "contact_email",
+        "rejection_reason",
+        "validated_at",
+        "version",
+        "created_at",
+        "updated_at",
+    }
+    assert response.data["id"] == str(organizer.pk)
+    assert response.data["org_name"] == "Arena Paris"
+    assert response.data["validation_status"] == ORGANIZER_PENDING
+    assert response.data["version"] == 1
+
+
+def test_organizer_cannot_use_admin_detail_for_own_record(
+    factory,
+    organizer_user,
+    organizer,
+):
+    response = detail_call(
+        factory,
+        user=organizer_user,
+        organizer_id=organizer.pk,
+    )
+
+    assert response.status_code == 403, response.data
+
+
+def test_unknown_admin_detail_returns_404(factory, admin):
+    response = detail_call(
+        factory,
+        user=admin,
+        organizer_id=uuid.uuid4(),
+    )
+
+    assert response.status_code == 404, response.data
+
+
+def test_admin_detail_route_is_mounted(organizer):
+    match = resolve(f"/api/v1/admin/organizers/{organizer.pk}")
+
+    assert match.func.view_class is AdminOrganizerDetailView
+    assert match.kwargs["organizer_id"] == organizer.pk
 
 
 def list_call(factory: APIRequestFactory, *, user, query: str = ""):
