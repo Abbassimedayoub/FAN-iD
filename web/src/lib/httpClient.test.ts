@@ -154,3 +154,54 @@ describe("httpClient refresh failure", () => {
     expect(getAccessToken()).toBeNull();
   });
 });
+
+describe("httpClient malformed refresh response", () => {
+  it("clears the access token when refresh succeeds without a valid access token", async () => {
+    let refreshCalls = 0;
+    let protectedCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.url === "/api/v1/auth/token/refresh") {
+        refreshCalls += 1;
+
+        return response(config, 200, {
+          access: "",
+        });
+      }
+
+      if (config.url === "/protected") {
+        protectedCalls += 1;
+
+        const unauthorized = response(config, 401, {
+          error: {
+            code: "NOT_AUTHENTICATED",
+            message: "Access token expiré",
+            details: {},
+          },
+        });
+
+        throw new AxiosError(
+          "Request failed with status code 401",
+          "ERR_BAD_REQUEST",
+          config,
+          undefined,
+          unauthorized,
+        );
+      }
+
+      throw new Error(`URL inattendue dans le test : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    setAccessToken("expired-access");
+
+    await expect(httpClient.get("/protected")).rejects.toMatchObject({
+      errorClass: "auth",
+      code: "NOT_AUTHENTICATED",
+    });
+
+    expect(refreshCalls).toBe(1);
+    expect(protectedCalls).toBe(1);
+    expect(getAccessToken()).toBeNull();
+  });
+});
