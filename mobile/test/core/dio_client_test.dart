@@ -1,9 +1,62 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:fanid_mobile/core/errors/failure.dart';
 import 'package:fanid_mobile/core/network/dio_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('DioClient refresh lock', () {
+    test('shares one in-flight refresh between concurrent callers', () async {
+      final completer = Completer<String>();
+      var calls = 0;
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => null,
+        refreshHandler: () {
+          calls += 1;
+          return completer.future;
+        },
+      );
+
+      final first = client.refreshAccessTokenOnce();
+      final second = client.refreshAccessTokenOnce();
+
+      expect(calls, 1);
+
+      completer.complete('new-access');
+
+      expect(await first, 'new-access');
+      expect(await second, 'new-access');
+      expect(calls, 1);
+    });
+
+    test('releases the refresh lock after a failure', () async {
+      var calls = 0;
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => null,
+        refreshHandler: () async {
+          calls += 1;
+          if (calls == 1) {
+            throw StateError('refresh failed');
+          }
+          return 'new-access';
+        },
+      );
+
+      await expectLater(
+        client.refreshAccessTokenOnce(),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(await client.refreshAccessTokenOnce(), 'new-access');
+      expect(calls, 2);
+    });
+  });
+
   group('mapDioExceptionToFailure', () {
     test('maps a connectionError (no response) to NetworkFailure', () {
       final exception = DioException(

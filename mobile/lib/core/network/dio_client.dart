@@ -11,7 +11,11 @@ import '../errors/failure.dart';
 /// Le contenu métier du refresh est livré au Sprint 1 ; ce module ne
 /// fournit que le mécanisme de verrouillage générique.
 class DioClient {
-  DioClient({required String baseUrl, required this.tokenProvider}) {
+  DioClient({
+    required String baseUrl,
+    required this.tokenProvider,
+    required this.refreshHandler,
+  }) {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
@@ -39,6 +43,7 @@ class DioClient {
 
   late final Dio dio;
   final String? Function() tokenProvider;
+  final Future<String> Function() refreshHandler;
 
   Future<String>? _refreshFuture;
 
@@ -51,10 +56,7 @@ class DioClient {
   }
 
   Future<String> _performTokenRefresh() {
-    throw UnimplementedError(
-      'performTokenRefresh() non implémenté au Sprint 0 — logique de '
-      'rotation de refresh token livrée au Sprint 1 (identity).',
-    );
+    return refreshHandler();
   }
 
   String _generateCorrelationId() {
