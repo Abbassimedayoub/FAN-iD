@@ -44,6 +44,35 @@ class AuthRemoteDataSource {
     }
   }
 
+  Future<LoginSession> refresh({
+    required String refreshToken,
+    String? fingerprint,
+  }) async {
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/token/refresh',
+        data: {
+          'client': 'mobile',
+          'refresh': refreshToken,
+          'fingerprint': fingerprint,
+        },
+      );
+
+      final body = response.data;
+      if (body == null) {
+        throw const ServerFailure();
+      }
+
+      return _parseLoginSession(body);
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
+    } on Failure {
+      rethrow;
+    } catch (_) {
+      throw const ServerFailure();
+    }
+  }
+
   LoginSession _parseLoginSession(Map<String, dynamic> body) {
     final user = Map<String, dynamic>.from(body['user'] as Map);
     final rawDevice = body['device'];
