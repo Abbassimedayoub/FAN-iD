@@ -9,6 +9,7 @@ import {
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { StepUpDialog } from "@/features/auth/StepUpDialog";
 import { httpClient } from "@/lib/httpClient";
 
 import { AdminOrganizerDetailPage } from "./AdminOrganizerDetailPage";
@@ -396,4 +397,611 @@ describe("AdminOrganizerDetailPage actions", () => {
       ).not.toBeInTheDocument();
     },
   );
+});
+
+describe("AdminOrganizerDetailPage step-up", () => {
+  it("demande le step-up, confirme le code puis rejoue l’approbation", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000099";
+    const postUrls: string[] = [];
+    let approveCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      postUrls.push(config.url ?? "");
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`) {
+        approveCalls += 1;
+        expect(config.headers.get("If-Match")).toBe('"4"');
+
+        if (approveCalls === 1) {
+          throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+        }
+
+        return response(config, 200, {
+          ...organizer,
+          validation_status: "APPROVED",
+          version: 5,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        expect(config.data).toBe(JSON.stringify({}));
+
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        expect(config.data).toBe(
+          JSON.stringify({
+            challenge_id: challengeId,
+            code: "ABC-123",
+          }),
+        );
+
+        return response(config, 204, undefined);
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approuver" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer l’approbation" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Vérification renforcée" }),
+    ).toBeInTheDocument();
+
+    expect(screen.queryByRole("dialog", { name: "Approuver la demande" })).not.toBeInTheDocument();
+
+    const codeInput = screen.getByLabelText("Code de vérification");
+
+    expect(codeInput).toHaveAttribute("maxlength", "16");
+    expect(codeInput).not.toHaveAttribute("pattern");
+
+    fireEvent.change(codeInput, {
+      target: {
+        value: "  ABC-123  ",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le code" }));
+
+    expect(await screen.findByText("Demande approuvée.")).toBeInTheDocument();
+    expect(approveCalls).toBe(2);
+
+    expect(postUrls).toEqual([
+      `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`,
+      "/api/v1/auth/step-up/request",
+      "/api/v1/auth/step-up/confirm",
+      `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`,
+    ]);
+  });
+
+  it("rouvre le rejet avec le même motif si le retry métier échoue après le step-up", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000098";
+    const rejectPayloads: string[] = [];
+    let rejectCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/reject`) {
+        rejectCalls += 1;
+        rejectPayloads.push(String(config.data));
+
+        if (rejectCalls === 1) {
+          throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+        }
+
+        throw apiError(config, 500, "INTERNAL_ERROR", "Échec du rejet");
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        return response(config, 204, undefined);
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Rejeter" }));
+
+    fireEvent.change(screen.getByLabelText("Motif du rejet"), {
+      target: {
+        value: "  Pièce justificative manquante  ",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le rejet" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Vérification renforcée" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Code de vérification"), {
+      target: {
+        value: "ABC-123",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le code" }));
+
+    expect(await screen.findByText("Échec du rejet")).toBeInTheDocument();
+
+    expect(await screen.findByRole("dialog", { name: "Rejeter la demande" })).toBeInTheDocument();
+
+    expect(screen.getByLabelText("Motif du rejet")).toHaveValue("Pièce justificative manquante");
+
+    expect(rejectPayloads).toEqual([
+      JSON.stringify({
+        reason: "Pièce justificative manquante",
+      }),
+      JSON.stringify({
+        reason: "Pièce justificative manquante",
+      }),
+    ]);
+
+    expect(
+      screen.queryByRole("dialog", { name: "Vérification renforcée" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("conserve le code et le dialogue lorsque la confirmation renvoie OTP_INVALID", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000097";
+    let approveCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`) {
+        approveCalls += 1;
+
+        throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        throw apiError(config, 400, "OTP_INVALID", "Code de vérification invalide");
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approuver" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer l’approbation" }));
+
+    const codeInput = await screen.findByLabelText("Code de vérification");
+
+    fireEvent.change(codeInput, {
+      target: {
+        value: "ABC-123",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le code" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Code de vérification invalide");
+
+    expect(screen.getByRole("dialog", { name: "Vérification renforcée" })).toBeInTheDocument();
+
+    expect(codeInput).toHaveValue("ABC-123");
+    expect(approveCalls).toBe(1);
+  });
+
+  it("préserve le formulaire de rejet si la création du challenge échoue", async () => {
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/reject`) {
+        throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        throw apiError(config, 429, "THROTTLED", "Trop de tentatives");
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Rejeter" }));
+
+    const textarea = screen.getByLabelText("Motif du rejet");
+
+    fireEvent.change(textarea, {
+      target: {
+        value: "Document expiré",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le rejet" }));
+
+    expect(await screen.findByText("Trop de tentatives")).toBeInTheDocument();
+
+    expect(screen.getByRole("dialog", { name: "Rejeter la demande" })).toBeInTheDocument();
+
+    expect(textarea).toHaveValue("Document expiré");
+
+    expect(
+      screen.queryByRole("dialog", { name: "Vérification renforcée" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("bloque un double submit pendant la confirmation du step-up", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000096";
+    let approveCalls = 0;
+    let confirmCalls = 0;
+    let releaseConfirm: (() => void) | undefined;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`) {
+        approveCalls += 1;
+
+        if (approveCalls === 1) {
+          throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+        }
+
+        return response(config, 200, {
+          ...organizer,
+          validation_status: "APPROVED",
+          version: 5,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        confirmCalls += 1;
+
+        await new Promise<void>((resolve) => {
+          releaseConfirm = resolve;
+        });
+
+        return response(config, 204, undefined);
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approuver" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer l’approbation" }));
+
+    fireEvent.change(await screen.findByLabelText("Code de vérification"), {
+      target: {
+        value: "123456",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le code" }));
+
+    await waitFor(() => {
+      expect(confirmCalls).toBe(1);
+    });
+
+    const busyButton = screen.getByRole("button", {
+      name: "Vérification…",
+    });
+
+    expect(busyButton).toBeDisabled();
+
+    fireEvent.click(busyButton);
+    expect(confirmCalls).toBe(1);
+
+    await act(async () => {
+      releaseConfirm?.();
+    });
+
+    expect(await screen.findByText("Demande approuvée.")).toBeInTheDocument();
+    expect(confirmCalls).toBe(1);
+    expect(approveCalls).toBe(2);
+  });
+
+  it("conserve STALE_RESOURCE lorsque le retry après step-up est obsolète", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000095";
+    let approveCalls = 0;
+    let getCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        getCalls += 1;
+
+        if (getCalls === 1) {
+          return response(config, 200, organizer);
+        }
+
+        return response(config, 200, {
+          ...organizer,
+          version: 5,
+        });
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`) {
+        approveCalls += 1;
+
+        if (approveCalls === 1) {
+          throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+        }
+
+        throw apiError(config, 409, "STALE_RESOURCE", "Version obsolète");
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        return response(config, 204, undefined);
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approuver" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer l’approbation" }));
+
+    fireEvent.change(await screen.findByLabelText("Code de vérification"), {
+      target: {
+        value: "123456",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer le code" }));
+
+    expect(await screen.findByRole("dialog", { name: "Le dossier a changé" })).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("dialog", { name: "Vérification renforcée" }),
+    ).not.toBeInTheDocument();
+
+    expect(approveCalls).toBe(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Recharger le dossier" }));
+
+    await waitFor(() => {
+      expect(getCalls).toBe(2);
+    });
+  });
+});
+
+describe("complément de couverture step-up", () => {
+  it("réinitialise le code lorsque le dialogue est fermé puis accepte Fermer", () => {
+    const onClose = vi.fn();
+    const onConfirm = vi.fn(async () => false);
+
+    const { rerender } = render(
+      <StepUpDialog
+        open
+        expiresInSeconds={300}
+        error={null}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Code de vérification"), {
+      target: {
+        value: "ABC-123",
+      },
+    });
+
+    expect(screen.getByLabelText("Code de vérification")).toHaveValue("ABC-123");
+
+    rerender(
+      <StepUpDialog
+        open={false}
+        expiresInSeconds={300}
+        error={null}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    rerender(
+      <StepUpDialog
+        open
+        expiresInSeconds={300}
+        error={null}
+        onClose={onClose}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getByLabelText("Code de vérification")).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("rouvre l’approbation si le retry métier échoue après un step-up valide", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000094";
+    let approveCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/approve`) {
+        approveCalls += 1;
+
+        if (approveCalls === 1) {
+          throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
+        }
+
+        throw apiError(config, 500, "INTERNAL_ERROR", "Échec de l’approbation");
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        return response(config, 204, undefined);
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Approuver",
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmer l’approbation",
+      }),
+    );
+
+    fireEvent.change(await screen.findByLabelText("Code de vérification"), {
+      target: {
+        value: "123456",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmer le code",
+      }),
+    );
+
+    expect(await screen.findByText("Échec de l’approbation")).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Approuver la demande",
+      }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Vérification renforcée",
+      }),
+    ).not.toBeInTheDocument();
+
+    expect(approveCalls).toBe(2);
+  });
+
+  it("exécute jusqu’au bout un rejet réussi", async () => {
+    let rejectCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, organizer);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/reject`) {
+        rejectCalls += 1;
+
+        expect(config.headers.get("If-Match")).toBe('"4"');
+        expect(config.data).toBe(
+          JSON.stringify({
+            reason: "Dossier non conforme",
+          }),
+        );
+
+        return response(config, 200, {
+          ...organizer,
+          validation_status: "REJECTED",
+          rejection_reason: "Dossier non conforme",
+          version: 5,
+        });
+      }
+
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Rejeter",
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Motif du rejet"), {
+      target: {
+        value: "  Dossier non conforme  ",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmer le rejet",
+      }),
+    );
+
+    expect(await screen.findByText("Demande rejetée.")).toBeInTheDocument();
+
+    expect(rejectCalls).toBe(1);
+
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Rejeter la demande",
+      }),
+    ).not.toBeInTheDocument();
+  });
 });

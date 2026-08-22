@@ -90,11 +90,13 @@ export function ApproveDialog({
 export function RejectDialog({
   open,
   isPending,
+  initialReason,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   isPending: boolean;
+  initialReason?: string;
   onClose: () => void;
   onConfirm: (reason: string) => Promise<boolean>;
 }) {
@@ -106,8 +108,13 @@ export function RejectDialog({
   useEffect(() => {
     if (!open) {
       setReason("");
+      return;
     }
-  }, [open]);
+
+    if (initialReason !== undefined) {
+      setReason(initialReason);
+    }
+  }, [initialReason, open]);
 
   async function confirm() {
     if (busy || normalizedReason.length === 0) return;

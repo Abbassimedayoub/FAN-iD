@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ErrorState } from "@/components/ErrorState";
 import { Skeleton } from "@/components/Skeleton";
 import { Button, Card, Modal, Toast } from "@/components/primitives";
+import { StepUpDialog } from "@/features/auth/StepUpDialog";
 import type { AppError } from "@/lib/errors";
 
 import { OrganizerStatusBadge } from "./OrganizerStatusBadge";
@@ -64,6 +65,18 @@ export interface OrganizerActionFeedback {
   tone: "success" | "danger";
 }
 
+export interface OrganizerActionReopen {
+  kind: "approve" | "reject" | "suspend";
+  rejectReason?: string;
+}
+
+export interface OrganizerStepUpActions {
+  expiresInSeconds: number;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (code: string) => Promise<boolean>;
+}
+
 export interface OrganizerDetailActions {
   isPending: boolean;
   feedback: OrganizerActionFeedback | null;
@@ -72,6 +85,9 @@ export interface OrganizerDetailActions {
   onReject: (reason: string) => Promise<boolean>;
   onSuspend: () => Promise<boolean>;
   onReloadStale: () => void;
+  onClearReopenAction?: () => void;
+  reopenAction?: OrganizerActionReopen | null;
+  stepUp?: OrganizerStepUpActions;
 }
 
 interface AdminOrganizerDetailViewProps {
@@ -96,6 +112,23 @@ export function AdminOrganizerDetailView({
   actions,
 }: AdminOrganizerDetailViewProps) {
   const [actionDialog, setActionDialog] = useState<ActionDialog>(null);
+  const reopenAction = actions?.reopenAction;
+
+  useEffect(() => {
+    if (reopenAction) {
+      setActionDialog(reopenAction.kind);
+    }
+  }, [reopenAction]);
+
+  function closeActionDialog() {
+    setActionDialog(null);
+    actions?.onClearReopenAction?.();
+  }
+
+  function openActionDialog(dialog: Exclude<ActionDialog, null>) {
+    actions?.onClearReopenAction?.();
+    setActionDialog(dialog);
+  }
 
   if (isPending) {
     return <DetailSkeleton />;
@@ -185,7 +218,7 @@ export function AdminOrganizerDetailView({
                 <Button
                   type="button"
                   disabled={actions.isPending}
-                  onClick={() => setActionDialog("approve")}
+                  onClick={() => openActionDialog("approve")}
                 >
                   Approuver
                 </Button>
@@ -193,7 +226,7 @@ export function AdminOrganizerDetailView({
                 <Button
                   type="button"
                   disabled={actions.isPending}
-                  onClick={() => setActionDialog("reject")}
+                  onClick={() => openActionDialog("reject")}
                   className="bg-red-600"
                 >
                   Rejeter
@@ -205,7 +238,7 @@ export function AdminOrganizerDetailView({
               <Button
                 type="button"
                 disabled={actions.isPending}
-                onClick={() => setActionDialog("suspend")}
+                onClick={() => openActionDialog("suspend")}
                 className="bg-red-600"
               >
                 Suspendre
@@ -220,23 +253,34 @@ export function AdminOrganizerDetailView({
           <ApproveDialog
             open={actionDialog === "approve"}
             isPending={actions.isPending}
-            onClose={() => setActionDialog(null)}
+            onClose={closeActionDialog}
             onConfirm={actions.onApprove}
           />
 
           <RejectDialog
             open={actionDialog === "reject"}
             isPending={actions.isPending}
-            onClose={() => setActionDialog(null)}
+            initialReason={reopenAction?.kind === "reject" ? reopenAction.rejectReason : undefined}
+            onClose={closeActionDialog}
             onConfirm={actions.onReject}
           />
 
           <SuspendDialog
             open={actionDialog === "suspend"}
             isPending={actions.isPending}
-            onClose={() => setActionDialog(null)}
+            onClose={closeActionDialog}
             onConfirm={actions.onSuspend}
           />
+
+          {actions.stepUp ? (
+            <StepUpDialog
+              open
+              expiresInSeconds={actions.stepUp.expiresInSeconds}
+              error={actions.stepUp.error}
+              onClose={actions.stepUp.onClose}
+              onConfirm={actions.stepUp.onConfirm}
+            />
+          ) : null}
 
           <Modal
             open={actions.isStaleResource}
