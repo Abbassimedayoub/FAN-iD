@@ -11,6 +11,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   status: AuthStatus;
   authenticate: (user: AuthUser) => void;
+  clearAuthentication: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,6 +65,12 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
     setStatus("authenticated");
   }
 
+  function clearAuthentication(): void {
+    clearAccessToken();
+    setUser(null);
+    setStatus("anonymous");
+  }
+
   if (status === "bootstrapping") {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
@@ -75,7 +82,9 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, status, authenticate }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, status, authenticate, clearAuthentication }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

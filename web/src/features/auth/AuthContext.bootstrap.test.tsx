@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   AxiosError,
   AxiosHeaders,
@@ -46,12 +46,15 @@ function unauthorized(config: InternalAxiosRequestConfig): AxiosError {
 }
 
 function AuthProbe() {
-  const { status, user } = useAuth();
+  const { status, user, clearAuthentication } = useAuth();
 
   return (
     <>
       <p data-testid="auth-status">{status}</p>
       <p data-testid="auth-user">{user?.email ?? "anonymous"}</p>
+      <button type="button" onClick={clearAuthentication}>
+        Effacer l’authentification
+      </button>
     </>
   );
 }
@@ -239,4 +242,43 @@ it("ignores a late bootstrap failure after the provider is unmounted", async () 
   });
 
   expect(getAccessToken()).toBe("still-live-access");
+});
+
+describe("AuthProvider local authentication cleanup", () => {
+  it("efface le bearer et repasse immédiatement en anonymous", () => {
+    setAccessToken("current-access");
+
+    render(
+      <AuthProvider
+        initialUser={{
+          id: "77d350dd-aee8-4c26-b4a0-07b3b1fde10a",
+          email: "admin@example.test",
+          first_name: "Ada",
+          last_name: "Admin",
+          role: "ADMIN",
+          created_at: "2026-08-20T12:00:00Z",
+        }}
+      >
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+
+    expect(screen.getByTestId("auth-user")).toHaveTextContent("admin@example.test");
+
+    expect(getAccessToken()).toBe("current-access");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Effacer l’authentification",
+      }),
+    );
+
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("anonymous");
+
+    expect(screen.getByTestId("auth-user")).toHaveTextContent("anonymous");
+
+    expect(getAccessToken()).toBeNull();
+  });
 });
