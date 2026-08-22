@@ -44,6 +44,46 @@ void main() {
       expect(failure.details['available'], 0);
     });
 
+    test('maps DEVICE_LOCKED 403 to BusinessFailure preserving details', () {
+      final exception = DioException(
+        requestOptions: RequestOptions(path: '/x'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/x'),
+          statusCode: 403,
+          data: {
+            'error': {
+              'code': 'DEVICE_LOCKED',
+              'message': 'Un autre appareil est déjà lié',
+              'details': {
+                'reset_available': true,
+                'active_device_label': 'Pixel 8',
+              },
+            },
+          },
+        ),
+      );
+
+      final failure = mapDioExceptionToFailure(exception);
+
+      expect(failure, isA<BusinessFailure>());
+      final business = failure as BusinessFailure;
+      expect(business.code, 'DEVICE_LOCKED');
+      expect(business.details['reset_available'], isTrue);
+      expect(business.details['active_device_label'], 'Pixel 8');
+    });
+
+    test('maps a generic 403 to PermissionFailure', () {
+      final exception = DioException(
+        requestOptions: RequestOptions(path: '/x'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/x'),
+          statusCode: 403,
+        ),
+      );
+
+      expect(mapDioExceptionToFailure(exception), isA<PermissionFailure>());
+    });
+
     test('maps a 500 to ServerFailure', () {
       final exception = DioException(
         requestOptions: RequestOptions(path: '/x'),

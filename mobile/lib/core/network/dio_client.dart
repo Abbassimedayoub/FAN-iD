@@ -71,12 +71,24 @@ Failure mapDioExceptionToFailure(DioException exception) {
   if (status == null) {
     return const NetworkFailure();
   }
+  final body = exception.response?.data;
+  if (status == 403 &&
+      body is Map &&
+      body['error'] is Map &&
+      (body['error'] as Map)['code'] == 'DEVICE_LOCKED') {
+    final error = body['error'] as Map;
+    return BusinessFailure(
+      'DEVICE_LOCKED',
+      (error['message'] as String?) ?? 'Appareil déjà lié',
+      details: (error['details'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
   if (status == 401) return const AuthFailure();
   if (status == 403) return const PermissionFailure();
   if (status == 404) return const NotFoundFailure();
   if (status >= 500) return const ServerFailure();
 
-  final body = exception.response?.data;
   if (body is Map && body['error'] is Map) {
     final error = body['error'] as Map;
     return BusinessFailure(
