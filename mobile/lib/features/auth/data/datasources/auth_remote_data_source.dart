@@ -27,6 +27,11 @@ class AuthRemoteDataSource {
           'platform': platform,
           'label': label,
         },
+        options: Options(
+          extra: const {
+            DioClient.skipAuthRefreshKey: true,
+          },
+        ),
       );
 
       final body = response.data;
@@ -56,6 +61,11 @@ class AuthRemoteDataSource {
           'refresh': refreshToken,
           'fingerprint': fingerprint,
         },
+        options: Options(
+          extra: const {
+            DioClient.skipAuthRefreshKey: true,
+          },
+        ),
       );
 
       final body = response.data;

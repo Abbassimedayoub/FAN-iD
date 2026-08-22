@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:fanid_mobile/core/errors/failure.dart';
@@ -146,4 +147,113 @@ void main() {
       expect(mapDioExceptionToFailure(exception), isA<ServerFailure>());
     });
   });
+
+  group('DioClient automatic refresh', () {
+    test('refreshes once and retries a 401 with the new access token',
+        () async {
+      var refreshCalls = 0;
+      final adapter = _QueueAdapter([401, 200]);
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => 'old-access',
+        refreshHandler: () async {
+          refreshCalls += 1;
+          return 'new-access';
+        },
+      );
+      client.dio.httpClientAdapter = adapter;
+
+      final response = await client.dio.get('/protected');
+
+      expect(response.statusCode, 200);
+      expect(refreshCalls, 1);
+      expect(adapter.requests, hasLength(2));
+      expect(
+        adapter.requests.last.headers['Authorization'],
+        'Bearer new-access',
+      );
+    });
+
+    test('does not refresh requests marked to skip auth refresh', () async {
+      var refreshCalls = 0;
+      final adapter = _QueueAdapter([401]);
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => 'old-access',
+        refreshHandler: () async {
+          refreshCalls += 1;
+          return 'new-access';
+        },
+      );
+      client.dio.httpClientAdapter = adapter;
+
+      await expectLater(
+        client.dio.get(
+          '/api/v1/auth/login',
+          options: Options(
+            extra: const {
+              DioClient.skipAuthRefreshKey: true,
+            },
+          ),
+        ),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(refreshCalls, 0);
+      expect(adapter.requests, hasLength(1));
+    });
+
+    test('does not refresh a second 401 after retry', () async {
+      var refreshCalls = 0;
+      final adapter = _QueueAdapter([401, 401]);
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => 'old-access',
+        refreshHandler: () async {
+          refreshCalls += 1;
+          return 'new-access';
+        },
+      );
+      client.dio.httpClientAdapter = adapter;
+
+      await expectLater(
+        client.dio.get('/protected'),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(refreshCalls, 1);
+      expect(adapter.requests, hasLength(2));
+    });
+  });
+}
+
+class _QueueAdapter implements HttpClientAdapter {
+  _QueueAdapter(this.statuses);
+
+  final List<int> statuses;
+  final List<RequestOptions> requests = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final status = statuses.removeAt(0);
+
+    return ResponseBody.fromString(
+      '{}',
+      status,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

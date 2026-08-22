@@ -11,6 +11,9 @@ import '../errors/failure.dart';
 /// Le contenu métier du refresh est livré au Sprint 1 ; ce module ne
 /// fournit que le mécanisme de verrouillage générique.
 class DioClient {
+  static const skipAuthRefreshKey = 'fanid_skip_auth_refresh';
+  static const _retriedKey = 'fanid_auth_retried';
+
   DioClient({
     required String baseUrl,
     required this.tokenProvider,
@@ -28,14 +31,46 @@ class DioClient {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           options.headers['X-Correlation-ID'] = _generateCorrelationId();
-          final token = tokenProvider();
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
+
+          final skipRefresh = options.extra[skipAuthRefreshKey] == true;
+          final retried = options.extra[_retriedKey] == true;
+          if (!skipRefresh && !retried) {
+            final token = tokenProvider();
+            if (token != null) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
           }
+
           handler.next(options);
         },
         onError: (error, handler) async {
-          handler.next(error);
+          final options = error.requestOptions;
+
+          if (options.extra[skipAuthRefreshKey] == true ||
+              error.response?.statusCode != 401 ||
+              options.extra[_retriedKey] == true) {
+            handler.next(error);
+            return;
+          }
+
+          options.extra[_retriedKey] = true;
+
+          late final String newToken;
+          try {
+            newToken = await refreshAccessTokenOnce();
+          } catch (_) {
+            handler.next(error);
+            return;
+          }
+
+          options.headers['Authorization'] = 'Bearer $newToken';
+
+          try {
+            final response = await dio.fetch<dynamic>(options);
+            handler.resolve(response);
+          } on DioException catch (retryError) {
+            handler.next(retryError);
+          }
         },
       ),
     );
