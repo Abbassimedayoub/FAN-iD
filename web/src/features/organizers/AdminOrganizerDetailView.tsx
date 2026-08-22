@@ -1,9 +1,12 @@
+import { useState } from "react";
+
 import { ErrorState } from "@/components/ErrorState";
 import { Skeleton } from "@/components/Skeleton";
-import { Button, Card } from "@/components/primitives";
+import { Button, Card, Modal, Toast } from "@/components/primitives";
 import type { AppError } from "@/lib/errors";
 
 import { OrganizerStatusBadge } from "./OrganizerStatusBadge";
+import { ApproveDialog, RejectDialog, SuspendDialog } from "./OrganizerActionDialogs";
 import type { Organizer } from "./types";
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
@@ -56,6 +59,21 @@ function DetailField({ label, value }: { label: string; value: string }) {
   );
 }
 
+export interface OrganizerActionFeedback {
+  message: string;
+  tone: "success" | "danger";
+}
+
+export interface OrganizerDetailActions {
+  isPending: boolean;
+  feedback: OrganizerActionFeedback | null;
+  isStaleResource: boolean;
+  onApprove: () => Promise<boolean>;
+  onReject: (reason: string) => Promise<boolean>;
+  onSuspend: () => Promise<boolean>;
+  onReloadStale: () => void;
+}
+
 interface AdminOrganizerDetailViewProps {
   data: Organizer | undefined;
   isPending: boolean;
@@ -63,7 +81,10 @@ interface AdminOrganizerDetailViewProps {
   error: AppError | null;
   onRetry: () => void;
   onBack: () => void;
+  actions?: OrganizerDetailActions;
 }
+
+type ActionDialog = "approve" | "reject" | "suspend" | null;
 
 export function AdminOrganizerDetailView({
   data,
@@ -72,7 +93,10 @@ export function AdminOrganizerDetailView({
   error,
   onRetry,
   onBack,
+  actions,
 }: AdminOrganizerDetailViewProps) {
+  const [actionDialog, setActionDialog] = useState<ActionDialog>(null);
+
   if (isPending) {
     return <DetailSkeleton />;
   }
@@ -110,6 +134,9 @@ export function AdminOrganizerDetailView({
     return null;
   }
 
+  const canReview = data.validation_status === "PENDING";
+  const canSuspend = data.validation_status === "APPROVED";
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -125,6 +152,10 @@ export function AdminOrganizerDetailView({
       </div>
 
       {error ? <ErrorState error={error} onRetry={onRetry} /> : null}
+
+      {actions?.feedback ? (
+        <Toast message={actions.feedback.message} tone={actions.feedback.tone} />
+      ) : null}
 
       <header>
         <h1 className="font-sora text-2xl font-bold text-navy">{data.org_name}</h1>
@@ -143,6 +174,87 @@ export function AdminOrganizerDetailView({
           <DetailField label="Motif de rejet" value={displayValue(data.rejection_reason)} />
         </dl>
       </Card>
+
+      {actions && (canReview || canSuspend) ? (
+        <Card>
+          <h2 className="font-sora text-lg font-semibold text-navy">Actions administratives</h2>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            {canReview ? (
+              <>
+                <Button
+                  type="button"
+                  disabled={actions.isPending}
+                  onClick={() => setActionDialog("approve")}
+                >
+                  Approuver
+                </Button>
+
+                <Button
+                  type="button"
+                  disabled={actions.isPending}
+                  onClick={() => setActionDialog("reject")}
+                  className="bg-red-600"
+                >
+                  Rejeter
+                </Button>
+              </>
+            ) : null}
+
+            {canSuspend ? (
+              <Button
+                type="button"
+                disabled={actions.isPending}
+                onClick={() => setActionDialog("suspend")}
+                className="bg-red-600"
+              >
+                Suspendre
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
+      {actions ? (
+        <>
+          <ApproveDialog
+            open={actionDialog === "approve"}
+            isPending={actions.isPending}
+            onClose={() => setActionDialog(null)}
+            onConfirm={actions.onApprove}
+          />
+
+          <RejectDialog
+            open={actionDialog === "reject"}
+            isPending={actions.isPending}
+            onClose={() => setActionDialog(null)}
+            onConfirm={actions.onReject}
+          />
+
+          <SuspendDialog
+            open={actionDialog === "suspend"}
+            isPending={actions.isPending}
+            onClose={() => setActionDialog(null)}
+            onConfirm={actions.onSuspend}
+          />
+
+          <Modal
+            open={actions.isStaleResource}
+            onClose={actions.onReloadStale}
+            title="Le dossier a changé"
+          >
+            <p className="text-sm text-navy/70">
+              Une autre modification a été enregistrée. Rechargez le dossier avant de réessayer.
+            </p>
+
+            <div className="mt-5 flex justify-end">
+              <Button type="button" onClick={actions.onReloadStale}>
+                Recharger le dossier
+              </Button>
+            </div>
+          </Modal>
+        </>
+      ) : null}
     </main>
   );
 }
