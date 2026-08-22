@@ -11,6 +11,8 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
   FakeRemoteDataSource(this.result) : super(Dio());
 
   final LoginSession result;
+  String? receivedRefreshToken;
+  String? receivedFingerprint;
 
   @override
   Future<LoginSession> login({
@@ -20,6 +22,16 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
     String? platform,
     String label = '',
   }) async {
+    return result;
+  }
+
+  @override
+  Future<LoginSession> refresh({
+    required String refreshToken,
+    String? fingerprint,
+  }) async {
+    receivedRefreshToken = refreshToken;
+    receivedFingerprint = fingerprint;
     return result;
   }
 }
@@ -92,5 +104,42 @@ void main() {
 
     expect(tokenStore.accessToken, isNull);
     expect(await tokenStore.readRefreshToken(), isNull);
+  });
+
+  test('stores rotated tokens after a successful refresh', () async {
+    final tokenStore = TokenStore();
+    await tokenStore.save(
+      accessToken: 'old-access',
+      refreshToken: 'old-refresh',
+    );
+
+    final remote = FakeRemoteDataSource(session);
+    final repository = AuthRepositoryImpl(
+      remoteDataSource: remote,
+      tokenStore: tokenStore,
+    );
+
+    final result = await repository.refresh(fingerprint: 'a' * 64);
+
+    expect(result, same(session));
+    expect(remote.receivedRefreshToken, 'old-refresh');
+    expect(remote.receivedFingerprint, 'a' * 64);
+    expect(tokenStore.accessToken, 'access-token');
+    expect(await tokenStore.readRefreshToken(), 'refresh-token');
+  });
+
+  test('refresh fails locally when no refresh token is stored', () async {
+    final remote = FakeRemoteDataSource(session);
+    final repository = AuthRepositoryImpl(
+      remoteDataSource: remote,
+      tokenStore: TokenStore(),
+    );
+
+    await expectLater(
+      repository.refresh(fingerprint: 'a' * 64),
+      throwsA(isA<AuthFailure>()),
+    );
+
+    expect(remote.receivedRefreshToken, isNull);
   });
 }

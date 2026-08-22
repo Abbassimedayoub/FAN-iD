@@ -43,6 +43,13 @@ class FakeAuthRepository implements AuthRepository {
     this.label = label;
     return session;
   }
+
+  @override
+  Future<LoginSession> refresh({
+    String? fingerprint,
+  }) async {
+    return session;
+  }
 }
 
 void main() {

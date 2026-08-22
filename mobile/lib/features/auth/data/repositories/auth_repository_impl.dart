@@ -1,3 +1,4 @@
+import '../../../../core/errors/failure.dart';
 import '../../domain/entities/login_session.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
@@ -26,6 +27,28 @@ class AuthRepositoryImpl implements AuthRepository {
       fingerprint: fingerprint,
       platform: platform,
       label: label,
+    );
+
+    await tokenStore.save(
+      accessToken: session.access,
+      refreshToken: session.refresh,
+    );
+
+    return session;
+  }
+
+  @override
+  Future<LoginSession> refresh({
+    String? fingerprint,
+  }) async {
+    final refreshToken = await tokenStore.readRefreshToken();
+    if (refreshToken == null) {
+      throw const AuthFailure();
+    }
+
+    final session = await remoteDataSource.refresh(
+      refreshToken: refreshToken,
+      fingerprint: fingerprint,
     );
 
     await tokenStore.save(

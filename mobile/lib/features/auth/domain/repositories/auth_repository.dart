@@ -8,4 +8,8 @@ abstract interface class AuthRepository {
     String? platform,
     String label = '',
   });
+
+  Future<LoginSession> refresh({
+    String? fingerprint,
+  });
 }
