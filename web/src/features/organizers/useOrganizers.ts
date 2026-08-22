@@ -7,8 +7,9 @@ import type { OrganizerFilters, OrganizerPage } from "./types";
 
 export const organizerQueryKeys = {
   all: ["admin-organizers"] as const,
+  lists: () => [...organizerQueryKeys.all, "list"] as const,
   list: (filters: OrganizerFilters) =>
-    [...organizerQueryKeys.all, filters.page, filters.validationStatus ?? "ALL"] as const,
+    [...organizerQueryKeys.lists(), filters.page, filters.validationStatus ?? "ALL"] as const,
   detail: (organizerId: string) => [...organizerQueryKeys.all, "detail", organizerId] as const,
 };
 
