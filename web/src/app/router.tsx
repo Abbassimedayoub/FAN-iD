@@ -3,9 +3,10 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { LoginForm } from "@/features/auth/LoginForm";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { useAuth } from "@/features/auth/AuthContext";
-import type { AuthUser, UserRole } from "@/features/auth/types";
+import { USER_ROLES, type AuthUser, type UserRole } from "@/features/auth/types";
 import { AdminOrganizerDetailPage } from "@/features/organizers/AdminOrganizerDetailPage";
 import { AdminOrganizersPage } from "@/features/organizers/AdminOrganizersPage";
+import { SessionsPage } from "@/features/sessions/SessionsPage";
 
 const HOME_BY_ROLE: Record<UserRole, string> = {
   ADMIN: "/admin/organizers",
@@ -72,6 +73,15 @@ export function AppRoutes() {
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
+
+      <Route
+        path="/sessions"
+        element={
+          <ProtectedRoute allowedRoles={USER_ROLES}>
+            <SessionsPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/organizer"
