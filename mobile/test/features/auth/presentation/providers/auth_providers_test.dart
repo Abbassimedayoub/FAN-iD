@@ -98,4 +98,43 @@ void main() {
     });
     expect(runtime.tokenStore.accessToken, 'new-access');
   });
+
+  test('refresh failure clears tokens and signals session expiry', () async {
+    final container = ProviderContainer(
+      overrides: [
+        apiBaseUrlProvider.overrideWithValue('https://api.example.test'),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final runtime = container.read(authRuntimeProvider);
+
+    await runtime.tokenStore.save(
+      accessToken: 'old-access',
+      refreshToken: 'old-refresh',
+    );
+
+    runtime.dioClient.dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.connectionError,
+              error: 'offline',
+            ),
+          );
+        },
+      ),
+    );
+
+    await expectLater(
+      runtime.dioClient.refreshAccessTokenOnce(),
+      throwsA(anything),
+    );
+
+    expect(runtime.tokenStore.accessToken, isNull);
+    expect(await runtime.tokenStore.readRefreshToken(), isNull);
+    expect(container.read(authExpiryGenerationProvider), 1);
+  });
 }

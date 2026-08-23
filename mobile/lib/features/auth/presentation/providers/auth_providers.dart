@@ -8,6 +8,8 @@ import '../../data/storage/token_store.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/login_use_case.dart';
 
+final authExpiryGenerationProvider = StateProvider<int>((_) => 0);
+
 final apiBaseUrlProvider = Provider<String>(
   (_) => const String.fromEnvironment(
     'FANID_API_URL',
@@ -31,7 +33,10 @@ final authRuntimeProvider = Provider<AuthRuntime>((ref) {
       );
       return session.access;
     },
-    onRefreshFailure: tokenStore.clear,
+    onRefreshFailure: () async {
+      await tokenStore.clear();
+      ref.read(authExpiryGenerationProvider.notifier).state++;
+    },
   );
 
   repository = AuthRepositoryImpl(
