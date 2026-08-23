@@ -56,6 +56,39 @@ void main() {
       expect(await client.refreshAccessTokenOnce(), 'new-access');
       expect(calls, 2);
     });
+
+    test('runs refresh failure cleanup once for concurrent callers', () async {
+      final completer = Completer<String>();
+      var cleanupCalls = 0;
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => null,
+        refreshHandler: () => completer.future,
+        onRefreshFailure: () async {
+          cleanupCalls += 1;
+        },
+      );
+
+      final first = client.refreshAccessTokenOnce();
+      final second = client.refreshAccessTokenOnce();
+
+      final firstExpectation = expectLater(
+        first,
+        throwsA(isA<StateError>()),
+      );
+      final secondExpectation = expectLater(
+        second,
+        throwsA(isA<StateError>()),
+      );
+
+      completer.completeError(StateError('refresh failed'));
+
+      await firstExpectation;
+      await secondExpectation;
+
+      expect(cleanupCalls, 1);
+    });
   });
 
   group('mapDioExceptionToFailure', () {

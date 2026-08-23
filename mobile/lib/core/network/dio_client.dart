@@ -18,6 +18,7 @@ class DioClient {
     required String baseUrl,
     required this.tokenProvider,
     required this.refreshHandler,
+    this.onRefreshFailure,
   }) {
     dio = Dio(
       BaseOptions(
@@ -79,6 +80,7 @@ class DioClient {
   late final Dio dio;
   final String? Function() tokenProvider;
   final Future<String> Function() refreshHandler;
+  final Future<void> Function()? onRefreshFailure;
 
   Future<String>? _refreshFuture;
 
@@ -90,8 +92,13 @@ class DioClient {
     });
   }
 
-  Future<String> _performTokenRefresh() {
-    return refreshHandler();
+  Future<String> _performTokenRefresh() async {
+    try {
+      return await refreshHandler();
+    } catch (_) {
+      await onRefreshFailure?.call();
+      rethrow;
+    }
   }
 
   String _generateCorrelationId() {
