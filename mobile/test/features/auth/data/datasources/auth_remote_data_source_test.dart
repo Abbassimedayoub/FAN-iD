@@ -201,7 +201,46 @@ void main() {
     );
   });
 
-  test('maps an HTTP login error to Failure', () async {
+  test('preserves INVALID_CREDENTIALS on login', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 401,
+                data: {
+                  'error': {
+                    'code': 'INVALID_CREDENTIALS',
+                    'message': 'Adresse ou mot de passe incorrect.',
+                    'details': <String, dynamic>{},
+                  },
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    final source = AuthRemoteDataSource(dio);
+
+    await expectLater(
+      source.login(
+        email: 'fan@example.test',
+        password: 'wrong',
+      ),
+      throwsA(
+        isA<BusinessFailure>()
+            .having((failure) => failure.code, 'code', 'INVALID_CREDENTIALS'),
+      ),
+    );
+  });
+
+  test('keeps generic login 401 mapped to AuthFailure', () async {
     final dio = Dio();
     dio.interceptors.add(
       InterceptorsWrapper(
@@ -219,10 +258,8 @@ void main() {
       ),
     );
 
-    final source = AuthRemoteDataSource(dio);
-
-    expect(
-      () => source.login(
+    await expectLater(
+      AuthRemoteDataSource(dio).login(
         email: 'fan@example.test',
         password: 'wrong',
       ),

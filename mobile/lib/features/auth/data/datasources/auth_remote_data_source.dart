@@ -41,12 +41,33 @@ class AuthRemoteDataSource {
 
       return _parseLoginSession(body);
     } on DioException catch (error) {
-      throw mapDioExceptionToFailure(error);
+      throw _mapLoginDioException(error);
     } on Failure {
       rethrow;
     } catch (_) {
       throw const ServerFailure();
     }
+  }
+
+  Failure _mapLoginDioException(DioException exception) {
+    final response = exception.response;
+    final body = response?.data;
+
+    if (response?.statusCode == 401 &&
+        body is Map &&
+        body['error'] is Map &&
+        (body['error'] as Map)['code'] == 'INVALID_CREDENTIALS') {
+      final error = body['error'] as Map;
+
+      return BusinessFailure(
+        'INVALID_CREDENTIALS',
+        (error['message'] as String?) ?? 'Adresse ou mot de passe incorrect.',
+        details:
+            (error['details'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+    }
+
+    return mapDioExceptionToFailure(exception);
   }
 
   Future<LoginSession> refresh({
