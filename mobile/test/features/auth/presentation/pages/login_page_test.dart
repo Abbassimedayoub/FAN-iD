@@ -120,9 +120,15 @@ void main() {
       loginFailure: const BusinessFailure(
         'DEVICE_LOCKED',
         'backend text must not be displayed',
+        details: {
+          'active_device_label': 'Pixel 8',
+          'bound_at': '2026-08-24T18:00:00Z',
+          'reset_available': true,
+        },
       ),
     );
     var lockedCalls = 0;
+    BusinessFailure? lockedFailure;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -136,7 +142,10 @@ void main() {
         child: MaterialApp(
           theme: FanTheme.light,
           home: LoginPage(
-            onDeviceLocked: () => lockedCalls++,
+            onDeviceLocked: (failure) {
+              lockedCalls++;
+              lockedFailure = failure;
+            },
           ),
         ),
       ),
@@ -150,6 +159,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(lockedCalls, 1);
+    expect(lockedFailure?.code, 'DEVICE_LOCKED');
+    expect(lockedFailure?.details['active_device_label'], 'Pixel 8');
+    expect(lockedFailure?.details['reset_available'], isTrue);
     expect(find.textContaining('DEVICE_LOCKED'), findsNothing);
   });
 }

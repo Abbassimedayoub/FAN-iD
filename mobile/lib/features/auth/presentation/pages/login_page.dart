@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/failure.dart';
+
 import '../controllers/auth_controller.dart';
 import '../mappers/login_failure_mapper.dart';
 import '../views/login_view.dart';
@@ -13,7 +15,7 @@ class LoginPage extends ConsumerStatefulWidget {
   });
 
   final String? noticeText;
-  final VoidCallback? onDeviceLocked;
+  final ValueChanged<BusinessFailure>? onDeviceLocked;
 
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
@@ -42,8 +44,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final authState = ref.watch(authControllerProvider);
 
     ref.listen(authControllerProvider, (previous, next) {
-      if (next.hasError && isDeviceLockedFailure(next.error)) {
-        widget.onDeviceLocked?.call();
+      final error = next.error;
+      if (error is BusinessFailure && error.code == 'DEVICE_LOCKED') {
+        widget.onDeviceLocked?.call(error);
       }
     });
 
