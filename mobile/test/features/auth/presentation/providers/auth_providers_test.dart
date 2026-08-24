@@ -43,6 +43,14 @@ void main() {
     expect(container.read(dioClientProvider), same(runtime.dioClient));
     expect(container.read(authRepositoryProvider), same(runtime.repository));
     expect(container.read(loginUseCaseProvider), same(runtime.loginUseCase));
+    expect(
+      container.read(requestDeviceResetUseCaseProvider),
+      same(runtime.requestDeviceResetUseCase),
+    );
+    expect(
+      container.read(confirmDeviceResetUseCaseProvider),
+      same(runtime.confirmDeviceResetUseCase),
+    );
   });
 
   test('refresh handler uses persisted fingerprint and refresh token',
