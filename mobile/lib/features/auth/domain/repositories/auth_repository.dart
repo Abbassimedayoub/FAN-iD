@@ -1,3 +1,4 @@
+import '../entities/device_reset_challenge.dart';
 import '../entities/login_session.dart';
 
 abstract interface class AuthRepository {
@@ -11,5 +12,10 @@ abstract interface class AuthRepository {
 
   Future<LoginSession> refresh({
     String? fingerprint,
+  });
+
+  Future<DeviceResetChallenge> requestDeviceReset({
+    required String email,
+    required String password,
   });
 }

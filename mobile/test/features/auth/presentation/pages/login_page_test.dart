@@ -2,6 +2,7 @@ import 'package:fanid_mobile/core/errors/failure.dart';
 import 'package:fanid_mobile/design_system/design_system.dart';
 import 'package:fanid_mobile/features/auth/data/storage/device_fingerprint_store.dart';
 import 'package:fanid_mobile/features/auth/data/storage/token_store.dart';
+import 'package:fanid_mobile/features/auth/domain/entities/device_reset_challenge.dart';
 import 'package:fanid_mobile/features/auth/domain/entities/login_session.dart';
 import 'package:fanid_mobile/features/auth/domain/repositories/auth_repository.dart';
 import 'package:fanid_mobile/features/auth/domain/usecases/login_use_case.dart';
@@ -53,6 +54,17 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<LoginSession> refresh({String? fingerprint}) async => session;
+
+  @override
+  Future<DeviceResetChallenge> requestDeviceReset({
+    required String email,
+    required String password,
+  }) async {
+    return const DeviceResetChallenge(
+      challengeId: 'challenge-id',
+      expiresInSeconds: 600,
+    );
+  }
 }
 
 void main() {

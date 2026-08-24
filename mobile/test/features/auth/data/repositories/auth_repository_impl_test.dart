@@ -3,6 +3,7 @@ import 'package:fanid_mobile/core/errors/failure.dart';
 import 'package:fanid_mobile/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:fanid_mobile/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:fanid_mobile/features/auth/data/storage/token_store.dart';
+import 'package:fanid_mobile/features/auth/domain/entities/device_reset_challenge.dart';
 import 'package:fanid_mobile/features/auth/domain/entities/login_session.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,8 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
   final LoginSession result;
   String? receivedRefreshToken;
   String? receivedFingerprint;
+  String? receivedResetEmail;
+  String? receivedResetPassword;
 
   @override
   Future<LoginSession> login({
@@ -33,6 +36,19 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
     receivedRefreshToken = refreshToken;
     receivedFingerprint = fingerprint;
     return result;
+  }
+
+  @override
+  Future<DeviceResetChallenge> requestDeviceReset({
+    required String email,
+    required String password,
+  }) async {
+    receivedResetEmail = email;
+    receivedResetPassword = password;
+    return const DeviceResetChallenge(
+      challengeId: 'challenge-id',
+      expiresInSeconds: 600,
+    );
   }
 }
 
@@ -141,5 +157,26 @@ void main() {
     );
 
     expect(remote.receivedRefreshToken, isNull);
+  });
+
+  test('delegates device reset request without touching tokens', () async {
+    final tokenStore = TokenStore();
+    final remote = FakeRemoteDataSource(session);
+    final repository = AuthRepositoryImpl(
+      remoteDataSource: remote,
+      tokenStore: tokenStore,
+    );
+
+    final result = await repository.requestDeviceReset(
+      email: 'fan@example.test',
+      password: 'secret',
+    );
+
+    expect(result.challengeId, 'challenge-id');
+    expect(result.expiresInSeconds, 600);
+    expect(remote.receivedResetEmail, 'fan@example.test');
+    expect(remote.receivedResetPassword, 'secret');
+    expect(tokenStore.accessToken, isNull);
+    expect(await tokenStore.readRefreshToken(), isNull);
   });
 }

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../domain/entities/device_reset_challenge.dart';
 import '../../domain/entities/login_session.dart';
 
 class AuthRemoteDataSource {
@@ -95,6 +96,42 @@ class AuthRemoteDataSource {
       }
 
       return _parseLoginSession(body);
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
+    } on Failure {
+      rethrow;
+    } catch (_) {
+      throw const ServerFailure();
+    }
+  }
+
+  Future<DeviceResetChallenge> requestDeviceReset({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/devices/reset/request',
+        data: {
+          'email': email,
+          'password': password,
+        },
+        options: Options(
+          extra: const {
+            DioClient.skipAuthRefreshKey: true,
+          },
+        ),
+      );
+
+      final body = response.data;
+      if (body == null) {
+        throw const ServerFailure();
+      }
+
+      return DeviceResetChallenge(
+        challengeId: body['challenge_id'] as String,
+        expiresInSeconds: body['expires_in_seconds'] as int,
+      );
     } on DioException catch (error) {
       throw mapDioExceptionToFailure(error);
     } on Failure {

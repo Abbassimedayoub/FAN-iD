@@ -266,4 +266,118 @@ void main() {
       throwsA(isA<AuthFailure>()),
     );
   });
+
+  test('requests and parses a device reset challenge', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          expect(options.path, '/api/v1/devices/reset/request');
+          expect(options.data, {
+            'email': 'fan@example.test',
+            'password': 'secret',
+          });
+
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'challenge_id': 'challenge-id',
+                'expires_in_seconds': 600,
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    final result = await AuthRemoteDataSource(dio).requestDeviceReset(
+      email: 'fan@example.test',
+      password: 'secret',
+    );
+
+    expect(result.challengeId, 'challenge-id');
+    expect(result.expiresInSeconds, 600);
+  });
+
+  test('device reset request rejects an empty response', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: null,
+            ),
+          );
+        },
+      ),
+    );
+
+    await expectLater(
+      AuthRemoteDataSource(dio).requestDeviceReset(
+        email: 'fan@example.test',
+        password: 'secret',
+      ),
+      throwsA(isA<ServerFailure>()),
+    );
+  });
+
+  test('device reset request maps HTTP errors', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 500,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    await expectLater(
+      AuthRemoteDataSource(dio).requestDeviceReset(
+        email: 'fan@example.test',
+        password: 'secret',
+      ),
+      throwsA(isA<ServerFailure>()),
+    );
+  });
+
+  test('device reset request rejects a malformed response', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'challenge_id': 'challenge-id',
+                'expires_in_seconds': 'invalid',
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    await expectLater(
+      AuthRemoteDataSource(dio).requestDeviceReset(
+        email: 'fan@example.test',
+        password: 'secret',
+      ),
+      throwsA(isA<ServerFailure>()),
+    );
+  });
 }

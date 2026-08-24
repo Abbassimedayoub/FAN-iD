@@ -1,4 +1,5 @@
 import '../../../../core/errors/failure.dart';
+import '../../domain/entities/device_reset_challenge.dart';
 import '../../domain/entities/login_session.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_data_source.dart';
@@ -57,5 +58,16 @@ class AuthRepositoryImpl implements AuthRepository {
     );
 
     return session;
+  }
+
+  @override
+  Future<DeviceResetChallenge> requestDeviceReset({
+    required String email,
+    required String password,
+  }) {
+    return remoteDataSource.requestDeviceReset(
+      email: email,
+      password: password,
+    );
   }
 }
