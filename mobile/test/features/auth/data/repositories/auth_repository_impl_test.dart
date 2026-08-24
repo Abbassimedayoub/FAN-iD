@@ -16,6 +16,8 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
   String? receivedFingerprint;
   String? receivedResetEmail;
   String? receivedResetPassword;
+  String? receivedConfirmChallengeId;
+  String? receivedConfirmCode;
 
   @override
   Future<LoginSession> login({
@@ -49,6 +51,15 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
       challengeId: 'challenge-id',
       expiresInSeconds: 600,
     );
+  }
+
+  @override
+  Future<void> confirmDeviceReset({
+    required String challengeId,
+    required String code,
+  }) async {
+    receivedConfirmChallengeId = challengeId;
+    receivedConfirmCode = code;
   }
 }
 
@@ -176,6 +187,25 @@ void main() {
     expect(result.expiresInSeconds, 600);
     expect(remote.receivedResetEmail, 'fan@example.test');
     expect(remote.receivedResetPassword, 'secret');
+    expect(tokenStore.accessToken, isNull);
+    expect(await tokenStore.readRefreshToken(), isNull);
+  });
+
+  test('delegates device reset confirmation without touching tokens', () async {
+    final tokenStore = TokenStore();
+    final remote = FakeRemoteDataSource(session);
+    final repository = AuthRepositoryImpl(
+      remoteDataSource: remote,
+      tokenStore: tokenStore,
+    );
+
+    await repository.confirmDeviceReset(
+      challengeId: 'challenge-id',
+      code: '123456',
+    );
+
+    expect(remote.receivedConfirmChallengeId, 'challenge-id');
+    expect(remote.receivedConfirmCode, '123456');
     expect(tokenStore.accessToken, isNull);
     expect(await tokenStore.readRefreshToken(), isNull);
   });

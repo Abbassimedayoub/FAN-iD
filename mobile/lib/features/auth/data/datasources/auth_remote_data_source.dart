@@ -98,8 +98,6 @@ class AuthRemoteDataSource {
       return _parseLoginSession(body);
     } on DioException catch (error) {
       throw mapDioExceptionToFailure(error);
-    } on Failure {
-      rethrow;
     } catch (_) {
       throw const ServerFailure();
     }
@@ -136,6 +134,30 @@ class AuthRemoteDataSource {
       throw mapDioExceptionToFailure(error);
     } on Failure {
       rethrow;
+    } catch (_) {
+      throw const ServerFailure();
+    }
+  }
+
+  Future<void> confirmDeviceReset({
+    required String challengeId,
+    required String code,
+  }) async {
+    try {
+      await dio.post<void>(
+        '/api/v1/devices/reset/confirm',
+        data: {
+          'challenge_id': challengeId,
+          'code': code,
+        },
+        options: Options(
+          extra: const {
+            DioClient.skipAuthRefreshKey: true,
+          },
+        ),
+      );
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
     } catch (_) {
       throw const ServerFailure();
     }

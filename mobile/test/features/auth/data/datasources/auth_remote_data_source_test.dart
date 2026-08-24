@@ -380,4 +380,68 @@ void main() {
       throwsA(isA<ServerFailure>()),
     );
   });
+
+  test('confirms a device reset challenge', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          expect(options.path, '/api/v1/devices/reset/confirm');
+          expect(options.data, {
+            'challenge_id': 'challenge-id',
+            'code': '123456',
+          });
+
+          handler.resolve(
+            Response<void>(
+              requestOptions: options,
+              statusCode: 204,
+            ),
+          );
+        },
+      ),
+    );
+
+    await AuthRemoteDataSource(dio).confirmDeviceReset(
+      challengeId: 'challenge-id',
+      code: '123456',
+    );
+  });
+
+  test('device reset confirm preserves OTP_INVALID', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 400,
+                data: {
+                  'error': {
+                    'code': 'OTP_INVALID',
+                    'message': 'Code incorrect.',
+                    'details': <String, dynamic>{},
+                  },
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    await expectLater(
+      AuthRemoteDataSource(dio).confirmDeviceReset(
+        challengeId: 'challenge-id',
+        code: 'wrong',
+      ),
+      throwsA(
+        isA<BusinessFailure>()
+            .having((failure) => failure.code, 'code', 'OTP_INVALID'),
+      ),
+    );
+  });
 }

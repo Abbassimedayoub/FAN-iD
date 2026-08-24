@@ -64,6 +64,12 @@ class FakeAuthRepository implements AuthRepository {
       expiresInSeconds: 600,
     );
   }
+
+  @override
+  Future<void> confirmDeviceReset({
+    required String challengeId,
+    required String code,
+  }) async {}
 }
 
 ProviderContainer makeContainer({

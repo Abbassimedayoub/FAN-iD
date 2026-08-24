@@ -70,4 +70,15 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
     );
   }
+
+  @override
+  Future<void> confirmDeviceReset({
+    required String challengeId,
+    required String code,
+  }) {
+    return remoteDataSource.confirmDeviceReset(
+      challengeId: challengeId,
+      code: code,
+    );
+  }
 }

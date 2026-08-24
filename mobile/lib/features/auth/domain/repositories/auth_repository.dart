@@ -18,4 +18,9 @@ abstract interface class AuthRepository {
     required String email,
     required String password,
   });
+
+  Future<void> confirmDeviceReset({
+    required String challengeId,
+    required String code,
+  });
 }
