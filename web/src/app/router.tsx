@@ -1,7 +1,9 @@
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 
+import { AdminShell } from "@/components/AdminShell";
 import { BrandMark } from "@/components/BrandMark";
 import { LoginForm } from "@/features/auth/LoginForm";
+import { PasswordChangePage } from "@/features/auth/PasswordChangePage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { useAuth } from "@/features/auth/AuthContext";
 import { USER_ROLES, type AuthUser, type UserRole } from "@/features/auth/types";
@@ -19,6 +21,9 @@ const HOME_BY_ROLE: Record<UserRole, string> = {
 function LoginPage() {
   const { authenticate } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const passwordChanged = searchParams.get("passwordChanged") === "1";
 
   function onSuccess(user: AuthUser): void {
     authenticate(user);
@@ -92,6 +97,15 @@ function LoginPage() {
                 Connectez-vous pour gérer vos événements.
               </p>
             </div>
+
+            {passwordChanged ? (
+              <div
+                role="status"
+                className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
+              >
+                Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe.
+              </div>
+            ) : null}
 
             <LoginForm onSuccess={onSuccess} />
 
@@ -172,7 +186,9 @@ export function AppRoutes() {
         path="/admin/organizers"
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminOrganizersPage />
+            <AdminShell>
+              <AdminOrganizersPage />
+            </AdminShell>
           </ProtectedRoute>
         }
       />
@@ -181,7 +197,20 @@ export function AppRoutes() {
         path="/admin/organizers/:organizerId"
         element={
           <ProtectedRoute allowedRoles={["ADMIN"]}>
-            <AdminOrganizerDetailPage />
+            <AdminShell>
+              <AdminOrganizerDetailPage />
+            </AdminShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/security"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminShell>
+              <PasswordChangePage />
+            </AdminShell>
           </ProtectedRoute>
         }
       />

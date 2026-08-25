@@ -198,12 +198,20 @@ export function AdminOrganizerDetailView({
       </header>
 
       <Card>
+        <div className="mb-5">
+          <h2 className="font-sora text-lg font-semibold text-navy">Informations du dossier</h2>
+          <p className="mt-1 text-sm text-navy/50">Données enregistrées pour cet organisateur.</p>
+        </div>
+
         <dl className="grid gap-5 sm:grid-cols-2">
           <DetailField label="Contact" value={data.contact_email} />
+          <DetailField label="Identifiant du dossier" value={data.id} />
           <DetailField label="N° TVA" value={displayValue(data.vat_number)} />
           <DetailField label="Commission" value={displayCommission(data.commission_rate)} />
           <DetailField label="Déposée le" value={displayDate(data.created_at)} />
           <DetailField label="Validée le" value={displayDate(data.validated_at)} />
+          <DetailField label="Dernière mise à jour" value={displayDate(data.updated_at)} />
+          <DetailField label="Version du dossier" value={String(data.version)} />
           <DetailField label="Motif de rejet" value={displayValue(data.rejection_reason)} />
         </dl>
       </Card>

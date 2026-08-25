@@ -16,6 +16,10 @@ interface SessionsViewProps {
   revokingSessionId?: string;
   mutationPending?: boolean;
   mutationError?: AppError | null;
+  logoutPending?: boolean;
+  logoutError?: boolean;
+  onBack?: () => void;
+  onLogout?: () => void;
   onRetry: () => void;
   onRevoke: (session: AuthSession) => void;
 }
@@ -101,18 +105,57 @@ export function SessionsView({
   revokingSessionId,
   mutationPending = false,
   mutationError = null,
+  logoutPending = false,
+  logoutError = false,
+  onBack,
+  onLogout,
   onRetry,
   onRevoke,
 }: SessionsViewProps) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6 md:p-8">
-      <header>
-        <h1 className="font-sora text-2xl font-bold text-navy">Mes sessions</h1>
-        <p className="mt-2 text-sm text-navy/70">
-          Consultez les sessions actives de votre compte et révoquez celles que vous ne reconnaissez
-          plus.
-        </p>
+      <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-sora text-2xl font-bold text-navy">Mes sessions</h1>
+
+          <p className="mt-2 max-w-2xl text-sm text-navy/70">
+            Consultez les sessions actives de votre compte et révoquez celles que vous ne
+            reconnaissez plus.
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[#d7e0e9] bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:bg-navy/5 focus:outline-none focus:ring-4 focus:ring-cyan/10"
+            >
+              ← Retour
+            </button>
+          ) : null}
+
+          {onLogout ? (
+            <button
+              type="button"
+              onClick={onLogout}
+              disabled={logoutPending}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {logoutPending ? "Déconnexion…" : "Se déconnecter"}
+            </button>
+          ) : null}
+        </div>
       </header>
+
+      {logoutError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          Impossible de fermer la session. Réessayez.
+        </div>
+      ) : null}
 
       {isFetching && !isPending ? (
         <p role="status" className="text-sm text-navy/60">

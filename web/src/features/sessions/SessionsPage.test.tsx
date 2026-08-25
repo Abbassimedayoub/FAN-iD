@@ -109,6 +109,7 @@ function renderPage(queryClient = createQueryClient()) {
           <Routes>
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/login" element={<h1>Connexion</h1>} />
+            <Route path="/admin/organizers" element={<h1>Organisateurs admin</h1>} />
           </Routes>
         </AuthProvider>
       </QueryClientProvider>
@@ -127,6 +128,82 @@ afterEach(() => {
 });
 
 describe("SessionsPage", () => {
+  it("affiche la navigation administrateur complète sur la page sessions", async () => {
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get" && config.url === "/api/v1/auth/sessions") {
+        return response(config, 200, [currentSession]);
+      }
+
+      throw new Error(
+        `Requête inattendue : ${config.method ?? "<vide>"} ${config.url ?? "<vide>"}`,
+      );
+    };
+
+    httpClient.defaults.adapter = adapter;
+    setAccessToken("access-token");
+
+    renderPage();
+
+    expect(await screen.findByText("MacBook Pro")).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("navigation", { name: "Navigation administrateur" }),
+    ).toBeInTheDocument();
+
+    expect(screen.getAllByRole("link", { name: "Organisateurs" }).length).toBeGreaterThan(0);
+
+    expect(screen.getAllByRole("link", { name: "Sécurité" }).length).toBeGreaterThan(0);
+
+    expect(screen.getAllByRole("link", { name: "Sessions" }).length).toBeGreaterThan(0);
+
+    expect(screen.getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: "← Retour" })).not.toBeInTheDocument();
+
+    expect(screen.getByText("Ada Admin")).toBeInTheDocument();
+    expect(screen.getByText("admin@example.test")).toBeInTheDocument();
+  });
+
+  it("ferme la session avec le endpoint logout puis redirige vers la connexion", async () => {
+    let logoutCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get" && config.url === "/api/v1/auth/sessions") {
+        return response(config, 200, [currentSession]);
+      }
+
+      if (config.method === "post" && config.url === "/api/v1/auth/logout") {
+        logoutCalls += 1;
+        return response(config, 204, undefined);
+      }
+
+      throw new Error(
+        `Requête inattendue : ${config.method ?? "<vide>"} ${config.url ?? "<vide>"}`,
+      );
+    };
+
+    httpClient.defaults.adapter = adapter;
+    setAccessToken("current-access");
+
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(["private-account"], { secret: true });
+
+    renderPage(queryClient);
+
+    expect(await screen.findByText("MacBook Pro")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Se déconnecter" }));
+
+    expect(await screen.findByRole("heading", { name: "Connexion" })).toBeInTheDocument();
+
+    expect(logoutCalls).toBe(1);
+    expect(getAccessToken()).toBeNull();
+
+    await waitFor(() => {
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    });
+  });
+
   it("révoque une session distante puis recharge la liste sans effacer l’authentification", async () => {
     let getCalls = 0;
     let deleteCalls = 0;

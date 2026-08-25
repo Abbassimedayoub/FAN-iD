@@ -15,7 +15,12 @@ export function AdminOrganizersPage() {
   const queryClient = useQueryClient();
 
   const [page, setPage] = useState(1);
-  const [validationStatus, setValidationStatus] = useState<OrganizerStatus | undefined>("PENDING");
+
+  // Tous les organisateurs sont chargés directement.
+  const [validationStatus, setValidationStatus] = useState<OrganizerStatus | undefined>(undefined);
+
+  // La liste compacte affiche les cinq premiers dossiers.
+  const [showAll, setShowAll] = useState(false);
 
   const filters = useMemo<OrganizerFilters>(
     () => ({
@@ -44,6 +49,7 @@ export function AdminOrganizersPage() {
     : undefined;
 
   const showingPreviousData = cachedPreviousData !== undefined;
+
   const visibleData = showingPreviousData ? cachedPreviousData : query.data;
 
   const displayingPreviousFilters = query.isPlaceholderData || showingPreviousData;
@@ -53,6 +59,7 @@ export function AdminOrganizersPage() {
   function changeValidationStatus(status: OrganizerStatus | undefined): void {
     setPage(1);
     setValidationStatus(status);
+    setShowAll(false);
   }
 
   return (
@@ -65,12 +72,13 @@ export function AdminOrganizersPage() {
       isFetching={query.isFetching}
       error={query.isError ? query.error : null}
       showingPreviousData={showingPreviousData}
+      showAll={showAll}
       onValidationStatusChange={changeValidationStatus}
       onRetry={() => {
         void query.refetch();
       }}
       onShowAll={() => {
-        changeValidationStatus(undefined);
+        setShowAll(true);
       }}
       onPrevious={() => {
         setPage((current) => Math.max(1, current - 1));

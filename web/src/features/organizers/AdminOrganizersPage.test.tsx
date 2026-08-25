@@ -162,7 +162,7 @@ describe("AdminOrganizersView - cinq états", () => {
     expect(screen.queryByLabelText("Chargement de la ligne 1")).not.toBeInTheDocument();
   });
 
-  it("affiche l'état vide des demandes en attente avec accès à toutes les demandes", () => {
+  it("n'affiche pas Voir tous lorsqu'il y a au maximum cinq organisateurs", () => {
     const onShowAll = vi.fn();
 
     render(
@@ -178,15 +178,15 @@ describe("AdminOrganizersView - cinq états", () => {
       />,
     );
 
-    expect(screen.getByText("Aucune demande en attente")).toBeInTheDocument();
+    expect(screen.getByText("Aucun organisateur")).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Voir toutes les demandes",
+    expect(
+      screen.queryByRole("button", {
+        name: "Voir tous les organisateurs",
       }),
-    );
+    ).not.toBeInTheDocument();
 
-    expect(onShowAll).toHaveBeenCalledTimes(1);
+    expect(onShowAll).not.toHaveBeenCalled();
   });
 
   it("affiche l'erreur finale avec Réessayer lorsqu'aucune donnée n'est disponible", () => {
@@ -223,7 +223,7 @@ describe("AdminOrganizersView - cinq états", () => {
     expect(within(table).getByText("Rejeté")).toBeInTheDocument();
     expect(within(table).getByText("Suspendu")).toBeInTheDocument();
 
-    expect(screen.getByText("Page 1 · 4 dossiers")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 · 4 organisateurs")).toBeInTheDocument();
 
     expect(
       screen.getByRole("button", {
@@ -334,7 +334,6 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
       url: "/api/v1/admin/organizers/",
       params: {
         page: 1,
-        validation_status: "PENDING",
       },
     });
 
@@ -396,7 +395,7 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
 
     await screen.findByText("Organisation 1");
 
-    expect(screen.getByText("Page 1 · 21 dossiers")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 · 21 organisateurs")).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -407,7 +406,7 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     await screen.findByText("Actualisation des dossiers…");
 
     expect(screen.getByText("Organisation 1")).toBeInTheDocument();
-    expect(screen.getByText("Page 1 · 21 dossiers")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 · 21 organisateurs")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(rejectSecondPage).not.toBeNull();
@@ -438,30 +437,17 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText("Organisation 1")).toBeInTheDocument();
-    expect(screen.getByText("Page 1 · 21 dossiers")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 · 21 organisateurs")).toBeInTheDocument();
 
     queryClient.clear();
   });
-  it("passe de l'état vide PENDING à toutes les demandes", async () => {
-    const calls: unknown[] = [];
-
+  it("affiche cinq organisateurs puis Voir tous uniquement quand le total dépasse cinq", async () => {
     const adapter: AxiosAdapter = async (config) => {
-      calls.push(config.params);
-
-      if (config.params?.["validation_status"] === "PENDING") {
-        return response(config, 200, {
-          count: 0,
-          next: null,
-          previous: null,
-          results: [],
-        });
-      }
-
       return response(config, 200, {
-        count: 1,
+        count: 6,
         next: null,
         previous: null,
-        results: [organizer("APPROVED", 2)],
+        results: Array.from({ length: 6 }, (_, index) => organizer("APPROVED", index + 1)),
       });
     };
 
@@ -469,20 +455,25 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
 
     const { queryClient } = renderPage();
 
-    await screen.findByText("Aucune demande en attente");
+    await screen.findByText("Organisation 1");
+
+    expect(screen.getByText("Organisation 5")).toBeInTheDocument();
+
+    expect(screen.queryByText("Organisation 6")).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Voir toutes les demandes",
+        name: "Voir tous les organisateurs",
       }),
     );
 
-    await screen.findByText("Organisation 2");
+    expect(screen.getByText("Organisation 6")).toBeInTheDocument();
 
-    expect(calls).toHaveLength(2);
-    expect(calls[1]).toEqual({
-      page: 1,
-    });
+    expect(
+      screen.queryByRole("button", {
+        name: "Voir tous les organisateurs",
+      }),
+    ).not.toBeInTheDocument();
 
     queryClient.clear();
   });
@@ -524,7 +515,7 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     );
 
     await screen.findByText("Organisation 2");
-    expect(screen.getByText("Page 2 · 21 dossiers")).toBeInTheDocument();
+    expect(screen.getByText("Page 2 · 21 organisateurs")).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -533,7 +524,7 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Page 1 · 21 dossiers")).toBeInTheDocument();
+      expect(screen.getByText("Page 1 · 21 organisateurs")).toBeInTheDocument();
     });
 
     expect(requestedPages.filter((page) => page === 1).length).toBeGreaterThanOrEqual(1);
@@ -547,7 +538,7 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     const adapter: AxiosAdapter = async (config) => {
       const status = config.params?.["validation_status"];
 
-      if (status === "PENDING") {
+      if (status === undefined) {
         return response(config, 200, {
           count: 1,
           next: null,
@@ -598,7 +589,7 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText("Organisation 1")).toBeInTheDocument();
-    expect(screen.getByText("Page 1 · 1 dossier")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 · 1 organisateur")).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
