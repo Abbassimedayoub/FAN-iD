@@ -44,6 +44,10 @@ void main() {
     expect(container.read(authRepositoryProvider), same(runtime.repository));
     expect(container.read(loginUseCaseProvider), same(runtime.loginUseCase));
     expect(
+      container.read(registerUseCaseProvider),
+      same(runtime.registerUseCase),
+    );
+    expect(
       container.read(requestDeviceResetUseCaseProvider),
       same(runtime.requestDeviceResetUseCase),
     );

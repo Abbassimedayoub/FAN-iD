@@ -2,6 +2,16 @@ import '../entities/device_reset_challenge.dart';
 import '../entities/login_session.dart';
 
 abstract interface class AuthRepository {
+  Future<AuthUser> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required bool termsAccepted,
+    String? phone,
+  });
+
   Future<LoginSession> login({
     required String email,
     required String password,

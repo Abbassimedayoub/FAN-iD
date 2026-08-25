@@ -5,6 +5,19 @@ import 'package:fanid_mobile/features/auth/domain/usecases/login_use_case.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthRepository implements AuthRepository {
+  @override
+  Future<AuthUser> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required bool termsAccepted,
+    String? phone,
+  }) {
+    throw UnimplementedError();
+  }
+
   String? email;
   String? password;
   String? fingerprint;

@@ -14,7 +14,7 @@
       "report": "web/coverage/coverage-summary.json"
     },
     "mobile": {
-      "percent": 99.87,
+      "percent": 99.9,
       "report": "mobile/coverage/lcov.info"
     }
   }

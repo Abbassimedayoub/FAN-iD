@@ -10,6 +10,56 @@ class AuthRemoteDataSource {
 
   final Dio dio;
 
+  Future<AuthUser> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required bool termsAccepted,
+    String? phone,
+  }) async {
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/register',
+        data: {
+          'email': email,
+          'password': password,
+          'first_name': firstName,
+          'last_name': lastName,
+          'date_of_birth': _formatDate(dateOfBirth),
+          'terms_accepted': termsAccepted,
+          if (phone != null) 'phone': phone,
+        },
+        options: Options(
+          extra: const {
+            DioClient.skipAuthRefreshKey: true,
+          },
+        ),
+      );
+
+      final body = response.data;
+      if (body == null) {
+        throw const ServerFailure();
+      }
+
+      return AuthUser(
+        id: body['id'] as String,
+        email: body['email'] as String,
+        firstName: body['first_name'] as String,
+        lastName: body['last_name'] as String,
+        role: body['role'] as String,
+        createdAt: DateTime.parse(body['created_at'] as String),
+      );
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
+    } on Failure {
+      rethrow;
+    } catch (_) {
+      throw const ServerFailure();
+    }
+  }
+
   Future<LoginSession> login({
     required String email,
     required String password,
@@ -161,6 +211,13 @@ class AuthRemoteDataSource {
     } catch (_) {
       throw const ServerFailure();
     }
+  }
+
+  String _formatDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   LoginSession _parseLoginSession(Map<String, dynamic> body) {

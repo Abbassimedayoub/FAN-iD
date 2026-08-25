@@ -8,6 +8,7 @@ import '../../data/storage/token_store.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/confirm_device_reset_use_case.dart';
 import '../../domain/usecases/login_use_case.dart';
+import '../../domain/usecases/register_use_case.dart';
 import '../../domain/usecases/request_device_reset_use_case.dart';
 
 final authExpiryGenerationProvider = StateProvider<int>((_) => 0);
@@ -52,6 +53,7 @@ final authRuntimeProvider = Provider<AuthRuntime>((ref) {
     dioClient: dioClient,
     repository: repository,
     loginUseCase: LoginUseCase(repository),
+    registerUseCase: RegisterUseCase(repository),
     requestDeviceResetUseCase: RequestDeviceResetUseCase(repository),
     confirmDeviceResetUseCase: ConfirmDeviceResetUseCase(repository),
   );
@@ -77,6 +79,10 @@ final loginUseCaseProvider = Provider<LoginUseCase>(
   (ref) => ref.watch(authRuntimeProvider).loginUseCase,
 );
 
+final registerUseCaseProvider = Provider<RegisterUseCase>(
+  (ref) => ref.watch(authRuntimeProvider).registerUseCase,
+);
+
 final requestDeviceResetUseCaseProvider = Provider<RequestDeviceResetUseCase>(
   (ref) => ref.watch(authRuntimeProvider).requestDeviceResetUseCase,
 );
@@ -92,6 +98,7 @@ class AuthRuntime {
     required this.dioClient,
     required this.repository,
     required this.loginUseCase,
+    required this.registerUseCase,
     required this.requestDeviceResetUseCase,
     required this.confirmDeviceResetUseCase,
   });
@@ -101,6 +108,7 @@ class AuthRuntime {
   final DioClient dioClient;
   final AuthRepositoryImpl repository;
   final LoginUseCase loginUseCase;
+  final RegisterUseCase registerUseCase;
   final RequestDeviceResetUseCase requestDeviceResetUseCase;
   final ConfirmDeviceResetUseCase confirmDeviceResetUseCase;
 }

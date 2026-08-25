@@ -4,6 +4,173 @@ import 'package:fanid_mobile/features/auth/data/datasources/auth_remote_data_sou
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('posts the registration contract and parses the public user', () async {
+    late RequestOptions captured;
+    final dio = Dio();
+
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          captured = options;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 201,
+              data: {
+                'id': 'user-id',
+                'email': 'fan@example.test',
+                'first_name': 'Ines',
+                'last_name': 'Bouzid',
+                'role': 'FAN',
+                'created_at': '2026-08-24T20:00:00Z',
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    final user = await AuthRemoteDataSource(dio).register(
+      email: 'fan@example.test',
+      password: 'Strong-Password-2026',
+      firstName: 'Ines',
+      lastName: 'Bouzid',
+      dateOfBirth: DateTime.utc(1996, 5, 4),
+      termsAccepted: true,
+      phone: '+33600000000',
+    );
+
+    expect(captured.path, '/api/v1/auth/register');
+    expect(captured.method, 'POST');
+    expect(captured.data, {
+      'email': 'fan@example.test',
+      'password': 'Strong-Password-2026',
+      'first_name': 'Ines',
+      'last_name': 'Bouzid',
+      'date_of_birth': '1996-05-04',
+      'terms_accepted': true,
+      'phone': '+33600000000',
+    });
+    expect(user.id, 'user-id');
+    expect(user.role, 'FAN');
+  });
+
+  test('registration omits phone when absent', () async {
+    late RequestOptions captured;
+    final dio = Dio();
+
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          captured = options;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 201,
+              data: {
+                'id': 'user-id',
+                'email': 'fan@example.test',
+                'first_name': 'Ines',
+                'last_name': 'Bouzid',
+                'role': 'FAN',
+                'created_at': '2026-08-24T20:00:00Z',
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    await AuthRemoteDataSource(dio).register(
+      email: 'fan@example.test',
+      password: 'Strong-Password-2026',
+      firstName: 'Ines',
+      lastName: 'Bouzid',
+      dateOfBirth: DateTime.utc(1996, 5, 4),
+      termsAccepted: true,
+    );
+
+    expect((captured.data as Map).containsKey('phone'), isFalse);
+  });
+
+  test('registration preserves business errors', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 400,
+                data: {
+                  'error': {
+                    'code': 'EMAIL_ALREADY_EXISTS',
+                    'message': 'Un compte existe déjà pour cette adresse.',
+                    'details': <String, dynamic>{},
+                  },
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    await expectLater(
+      AuthRemoteDataSource(dio).register(
+        email: 'fan@example.test',
+        password: 'Strong-Password-2026',
+        firstName: 'Ines',
+        lastName: 'Bouzid',
+        dateOfBirth: DateTime.utc(1996, 5, 4),
+        termsAccepted: true,
+      ),
+      throwsA(
+        isA<BusinessFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'EMAIL_ALREADY_EXISTS',
+        ),
+      ),
+    );
+  });
+
+  test('registration rejects empty or malformed responses', () async {
+    for (final data in <Map<String, dynamic>?>[
+      null,
+      {'id': 42},
+    ]) {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 201,
+                data: data,
+              ),
+            );
+          },
+        ),
+      );
+
+      await expectLater(
+        AuthRemoteDataSource(dio).register(
+          email: 'fan@example.test',
+          password: 'Strong-Password-2026',
+          firstName: 'Ines',
+          lastName: 'Bouzid',
+          dateOfBirth: DateTime.utc(1996, 5, 4),
+          termsAccepted: true,
+        ),
+        throwsA(isA<ServerFailure>()),
+      );
+    }
+  });
+
   test('posts the mobile login contract and parses the response', () async {
     late RequestOptions captured;
 

@@ -15,6 +15,27 @@ class AuthRepositoryImpl implements AuthRepository {
   final TokenStore tokenStore;
 
   @override
+  Future<AuthUser> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required bool termsAccepted,
+    String? phone,
+  }) {
+    return remoteDataSource.register(
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+      dateOfBirth: dateOfBirth,
+      termsAccepted: termsAccepted,
+      phone: phone,
+    );
+  }
+
+  @override
   Future<LoginSession> login({
     required String email,
     required String password,

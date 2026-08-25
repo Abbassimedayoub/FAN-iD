@@ -12,12 +12,33 @@ class FakeRemoteDataSource extends AuthRemoteDataSource {
   FakeRemoteDataSource(this.result) : super(Dio());
 
   final LoginSession result;
+  String? receivedRegisterEmail;
+  DateTime? receivedDateOfBirth;
+  bool? receivedTermsAccepted;
+  String? receivedPhone;
   String? receivedRefreshToken;
   String? receivedFingerprint;
   String? receivedResetEmail;
   String? receivedResetPassword;
   String? receivedConfirmChallengeId;
   String? receivedConfirmCode;
+
+  @override
+  Future<AuthUser> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required DateTime dateOfBirth,
+    required bool termsAccepted,
+    String? phone,
+  }) async {
+    receivedRegisterEmail = email;
+    receivedDateOfBirth = dateOfBirth;
+    receivedTermsAccepted = termsAccepted;
+    receivedPhone = phone;
+    return result.user;
+  }
 
   @override
   Future<LoginSession> login({
@@ -96,6 +117,34 @@ void main() {
     ),
     device: null,
   );
+
+  test('delegates registration without touching tokens', () async {
+    final tokenStore = TokenStore();
+    final remote = FakeRemoteDataSource(session);
+    final repository = AuthRepositoryImpl(
+      remoteDataSource: remote,
+      tokenStore: tokenStore,
+    );
+    final birthDate = DateTime.utc(1996, 5, 4);
+
+    final user = await repository.register(
+      email: 'fan@example.test',
+      password: 'Strong-Password-2026',
+      firstName: 'Ines',
+      lastName: 'Bouzid',
+      dateOfBirth: birthDate,
+      termsAccepted: true,
+      phone: '+33600000000',
+    );
+
+    expect(user, same(session.user));
+    expect(remote.receivedRegisterEmail, 'fan@example.test');
+    expect(remote.receivedDateOfBirth, birthDate);
+    expect(remote.receivedTermsAccepted, isTrue);
+    expect(remote.receivedPhone, '+33600000000');
+    expect(tokenStore.accessToken, isNull);
+    expect(await tokenStore.readRefreshToken(), isNull);
+  });
 
   test('stores tokens after a successful remote login', () async {
     final tokenStore = TokenStore();
