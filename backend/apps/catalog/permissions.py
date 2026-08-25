@@ -12,14 +12,6 @@ from apps.identity.api import (
 
 
 class EventCollectionPermission(ActionPermission):
-    """
-    POST /events crée ; GET /events lit la collection propriétaire.
-
-    La portée d instance de EVENT_READ est appliquée par le filtrage du
-    queryset. Aucun événement d un autre organisateur n entre dans la
-    collection.
-    """
-
     def get_action(
         self,
         request: Any,
@@ -34,9 +26,9 @@ class EventCollectionPermission(ActionPermission):
         return None
 
 
-class EventResourcePermission(OrganizerResourcePermission):
-    """Permission ABAC pour un événement individuel."""
-
+class EventResourcePermission(
+    OrganizerResourcePermission
+):
     def get_action(
         self,
         request: Any,
@@ -46,6 +38,91 @@ class EventResourcePermission(OrganizerResourcePermission):
             return Action.EVENT_READ
 
         if request.method in {"PATCH", "PUT"}:
+            return Action.EVENT_UPDATE
+
+        return None
+
+
+class EventPublishPermission(
+    OrganizerResourcePermission
+):
+    def get_action(
+        self,
+        request: Any,
+        view: Any,
+    ) -> Action | None:
+        if request.method == "POST":
+            return Action.EVENT_PUBLISH
+
+        return None
+
+
+class EventArchivePermission(
+    OrganizerResourcePermission
+):
+    def get_action(
+        self,
+        request: Any,
+        view: Any,
+    ) -> Action | None:
+        if request.method == "POST":
+            return Action.EVENT_ARCHIVE
+
+        return None
+
+
+class TicketCategoryCollectionPermission(
+    ActionPermission
+):
+    def get_action(
+        self,
+        request: Any,
+        view: Any,
+    ) -> Action | None:
+        if request.method in SAFE_METHODS:
+            return Action.TICKET_CATEGORY_READ
+
+        if request.method == "POST":
+            return Action.TICKET_CATEGORY_CREATE
+
+        return None
+
+
+class TicketCategoryResourcePermission(
+    OrganizerResourcePermission
+):
+    def get_action(
+        self,
+        request: Any,
+        view: Any,
+    ) -> Action | None:
+        if request.method in SAFE_METHODS:
+            return Action.TICKET_CATEGORY_READ
+
+        if request.method in {"PATCH", "PUT"}:
+            return Action.TICKET_CATEGORY_UPDATE
+
+        if request.method == "DELETE":
+            return Action.TICKET_CATEGORY_DELETE
+
+        return None
+
+
+class EventImagePermission(
+    OrganizerResourcePermission
+):
+    def get_action(
+        self,
+        request: Any,
+        view: Any,
+    ) -> Action | None:
+        if request.method in SAFE_METHODS:
+            return Action.EVENT_READ
+
+        if request.method in {
+            "PUT",
+            "DELETE",
+        }:
             return Action.EVENT_UPDATE
 
         return None

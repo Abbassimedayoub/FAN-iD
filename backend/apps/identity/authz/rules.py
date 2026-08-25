@@ -111,6 +111,12 @@ POLICY: Final[Mapping[str, Mapping[Action, Grant]]] = MappingProxyType(
                 Action.EVENT_CREATE: Grant(Scope.NONE),
                 Action.EVENT_READ: Grant(Scope.OWN_ORGANIZER),
                 Action.EVENT_UPDATE: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_PUBLISH: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_ARCHIVE: Grant(Scope.OWN_ORGANIZER),
+                Action.TICKET_CATEGORY_CREATE: Grant(Scope.OWN_ORGANIZER),
+                Action.TICKET_CATEGORY_READ: Grant(Scope.OWN_ORGANIZER),
+                Action.TICKET_CATEGORY_UPDATE: Grant(Scope.OWN_ORGANIZER),
+                Action.TICKET_CATEGORY_DELETE: Grant(Scope.OWN_ORGANIZER),
             }
         ),
         # ------------------------------------------------------------------

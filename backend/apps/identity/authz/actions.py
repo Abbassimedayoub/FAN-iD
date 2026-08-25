@@ -53,6 +53,13 @@ class Action(StrEnum):
     EVENT_CREATE = "catalog:event:create"
     EVENT_READ = "catalog:event:read"
     EVENT_UPDATE = "catalog:event:update"
+    EVENT_PUBLISH = "catalog:event:publish"
+    EVENT_ARCHIVE = "catalog:event:archive"
+
+    TICKET_CATEGORY_CREATE = "catalog:ticket-category:create"
+    TICKET_CATEGORY_READ = "catalog:ticket-category:read"
+    TICKET_CATEGORY_UPDATE = "catalog:ticket-category:update"
+    TICKET_CATEGORY_DELETE = "catalog:ticket-category:delete"
 
     # --- Controle d acces -------------------------------------------------
     TICKET_SCAN = "access:ticket:scan"
