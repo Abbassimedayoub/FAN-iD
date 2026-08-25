@@ -11,11 +11,13 @@ class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({
     this.noticeText,
     this.onDeviceLocked,
+    this.onRegister,
     super.key,
   });
 
   final String? noticeText;
   final ValueChanged<BusinessFailure>? onDeviceLocked;
+  final VoidCallback? onRegister;
 
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
@@ -58,6 +60,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           authState.hasError ? mapLoginFailureMessage(authState.error) : null,
       noticeText: widget.noticeText,
       onSubmit: _submit,
+      onRegister: widget.onRegister,
     );
   }
 }
