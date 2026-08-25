@@ -1,8 +1,8 @@
 """
-Matrice d autorisation : 4 roles x 14 actions, autorisation ET refus.
+Matrice d autorisation : 4 roles x 18 actions, autorisation ET refus.
 
 Ce fichier applique la DOUBLE SAISIE. La table `EXPECTED` ci-dessous reecrit en
-clair les 56 cellules de la politique, sans reutiliser `POLICY` ni la table
+clair les 72 cellules de la politique, sans reutiliser `POLICY` ni la table
 factorisee `_SELF_SERVICE`. Deriver l attendu de l implementation ne prouverait
 qu une chose — que le code est egal a lui-meme. Ici, une modification de la
 politique fait echouer le test tant qu elle n a pas ete reecrite ici aussi : le
@@ -58,6 +58,10 @@ EXPECTED: dict[tuple[str, Action], tuple[Scope, bool] | None] = {
     (ROLE_FAN, Action.ORGANIZER_REJECT): None,
     (ROLE_FAN, Action.ORGANIZER_SUSPEND): None,
     (ROLE_FAN, Action.TICKET_SCAN): None,
+    (ROLE_FAN, Action.CATEGORY_READ): None,
+    (ROLE_FAN, Action.EVENT_CREATE): None,
+    (ROLE_FAN, Action.EVENT_READ): None,
+    (ROLE_FAN, Action.EVENT_UPDATE): None,
     # ----------------------------------------------------------- ORGANIZER
     (ROLE_ORGANIZER, Action.USER_READ_SELF): (Scope.SELF, False),
     (ROLE_ORGANIZER, Action.USER_UPDATE_SELF): (Scope.SELF, False),
@@ -75,6 +79,10 @@ EXPECTED: dict[tuple[str, Action], tuple[Scope, bool] | None] = {
     (ROLE_ORGANIZER, Action.ORGANIZER_REJECT): None,
     (ROLE_ORGANIZER, Action.ORGANIZER_SUSPEND): None,
     (ROLE_ORGANIZER, Action.TICKET_SCAN): None,
+    (ROLE_ORGANIZER, Action.CATEGORY_READ): (Scope.NONE, False),
+    (ROLE_ORGANIZER, Action.EVENT_CREATE): (Scope.NONE, False),
+    (ROLE_ORGANIZER, Action.EVENT_READ): (Scope.OWN_ORGANIZER, False),
+    (ROLE_ORGANIZER, Action.EVENT_UPDATE): (Scope.OWN_ORGANIZER, False),
     # ------------------------------------------------------------- SCANNER
     (ROLE_SCANNER, Action.USER_READ_SELF): (Scope.SELF, False),
     (ROLE_SCANNER, Action.USER_UPDATE_SELF): (Scope.SELF, False),
@@ -90,6 +98,10 @@ EXPECTED: dict[tuple[str, Action], tuple[Scope, bool] | None] = {
     (ROLE_SCANNER, Action.ORGANIZER_REJECT): None,
     (ROLE_SCANNER, Action.ORGANIZER_SUSPEND): None,
     (ROLE_SCANNER, Action.TICKET_SCAN): (Scope.OWN_ORGANIZER, False),
+    (ROLE_SCANNER, Action.CATEGORY_READ): None,
+    (ROLE_SCANNER, Action.EVENT_CREATE): None,
+    (ROLE_SCANNER, Action.EVENT_READ): None,
+    (ROLE_SCANNER, Action.EVENT_UPDATE): None,
     # --------------------------------------------------------------- ADMIN
     (ROLE_ADMIN, Action.USER_READ_SELF): (Scope.SELF, False),
     (ROLE_ADMIN, Action.USER_UPDATE_SELF): (Scope.SELF, False),
@@ -106,6 +118,10 @@ EXPECTED: dict[tuple[str, Action], tuple[Scope, bool] | None] = {
     (ROLE_ADMIN, Action.ORGANIZER_SUSPEND): (Scope.ANY, True),
     # Separation des fonctions : administrer n est pas scanner.
     (ROLE_ADMIN, Action.TICKET_SCAN): None,
+    (ROLE_ADMIN, Action.CATEGORY_READ): None,
+    (ROLE_ADMIN, Action.EVENT_CREATE): None,
+    (ROLE_ADMIN, Action.EVENT_READ): None,
+    (ROLE_ADMIN, Action.EVENT_UPDATE): None,
 }
 
 ALL_CELLS = [(role, action) for role in ROLES for action in Action]
@@ -125,7 +141,7 @@ def test_the_expected_matrix_covers_every_role_and_every_action():
     ou pire, etre accordee sans que personne l ait ecrit noir sur blanc.
     """
     assert set(EXPECTED) == set(ALL_CELLS)
-    assert len(ALL_CELLS) == 56, "4 roles x 14 actions"
+    assert len(ALL_CELLS) == 72, "4 roles x 18 actions"
 
 
 @pytest.mark.parametrize(("role", "action"), ALL_CELLS)

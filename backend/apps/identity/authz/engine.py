@@ -10,7 +10,7 @@ contrat `flake8`/revue de code est simple : hors de ce paquet, on appelle
 
 Le moteur est une fonction PURE : memes entrees, meme verdict, aucun acces base,
 aucune horloge, aucun aleatoire. C est ce qui rend la matrice exhaustive
-(4 roles x 14 actions, autorisation ET refus) executable en quelques
+(4 roles x 18 actions, autorisation ET refus) executable en quelques
 millisecondes — et donc reellement exhaustive plutot que sondee.
 """
 

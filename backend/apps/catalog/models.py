@@ -60,6 +60,17 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
 
     STATUSES = EVENT_STATUSES
 
+    # Transitional nullable ownership:
+    # legacy events created before organizer ownership remain NULL.
+    # All new business APIs must always assign an organizer.
+    organizer = models.ForeignKey(
+        "organizing.Organizer",
+        on_delete=models.PROTECT,
+        related_name="events",
+        null=True,
+        blank=True,
+    )
+
     category = models.ForeignKey(
         Category,
         on_delete=models.PROTECT,
@@ -82,7 +93,8 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
         constraints = [
             models.UniqueConstraint(
                 Lower("name"),
-                name="uq_event_name_ci",
+                models.F("organizer"),
+                name="uq_event_org_name_ci",
             ),
             models.CheckConstraint(
                 condition=models.Q(ends_at__gt=models.F("starts_at")),
@@ -101,6 +113,10 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
             models.Index(
                 fields=["starts_at"],
                 name="ix_event_starts_at",
+            ),
+            models.Index(
+                fields=["organizer"],
+                name="ix_event_organizer",
             ),
         ]
 

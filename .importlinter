@@ -20,14 +20,13 @@ forbidden_modules =
     apps.realtime
 
 # Les contextes SANS communication synchrone restent mutuellement independants.
-# `organizing` en est retire : il porte la premiere dependance synchrone du
-# projet, encadree par les deux contrats explicites ci-dessous (ADR-S1-05).
+# `organizing` puis `catalog` en sont retires lorsqu ils portent une
+# dependance synchrone explicite, encadree par un contrat public dedie.
 [importlinter:contract:contexts-are-independent]
 name = bounded contexts must not import each other directly
 type = independence
 modules =
     apps.identity
-    apps.catalog
     apps.ordering
     apps.payments
     apps.ticketing
@@ -78,3 +77,28 @@ forbidden_modules =
     apps.realtime
 ignore_imports =
     apps.organizing.** -> apps.identity.api
+
+# Sprint 2 : catalog a besoin de deux collaborations synchrones explicites :
+# - identity.api pour la politique d autorisation ;
+# - organizing.api pour le contexte organisateur.
+#
+# Les deux exceptions sont des interfaces publiques. Tous les autres imports
+# inter-contextes restent interdits, y compris services/, models.py et
+# permissions.py internes.
+[importlinter:contract:catalog-reaches-contexts-through-public-apis-only]
+name = catalog may only reach bounded contexts through public apis
+type = forbidden
+source_modules =
+    apps.catalog
+forbidden_modules =
+    apps.identity
+    apps.organizing
+    apps.ordering
+    apps.payments
+    apps.ticketing
+    apps.access
+    apps.notifying
+    apps.realtime
+ignore_imports =
+    apps.catalog.** -> apps.identity.api
+    apps.catalog.** -> apps.organizing.api

@@ -104,6 +104,13 @@ POLICY: Final[Mapping[str, Mapping[Action, Grant]]] = MappingProxyType(
                 # de violation d integrite la ou un 403 est la bonne reponse.
                 Action.ORGANIZER_READ: Grant(Scope.OWN_ORGANIZER),
                 Action.ORGANIZER_UPDATE: Grant(Scope.OWN_ORGANIZER),
+
+                # Catalogue organisateur. L approbation est un prérequis
+                # actor-level supplémentaire appliqué par IsApprovedOrganizer.
+                Action.CATEGORY_READ: Grant(Scope.NONE),
+                Action.EVENT_CREATE: Grant(Scope.NONE),
+                Action.EVENT_READ: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_UPDATE: Grant(Scope.OWN_ORGANIZER),
             }
         ),
         # ------------------------------------------------------------------
