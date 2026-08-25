@@ -89,6 +89,11 @@ export function PasswordChangePage() {
   const isNotOnlyNumeric = newPassword.length > 0 && !/^\d+$/.test(newPassword);
   const confirmationMatches = confirmPassword.length > 0 && newPassword === confirmPassword;
 
+  const isOrganizer = user?.role === "ORGANIZER";
+  const accountLabel = isOrganizer ? "Compte organisateur" : "Compte administrateur";
+  const backTarget = isOrganizer ? "/organizer" : "/admin/organizers";
+  const roleLabel = isOrganizer ? "Organisateur" : "Administrateur";
+
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
@@ -139,7 +144,7 @@ export function PasswordChangePage() {
     <main className="mx-auto w-full max-w-[1200px] px-5 py-8 sm:px-8 sm:py-10">
       <div className="mb-8">
         <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
-          Compte administrateur
+          {accountLabel}
         </p>
 
         <h1 className="font-sora text-3xl font-bold tracking-[-0.03em] text-navy">Sécurité</h1>
@@ -294,7 +299,7 @@ export function PasswordChangePage() {
 
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
               <Link
-                to="/admin/organizers"
+                to={backTarget}
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-navy/60 transition hover:bg-navy/5 hover:text-navy"
               >
                 Annuler
@@ -328,9 +333,7 @@ export function PasswordChangePage() {
 
             <p className="mt-3 break-all text-sm font-semibold text-navy">{user?.email}</p>
 
-            <p className="mt-1 text-xs text-navy/45">
-              Rôle : {user?.role === "ADMIN" ? "Administrateur" : user?.role}
-            </p>
+            <p className="mt-1 text-xs text-navy/45">Rôle : {roleLabel}</p>
           </Card>
         </div>
       </div>

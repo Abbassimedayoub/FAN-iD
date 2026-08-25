@@ -154,7 +154,9 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
         <p className="pt-1 text-center text-xs text-navy/55">
           Pas encore de compte ?{" "}
-          <span className="font-semibold text-primary">Devenir organisateur</span>
+          <a href="/register/organizer" className="font-semibold text-primary hover:underline">
+            Devenir organisateur
+          </a>
         </p>
       </form>
     </Card>

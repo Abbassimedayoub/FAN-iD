@@ -9,6 +9,8 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { USER_ROLES, type AuthUser, type UserRole } from "@/features/auth/types";
 import { AdminOrganizerDetailPage } from "@/features/organizers/AdminOrganizerDetailPage";
 import { AdminOrganizersPage } from "@/features/organizers/AdminOrganizersPage";
+import { OrganizerHomePage } from "@/features/organizers/OrganizerHomePage";
+import { OrganizerRegistrationPage } from "@/features/organizers/OrganizerRegistrationPage";
 import { SessionsPage } from "@/features/sessions/SessionsPage";
 
 const HOME_BY_ROLE: Record<UserRole, string> = {
@@ -139,14 +141,6 @@ function ForbiddenPage() {
   );
 }
 
-function OrganizerHomePage() {
-  return (
-    <main className="p-8">
-      <h1 className="font-sora text-2xl font-bold text-navy">Espace organisateur</h1>
-    </main>
-  );
-}
-
 function HomeRedirect() {
   const { user } = useAuth();
 
@@ -162,6 +156,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register/organizer" element={<OrganizerRegistrationPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
 
       <Route
@@ -178,6 +173,15 @@ export function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ORGANIZER"]}>
             <OrganizerHomePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/security"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <PasswordChangePage />
           </ProtectedRoute>
         }
       />
