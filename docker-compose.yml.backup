@@ -28,7 +28,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-fanid}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-change-me}
     ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-25433}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-15433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -118,9 +118,9 @@ services:
     volumes:
       - ./infra/otel/otel-collector.yaml:/etc/otel-collector.yaml:ro
     ports:
-      - "127.0.0.1:14317:4317"   # OTLP gRPC
-      - "127.0.0.1:14318:4318"   # OTLP HTTP
-      - "127.0.0.1:18889:8889"   # exposition Prometheus (métriques app relayées)
+      - "127.0.0.1:4317:4317"   # OTLP gRPC
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+      - "127.0.0.1:8889:8889"   # exposition Prometheus (métriques app relayées)
     healthcheck:
       test: ["CMD", "/otelcol-contrib", "components"]
       interval: 10s
