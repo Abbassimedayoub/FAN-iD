@@ -15,7 +15,7 @@ export function Button({ className = "", ...props }: ButtonHTMLAttributes<HTMLBu
   return (
     <button
       {...props}
-      className={`min-h-[44px] rounded-md bg-primary px-4 py-2 text-white disabled:opacity-50 ${className}`}
+      className={`min-h-[44px] rounded-xl bg-primary px-4 py-2 text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     />
   );
 }
@@ -24,14 +24,14 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
   return (
     <input
       {...props}
-      className={`min-h-[44px] rounded-md border border-navy/20 px-3 py-2 focus:border-primary ${className}`}
+      className={`min-h-[44px] rounded-xl border border-[#d7e0e9] bg-white px-4 py-2.5 text-navy shadow-sm outline-none transition placeholder:text-navy/30 hover:border-navy/25 focus:border-cyan focus:ring-4 focus:ring-cyan/10 ${className}`}
     />
   );
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-lg border border-navy/10 bg-white p-4 shadow-sm ${className}`}>
+    <div className={`rounded-2xl border border-[#e4eaf0] bg-white p-4 shadow-sm ${className}`}>
       {children}
     </div>
   );

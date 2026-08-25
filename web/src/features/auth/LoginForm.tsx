@@ -72,57 +72,90 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   });
 
   return (
-    <Card className="w-full max-w-md">
-      <form noValidate onSubmit={submit} className="flex flex-col gap-4">
+    <Card className="w-full border-white/80 p-7 shadow-[0_24px_70px_rgba(14,42,77,0.12)] sm:p-8">
+      <form noValidate onSubmit={submit} className="flex flex-col gap-5">
         <div>
-          <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-navy">
+          <label htmlFor="login-email" className="mb-2 block text-[13px] font-semibold text-navy">
             Adresse e-mail
           </label>
+
           <Input
             id="login-email"
             type="email"
             autoComplete="email"
+            placeholder="billetterie@om.fr"
             aria-invalid={errors.email ? "true" : "false"}
             aria-describedby={errors.email ? "login-email-error" : undefined}
-            className="min-h-[48px] w-full"
+            className="min-h-[50px] w-full"
             {...register("email")}
           />
+
           {errors.email ? (
-            <p id="login-email-error" role="alert" className="mt-1 text-sm text-red-700">
+            <p
+              id="login-email-error"
+              role="alert"
+              className="mt-2 text-xs font-medium text-red-600"
+            >
               {errors.email.message}
             </p>
           ) : null}
         </div>
 
         <div>
-          <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-navy">
+          <label
+            htmlFor="login-password"
+            className="mb-2 block text-[13px] font-semibold text-navy"
+          >
             Mot de passe
           </label>
+
           <Input
             id="login-password"
             type="password"
             autoComplete="current-password"
+            placeholder="••••••••••••"
             aria-invalid={errors.password ? "true" : "false"}
             aria-describedby={errors.password ? "login-password-error" : undefined}
-            className="min-h-[48px] w-full"
+            className="min-h-[50px] w-full"
             {...register("password")}
           />
+
           {errors.password ? (
-            <p id="login-password-error" role="alert" className="mt-1 text-sm text-red-700">
+            <p
+              id="login-password-error"
+              role="alert"
+              className="mt-2 text-xs font-medium text-red-600"
+            >
               {errors.password.message}
             </p>
           ) : null}
         </div>
 
+        <div className="-mt-2 flex justify-end">
+          <span className="text-xs font-semibold text-primary">Mot de passe oublié ?</span>
+        </div>
+
         {apiError ? (
-          <p role="alert" className="text-sm font-medium text-red-700">
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
             {apiError}
-          </p>
+          </div>
         ) : null}
 
-        <Button type="submit" disabled={isSubmitting} className="min-h-[48px] w-full">
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="min-h-[52px] w-full rounded-xl bg-gradient-to-r from-cyan to-primary font-semibold shadow-[0_12px_30px_rgba(22,99,199,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(22,99,199,0.32)]"
+        >
           {isSubmitting ? "Connexion…" : "Se connecter"}
         </Button>
+
+        <p className="pt-1 text-center text-xs text-navy/55">
+          Pas encore de compte ?{" "}
+          <span className="font-semibold text-primary">Devenir organisateur</span>
+        </p>
       </form>
     </Card>
   );
