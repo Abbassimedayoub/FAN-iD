@@ -7,7 +7,12 @@ from __future__ import annotations
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from apps.core.adapters.notifications import ConsoleSender, InMemorySender, build_notification_sender
+from apps.core.adapters.notifications import (
+    ConsoleSender,
+    InMemorySender,
+    SmtpSender,
+    build_notification_sender,
+)
 from apps.core.checks import console_notifier_is_development_only
 
 
@@ -38,6 +43,9 @@ def test_the_factory_honours_the_setting(settings):
 
     settings.NOTIFICATION_BACKEND = "console"
     assert isinstance(build_notification_sender(), ConsoleSender)
+
+    settings.NOTIFICATION_BACKEND = "smtp"
+    assert isinstance(build_notification_sender(), SmtpSender)
 
 
 def test_an_unknown_backend_refuses_to_start(settings):

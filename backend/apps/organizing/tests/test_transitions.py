@@ -105,7 +105,7 @@ def test_pending_can_be_rejected(applicant, admin_user):
     assert event.payload == {"status": ORGANIZER_REJECTED}
 
 
-def test_approved_can_be_suspended_without_outbox_event(applicant, admin_user):
+def test_approved_can_be_suspended_and_emits_outbox_event(applicant, admin_user):
     organizer = make_organizer(applicant, status=ORGANIZER_APPROVED)
 
     result = OrganizerOnboardingService.suspend(
@@ -116,7 +116,12 @@ def test_approved_can_be_suspended_without_outbox_event(applicant, admin_user):
 
     assert result.validation_status == ORGANIZER_SUSPENDED
     assert result.version == 2
-    assert OutboxEvent.objects.count() == 0
+
+    event = OutboxEvent.objects.get()
+    assert event.event_type == "organizing.organizer.suspended"
+    assert event.aggregate_id == organizer.pk
+    assert event.actor_id == admin_user.pk
+    assert event.payload == {"status": ORGANIZER_SUSPENDED}
 
 
 @pytest.mark.parametrize(

@@ -31,6 +31,7 @@ from ..events import (
     AGGREGATE_ORGANIZER,
     ORGANIZER_APPROVED_EVENT,
     ORGANIZER_REJECTED_EVENT,
+    ORGANIZER_SUSPENDED_EVENT,
     organizer_decision_payload,
 )
 from ..models import Organizer
@@ -169,7 +170,16 @@ class OrganizerOnboardingService:
             updates={"validation_status": ORGANIZER_SUSPENDED},
         )
 
-        # Deliberement PAS d evenement Outbox pour la suspension dans ce lot.
+        publish_event(
+            event_type=ORGANIZER_SUSPENDED_EVENT,
+            aggregate_type=AGGREGATE_ORGANIZER,
+            aggregate_id=organizer.pk,
+            actor_id=actor_id,
+            payload=organizer_decision_payload(
+                status=ORGANIZER_SUSPENDED,
+            ),
+        )
+
         logger.info(
             "organizing.organizer.suspended",
             extra={

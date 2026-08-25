@@ -2,7 +2,7 @@
 Evenements publics emis par le contexte `organizing`.
 
 Seules les decisions explicitement prevues comme evenements Outbox vivent ici.
-La candidature et la suspension restent des journaux applicatifs dans ce lot.
+La candidature reste un journal applicatif dans ce lot.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from typing import Any, Final
 
 ORGANIZER_APPROVED_EVENT: Final = "organizing.organizer.approved"
 ORGANIZER_REJECTED_EVENT: Final = "organizing.organizer.rejected"
+ORGANIZER_SUSPENDED_EVENT: Final = "organizing.organizer.suspended"
 
 AGGREGATE_ORGANIZER: Final = "organizer"
 

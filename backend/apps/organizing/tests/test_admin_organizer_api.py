@@ -161,7 +161,7 @@ def test_admin_can_reject_pending_organizer(factory, admin, organizer):
     assert event.actor_id == admin.pk
 
 
-def test_admin_can_suspend_approved_organizer_without_outbox(
+def test_admin_can_suspend_approved_organizer_emits_outbox(
     factory,
     admin,
     organizer,
@@ -182,7 +182,11 @@ def test_admin_can_suspend_approved_organizer_without_outbox(
 
     assert organizer.validation_status == ORGANIZER_SUSPENDED
     assert organizer.version == 2
-    assert OutboxEvent.objects.count() == 0
+    event = OutboxEvent.objects.get()
+    assert event.event_type == "organizing.organizer.suspended"
+    assert event.aggregate_id == organizer.pk
+    assert event.actor_id == admin.pk
+    assert event.payload == {"status": ORGANIZER_SUSPENDED}
 
 
 @pytest.mark.parametrize(
