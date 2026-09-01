@@ -20,9 +20,9 @@ abstract interface class AuthRepository {
     String label = '',
   });
 
-  Future<LoginSession> refresh({
-    String? fingerprint,
-  });
+  Future<LoginSession> refresh({String? fingerprint});
+
+  Future<void> requestScannerLeave();
 
   Future<DeviceResetChallenge> requestDeviceReset({
     required String email,

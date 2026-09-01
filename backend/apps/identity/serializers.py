@@ -209,11 +209,45 @@ class UserPublicSerializer(serializers.Serializer):
     email = serializers.EmailField(read_only=True)
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
+    phone = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        allow_blank=True,
+    )
     role = serializers.SerializerMethodField()
+    must_change_password = serializers.BooleanField(
+        read_only=True,
+    )
     created_at = serializers.DateTimeField(read_only=True)
 
     def get_role(self, obj: Any) -> str:
         return str(obj.role.name)
+
+    def to_representation(
+        self,
+        instance: Any,
+    ) -> dict[str, Any]:
+        data = super().to_representation(instance)
+
+        if str(instance.role.name) != "SCANNER":
+            data.pop(
+                "must_change_password",
+                None,
+            )
+
+        if str(instance.role.name) != "SCANNER":
+            data.pop(
+                "phone",
+                None,
+            )
+
+        if str(instance.role.name) != "SCANNER":
+            data.pop(
+                "phone",
+                None,
+            )
+
+        return data
 
 
 class UserMeSerializer(serializers.Serializer):
@@ -224,14 +258,34 @@ class UserMeSerializer(serializers.Serializer):
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
     phone = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
-    date_of_birth = serializers.DateField(read_only=True)
+    date_of_birth = serializers.DateField(
+        read_only=True,
+        allow_null=True,
+    )
     role = serializers.SerializerMethodField()
+    must_change_password = serializers.BooleanField(
+        read_only=True,
+    )
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     version = serializers.IntegerField(read_only=True)
 
     def get_role(self, obj: Any) -> str:
         return str(obj.role.name)
+
+    def to_representation(
+        self,
+        instance: Any,
+    ) -> dict[str, Any]:
+        data = super().to_representation(instance)
+
+        if str(instance.role.name) != "SCANNER":
+            data.pop(
+                "must_change_password",
+                None,
+            )
+
+        return data
 
 
 class ProfileUpdateSerializer(serializers.Serializer):
@@ -329,6 +383,70 @@ class PasswordChangeSerializer(serializers.Serializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(list(exc.messages)) from exc
         return value
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Demande anonyme de récupération par adresse e-mail."""
+
+    email = serializers.EmailField(
+        max_length=254,
+    )
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """
+    Accepte exactement une preuve :
+
+    - `token` pour le lien magique ;
+    - `email` + `code` pour le secours manuel.
+    """
+
+    token = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=2048,
+        trim_whitespace=True,
+    )
+
+    email = serializers.EmailField(
+        required=False,
+        max_length=254,
+    )
+
+    code = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=16,
+        trim_whitespace=True,
+    )
+
+    new_password = serializers.CharField(
+        write_only=True,
+        max_length=128,
+        trim_whitespace=False,
+    )
+
+    def validate(
+        self,
+        attrs: dict,
+    ) -> dict:
+        has_token = bool(attrs.get("token"))
+
+        has_email = bool(attrs.get("email"))
+
+        has_code = bool(attrs.get("code"))
+
+        manual_complete = has_email and has_code
+
+        if has_token and (has_email or has_code):
+            raise serializers.ValidationError(
+                "Utilisez soit le lien magique, soit l’adresse e-mail et le code."
+            )
+
+        if not has_token and not manual_complete:
+            raise serializers.ValidationError("Un lien magique ou un code de récupération est requis.")
+
+        return attrs
 
 
 class DeviceResetRequestSerializer(serializers.Serializer):

@@ -39,24 +39,52 @@ function anonymousRequestConfig(): AxiosRequestConfig & {
   } as AxiosRequestConfig & { _skipAuthRefresh: true };
 }
 
+function hasErrorCode(error: unknown, expectedCode: string): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+
+  return (error as { code?: unknown }).code === expectedCode;
+}
+
 export async function registerOrganizerAccount(input: AccountRegistrationInput): Promise<AuthUser> {
   clearAccessToken();
 
-  const response = await httpClient.post<AuthUser>(
-    "/api/v1/auth/register",
-    {
+  try {
+    const response = await httpClient.post<AuthUser>(
+      "/api/v1/auth/register",
+      {
+        email: input.email,
+        password: input.password,
+        first_name: input.first_name,
+        last_name: input.last_name,
+        date_of_birth: input.date_of_birth,
+        terms_accepted: input.terms_accepted,
+        ...(input.phone ? { phone: input.phone } : {}),
+      },
+      anonymousRequestConfig(),
+    );
+
+    return response.data;
+  } catch (error) {
+    if (!hasErrorCode(error, "EMAIL_ALREADY_EXISTS")) {
+      throw error;
+    }
+
+    /*
+     * Le compte peut avoir été créé lors d'une tentative précédente alors que
+     * la candidature organisateur n'a jamais été terminée.
+     *
+     * On ne contourne jamais l'authentification : l'utilisateur doit prouver
+     * qu'il connaît le mot de passe de l'adresse déjà inscrite.
+     */
+    const loginResult = await loginWeb({
       email: input.email,
       password: input.password,
-      first_name: input.first_name,
-      last_name: input.last_name,
-      date_of_birth: input.date_of_birth,
-      terms_accepted: input.terms_accepted,
-      ...(input.phone ? { phone: input.phone } : {}),
-    },
-    anonymousRequestConfig(),
-  );
+    });
 
-  return response.data;
+    return loginResult.user;
+  }
 }
 
 function mayAlreadyHaveOrganizer(error: unknown): boolean {

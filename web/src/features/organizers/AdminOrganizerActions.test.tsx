@@ -18,6 +18,10 @@ import { ApproveDialog, RejectDialog } from "./OrganizerActionDialogs";
 import type { Organizer, OrganizerStatus } from "./types";
 
 const originalAdapter = httpClient.defaults.adapter;
+vi.mock("./AdminOrganizerEventsPanel", () => ({
+  AdminOrganizerEventsPanel: () => null,
+}));
+
 const ORGANIZER_ID = "00000000-0000-4000-8000-000000000001";
 
 const organizer: Organizer = {

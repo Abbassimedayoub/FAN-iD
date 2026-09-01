@@ -7,11 +7,17 @@ from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
 
 EVENT_DRAFT = "DRAFT"
 EVENT_PUBLISHED = "PUBLISHED"
+EVENT_POSTPONED = "POSTPONED"
+EVENT_SUSPENDED = "SUSPENDED"
+EVENT_CANCELLED = "CANCELLED"
 EVENT_ARCHIVED = "ARCHIVED"
 
 EVENT_STATUSES = (
     EVENT_DRAFT,
     EVENT_PUBLISHED,
+    EVENT_POSTPONED,
+    EVENT_SUSPENDED,
+    EVENT_CANCELLED,
     EVENT_ARCHIVED,
 )
 
@@ -23,6 +29,18 @@ class Category(UUIDModel, TimeStampedModel, VersionedModel):
     VersionedModel prépare le verrouillage optimiste pour les éditions
     administrateur (Sprint 2).
     """
+
+    # NULL = catégorie système / historique.
+    # Une catégorie personnalisée appartient à l'organisateur
+    # qui l'a créée. Cet organizer_id permet aussi d'appliquer
+    # la permission OWN_ORGANIZER lors de la suppression.
+    organizer = models.ForeignKey(
+        "organizing.Organizer",
+        on_delete=models.PROTECT,
+        related_name="event_categories",
+        null=True,
+        blank=True,
+    )
 
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
@@ -56,6 +74,9 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
 
     DRAFT = EVENT_DRAFT
     PUBLISHED = EVENT_PUBLISHED
+    POSTPONED = EVENT_POSTPONED
+    SUSPENDED = EVENT_SUSPENDED
+    CANCELLED = EVENT_CANCELLED
     ARCHIVED = EVENT_ARCHIVED
 
     STATUSES = EVENT_STATUSES
@@ -82,6 +103,27 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
 
+    # Dernière programmation remplacée lors d'un report.
+    postponed_from_starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    postponed_from_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    # Nouvelle programmation annoncée.
+    # Null signifie : nouvelle date encore inconnue.
+    postponed_to_starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    postponed_to_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     # ORG-07 operational information.
     #
     # capacity_total remains nullable only for legacy events created before
@@ -103,6 +145,15 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
     )
 
     published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    lifecycle_reason = models.TextField(
+        blank=True,
+    )
+
+    lifecycle_changed_at = models.DateTimeField(
         null=True,
         blank=True,
     )
@@ -130,10 +181,7 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
                 name="ck_event_status_valid",
             ),
             models.CheckConstraint(
-                condition=(
-                    models.Q(capacity_total__isnull=True)
-                    | models.Q(capacity_total__gt=0)
-                ),
+                condition=(models.Q(capacity_total__isnull=True) | models.Q(capacity_total__gt=0)),
                 name="ck_event_capacity_positive",
             ),
         ]
@@ -154,6 +202,7 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
 
     def __str__(self) -> str:
         return self.name
+
 
 class TicketCategory(UUIDModel, TimeStampedModel, VersionedModel):
     """
@@ -222,3 +271,85 @@ class TicketCategory(UUIDModel, TimeStampedModel, VersionedModel):
 
     def __str__(self) -> str:
         return f"{self.event} - {self.name}"
+
+
+class EventScannerAssignment(
+    UUIDModel,
+    TimeStampedModel,
+):
+    """
+    Affectation manuelle d'un scanner à un événement.
+
+    `scanner_id` est volontairement une référence UUID et non
+    une ForeignKey Python vers organizing.Scanner :
+    catalog ne dépend des règles organizing qu'au travers
+    de apps.organizing.api.
+
+    Une désaffectation conserve la ligne pour la traçabilité.
+    """
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="scanner_assignments",
+    )
+
+    scanner_id = models.UUIDField()
+
+    assigned_by_id = models.UUIDField()
+
+    unassigned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    unassigned_by_id = models.UUIDField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "catalog_event_scanner_assignment"
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "event",
+                    "scanner_id",
+                ],
+                condition=models.Q(
+                    unassigned_at__isnull=True,
+                ),
+                name="uq_event_scanner_active",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        unassigned_at__isnull=True,
+                        unassigned_by_id__isnull=True,
+                    )
+                    | models.Q(
+                        unassigned_at__isnull=False,
+                        unassigned_by_id__isnull=False,
+                    )
+                ),
+                name="ck_ev_scan_unassign_trace",
+            ),
+        ]
+
+        indexes = [
+            models.Index(
+                fields=[
+                    "event",
+                    "unassigned_at",
+                ],
+                name="ix_ev_scan_event_active",
+            ),
+            models.Index(
+                fields=[
+                    "scanner_id",
+                    "unassigned_at",
+                ],
+                name="ix_ev_scan_scanner_active",
+            ),
+        ]

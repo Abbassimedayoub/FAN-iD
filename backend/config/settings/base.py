@@ -60,6 +60,15 @@ LOCAL_APPS = [
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# Django Admin local/demo
+for _app in [
+    "django.contrib.admin",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+]:
+    if _app not in INSTALLED_APPS:
+        INSTALLED_APPS.append(_app)
+
 
 # --- Middlewares — ordre imposé, §2.5 Source B / §33 master prompt ---
 MIDDLEWARE = [
@@ -69,6 +78,7 @@ MIDDLEWARE = [
     "apps.core.observability.middleware.RequestLogMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
     "apps.core.idempotency.middleware.IdempotencyMiddleware",
     "apps.core.observability.metrics.MetricsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -87,6 +97,7 @@ TEMPLATES = [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
@@ -187,6 +198,18 @@ REST_FRAMEWORK = {
         "device_reset_confirm": env("THROTTLE_RESET_CONFIRM_RATE", default="30/hour"),
         "step_up_request": env("THROTTLE_STEP_UP_REQUEST_RATE", default="5/hour"),
         "step_up_confirm": env("THROTTLE_STEP_UP_CONFIRM_RATE", default="30/hour"),
+        "password_reset_request": env(
+            "THROTTLE_PASSWORD_RESET_REQUEST_RATE",
+            default="10/hour",
+        ),
+        "password_reset_account": env(
+            "THROTTLE_PASSWORD_RESET_ACCOUNT_RATE",
+            default="3/hour",
+        ),
+        "password_reset_confirm": env(
+            "THROTTLE_PASSWORD_RESET_CONFIRM_RATE",
+            default="30/hour",
+        ),
         "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="5/hour"),
         "profile_update": env("THROTTLE_PROFILE_UPDATE_RATE", default="20/hour"),
         "sessions_list": env("THROTTLE_SESSIONS_LIST_RATE", default="60/hour"),
@@ -210,7 +233,7 @@ SPECTACULAR_SETTINGS = {
 # --- CORS ---
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = (*default_headers, "if-match")
+CORS_ALLOW_HEADERS = (*default_headers, "if-match", "x-correlation-id")
 CORS_EXPOSE_HEADERS = ("ETag",)
 
 # --- Transport du refresh token côté Web ---
@@ -303,6 +326,10 @@ OUTBOX_RELAY_BATCH_SIZE = env.int(
 OUTBOX_RELAY_INTERVAL_SECONDS = env.int(
     "OUTBOX_RELAY_INTERVAL_SECONDS",
     default=2,
+)
+OUTBOX_STUCK_AFTER_SECONDS = env.int(
+    "OUTBOX_STUCK_AFTER_SECONDS",
+    default=30,
 )
 OUTBOX_MAX_ATTEMPTS = env.int(
     "OUTBOX_MAX_ATTEMPTS",

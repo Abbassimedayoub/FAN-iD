@@ -8,11 +8,14 @@ lignes appartient a un service.
 
 from __future__ import annotations
 
+from django.db import transaction
+
 import logging
 from typing import Any, cast
 
 from django.conf import settings
 from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -20,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
+from apps.core.outbox.publisher import publish_event
 from apps.core.adapters.notifications import build_notification_sender
 from apps.core.concurrency import format_etag, parse_if_match
 from apps.core.exceptions import NotFoundBusinessError, StaleResourceError
@@ -28,7 +32,17 @@ from apps.core.openapi import ERROR_RESPONSE
 
 from .authentication import default_binding_service
 from .authz import Action
-from .constants import CLIENT_WEB, OTP_TTL_MINUTES, SESSION_REVOKED_LOGOUT
+from .constants import (
+    CLIENT_WEB,
+    OTP_TTL_MINUTES,
+    PASSWORD_RESET_TTL_MINUTES,
+    SESSION_REVOKED_LOGOUT,
+)
+from .events import (
+    AGGREGATE_USER,
+    USER_PROFILE_UPDATED,
+    user_profile_updated_payload,
+)
 from .models import Device, Session, User
 from .permissions import ActionPermission, SelfResourcePermission, SelfUserPermission
 from .serializers import (
@@ -39,6 +53,8 @@ from .serializers import (
     DeviceSerializer,
     LoginSerializer,
     PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     ProfileUpdateSerializer,
     RefreshSerializer,
     RegistrationSerializer,
@@ -50,11 +66,17 @@ from .serializers import (
 )
 from .services.authentication import AuthenticationService, LoginCommand, RefreshCommand
 from .services.device_reset import DeviceResetService
+from .services.password_reset import PasswordResetService
 from .services.profile import ProfileService
 from .services.registration import RegistrationService
 from .services.step_up import StepUpService
 from .services.tokens import TokenService
-from .throttling import DeviceResetAccountRateThrottle, LoginAccountRateThrottle, RefreshSessionRateThrottle
+from .throttling import (
+    DeviceResetAccountRateThrottle,
+    LoginAccountRateThrottle,
+    PasswordResetAccountRateThrottle,
+    RefreshSessionRateThrottle,
+)
 from .tokens import TokenInvalidError
 
 
@@ -444,6 +466,108 @@ class PasswordChangeView(APIView):
         return response
 
 
+def build_password_reset_service() -> PasswordResetService:
+    """Point d'assemblage remplaçable dans les tests."""
+    return PasswordResetService()
+
+
+class PasswordResetRequestView(APIView):
+    """
+    POST /api/v1/auth/password/reset/request
+
+    La réponse ne révèle jamais si l'adresse appartient à un compte.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes: list[Any] = []
+    throttle_classes = [
+        ScopedRateThrottle,
+        PasswordResetAccountRateThrottle,
+    ]
+    throttle_scope = "password_reset_request"
+
+    @extend_schema(
+        operation_id="auth_password_reset_request",
+        summary="Demander une récupération de mot de passe",
+        request=PasswordResetRequestSerializer,
+        responses={
+            200: OpenApiResponse(description=("Réponse identique pour une adresse connue ou inconnue.")),
+            400: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+        auth=[],
+    )
+    def post(
+        self,
+        request: Request,
+    ) -> Response:
+        serializer = PasswordResetRequestSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        build_password_reset_service().request(email=(serializer.validated_data["email"]))
+
+        return Response(
+            {
+                "message": (
+                    "Si un compte FANID correspond à cette adresse, "
+                    "un e-mail de récupération va être envoyé."
+                ),
+                "expires_in_seconds": (int(PASSWORD_RESET_TTL_MINUTES) * 60),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    POST /api/v1/auth/password/reset/confirm
+
+    Fonctionne soit avec le token du lien magique, soit avec email + code.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes: list[Any] = []
+    throttle_classes = [
+        ScopedRateThrottle,
+    ]
+    throttle_scope = "password_reset_confirm"
+
+    @extend_schema(
+        operation_id="auth_password_reset_confirm",
+        summary="Définir un nouveau mot de passe",
+        request=PasswordResetConfirmSerializer,
+        responses={
+            204: OpenApiResponse(description=("Mot de passe réinitialisé et toutes les sessions révoquées.")),
+            400: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+        auth=[],
+    )
+    def post(
+        self,
+        request: Request,
+    ) -> Response:
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+
+        build_password_reset_service().reset(
+            token=data.get("token"),
+            email=data.get("email"),
+            code=data.get("code"),
+            new_password=data["new_password"],
+        )
+
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+
+        clear_refresh_cookie(response)
+
+        return response
+
+
 def build_step_up_service() -> StepUpService:
     """Assemble le service STEP_UP — point remplacable par les tests."""
     return StepUpService(sender=build_notification_sender())
@@ -701,6 +825,27 @@ class MeView(APIView):
         serializer.is_valid(raise_exception=True)
 
         changes = dict(serializer.validated_data)
+        if str(user.role.name) == "SCANNER" and "phone" in changes:
+            if user.must_change_password:
+                raise ValidationError(
+                    {
+                        "phone": [
+                            (
+                                "SCANNER_PASSWORD_CHANGE_REQUIRED_BEFORE_PHONE: "
+                                "Vous devez d'abord remplacer votre mot de passe temporaire."
+                            )
+                        ]
+                    }
+                )
+
+            phone = str(changes.get("phone") or "").strip()
+
+            if not phone:
+                raise ValidationError(
+                    {"phone": ["Le numéro de téléphone est obligatoire " "pour un compte scanner."]}
+                )
+
+            changes["phone"] = phone
 
         # Un PATCH vide ou composé uniquement de champs hors contrat est un
         # no-op : pas de nouvelle version artificielle. La précondition reste
@@ -710,11 +855,23 @@ class MeView(APIView):
                 raise StaleResourceError(details={"current_version": user.version})
             return self.response_for(user)
 
-        user = build_profile_service().update(
-            user_id=user.pk,
-            expected_version=expected_version,
-            changes=changes,
-        )
+        with transaction.atomic():
+            user = build_profile_service().update(
+                user_id=user.pk,
+                expected_version=expected_version,
+                changes=changes,
+            )
+
+            publish_event(
+                event_type=USER_PROFILE_UPDATED,
+                aggregate_type=AGGREGATE_USER,
+                aggregate_id=user.pk,
+                actor_id=user.pk,
+                payload=user_profile_updated_payload(
+                    changed_fields=list(changes.keys()),
+                ),
+            )
+
         return self.response_for(user)
 
 

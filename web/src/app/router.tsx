@@ -2,15 +2,24 @@ import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-rou
 
 import { AdminShell } from "@/components/AdminShell";
 import { BrandMark } from "@/components/BrandMark";
+import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { LoginForm } from "@/features/auth/LoginForm";
 import { PasswordChangePage } from "@/features/auth/PasswordChangePage";
+import { PasswordResetPage } from "@/features/auth/PasswordResetPage";
+import { OrganizerEventContinuePage } from "@/features/events/OrganizerEventContinuePage";
+import { OrganizerEventCreatePage } from "@/features/events/OrganizerEventCreatePage";
+import { OrganizerEventDetailPage } from "@/features/events/OrganizerEventDetailPage";
+import { OrganizerEventEditPage } from "@/features/events/OrganizerEventEditPage";
+import { OrganizerEventsPage } from "@/features/events/OrganizerEventsPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { useAuth } from "@/features/auth/AuthContext";
-import { USER_ROLES, type AuthUser, type UserRole } from "@/features/auth/types";
+import type { AuthUser, UserRole } from "@/features/auth/types";
 import { AdminOrganizerDetailPage } from "@/features/organizers/AdminOrganizerDetailPage";
 import { AdminOrganizersPage } from "@/features/organizers/AdminOrganizersPage";
 import { OrganizerHomePage } from "@/features/organizers/OrganizerHomePage";
 import { OrganizerRegistrationPage } from "@/features/organizers/OrganizerRegistrationPage";
+import { OrganizerArchivedScannersPage } from "@/features/organizers/OrganizerArchivedScannersPage";
+import { OrganizerScannersPage } from "@/features/organizers/OrganizerScannersPage";
 import { SessionsPage } from "@/features/sessions/SessionsPage";
 
 const HOME_BY_ROLE: Record<UserRole, string> = {
@@ -26,6 +35,7 @@ function LoginPage() {
   const [searchParams] = useSearchParams();
 
   const passwordChanged = searchParams.get("passwordChanged") === "1";
+  const passwordReset = searchParams.get("passwordReset") === "1";
 
   function onSuccess(user: AuthUser): void {
     authenticate(user);
@@ -100,12 +110,14 @@ function LoginPage() {
               </p>
             </div>
 
-            {passwordChanged ? (
+            {passwordChanged || passwordReset ? (
               <div
                 role="status"
                 className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
               >
-                Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe.
+                {passwordReset
+                  ? "Mot de passe réinitialisé. Connectez-vous avec votre nouveau mot de passe."
+                  : "Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe."}
               </div>
             ) : null}
 
@@ -156,13 +168,15 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/password-reset" element={<PasswordResetPage />} />
       <Route path="/register/organizer" element={<OrganizerRegistrationPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
 
       <Route
         path="/sessions"
         element={
-          <ProtectedRoute allowedRoles={USER_ROLES}>
+          <ProtectedRoute allowedRoles={["ADMIN", "ORGANIZER", "FAN"]}>
             <SessionsPage />
           </ProtectedRoute>
         }
@@ -173,6 +187,69 @@ export function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ORGANIZER"]}>
             <OrganizerHomePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events/:eventId/edit"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventEditPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events/:eventId/continue"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventContinuePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events/:eventId"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events/new"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventCreatePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/scanners/archives"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerArchivedScannersPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/scanners"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerScannersPage />
           </ProtectedRoute>
         }
       />

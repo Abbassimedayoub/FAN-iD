@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthRepository implements AuthRepository {
   @override
+  Future<void> requestScannerLeave() async {}
+
+  @override
   Future<AuthUser> register({
     required String email,
     required String password,

@@ -1,11 +1,17 @@
+from email.mime.image import MIMEImage
 import logging
 import os
 from typing import Any
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.core.mail import EmailMessage, get_connection
+from django.core.mail import EmailMultiAlternatives, get_connection
 
+from apps.core.email_branding import (
+    FANID_LOGO_CID,
+    load_fanid_logo_bytes,
+    render_fanid_email_html,
+)
 from apps.core.interfaces import NotificationSender
 
 logger = logging.getLogger("fanid.core")
@@ -71,8 +77,9 @@ class ConsoleSender(NotificationSender):
             extra={
                 "to": to,
                 "subject": subject,
-                "body": body,
-                **kwargs,
+                "body_length": len(body),
+                "has_html": True,
+                "has_reply_to": bool(kwargs.get("reply_to")),
             },
         )
 
@@ -97,9 +104,7 @@ def _required_environment(name: str) -> str:
     value = os.environ.get(name, "").strip()
 
     if not value:
-        raise ImproperlyConfigured(
-            f"{name} est requis lorsque NOTIFICATION_BACKEND='smtp'."
-        )
+        raise ImproperlyConfigured(f"{name} est requis lorsque NOTIFICATION_BACKEND='smtp'.")
 
     return value
 
@@ -122,9 +127,7 @@ def _environment_bool(
     if value in {"0", "false", "no", "off"}:
         return False
 
-    raise ImproperlyConfigured(
-        f"{name} doit être un booléen."
-    )
+    raise ImproperlyConfigured(f"{name} doit être un booléen.")
 
 
 class SmtpSender(NotificationSender):
@@ -165,8 +168,7 @@ class SmtpSender(NotificationSender):
 
         if not from_email:
             raise ImproperlyConfigured(
-                "DEFAULT_FROM_EMAIL ou EMAIL_HOST_USER est requis "
-                "lorsque NOTIFICATION_BACKEND='smtp'."
+                "DEFAULT_FROM_EMAIL ou EMAIL_HOST_USER est requis " "lorsque NOTIFICATION_BACKEND='smtp'."
             )
 
         use_tls = _environment_bool(
@@ -180,8 +182,7 @@ class SmtpSender(NotificationSender):
 
         if use_tls and use_ssl:
             raise ImproperlyConfigured(
-                "EMAIL_USE_TLS et EMAIL_USE_SSL ne peuvent pas "
-                "être activés simultanément."
+                "EMAIL_USE_TLS et EMAIL_USE_SSL ne peuvent pas " "être activés simultanément."
             )
 
         default_port = 465 if use_ssl else 587
@@ -194,9 +195,7 @@ class SmtpSender(NotificationSender):
                 )
             )
         except ValueError as exc:
-            raise ImproperlyConfigured(
-                "EMAIL_PORT doit être un entier."
-            ) from exc
+            raise ImproperlyConfigured("EMAIL_PORT doit être un entier.") from exc
 
         try:
             timeout = float(
@@ -206,15 +205,10 @@ class SmtpSender(NotificationSender):
                 )
             )
         except ValueError as exc:
-            raise ImproperlyConfigured(
-                "EMAIL_TIMEOUT doit être un nombre."
-            ) from exc
+            raise ImproperlyConfigured("EMAIL_TIMEOUT doit être un nombre.") from exc
 
         connection = get_connection(
-            backend=(
-                "django.core.mail.backends.smtp."
-                "EmailBackend"
-            ),
+            backend=("django.core.mail.backends.smtp." "EmailBackend"),
             host=host,
             port=port,
             username=username or None,
@@ -225,13 +219,14 @@ class SmtpSender(NotificationSender):
         )
 
         reply_to_value = kwargs.get("reply_to")
-        reply_to = (
-            [str(reply_to_value)]
-            if reply_to_value
-            else None
+        reply_to = [str(reply_to_value)] if reply_to_value else None
+
+        html_body = kwargs.get("html_body") or render_fanid_email_html(
+            subject=subject,
+            body=body,
         )
 
-        message = EmailMessage(
+        message = EmailMultiAlternatives(
             subject=subject,
             body=body,
             from_email=from_email,
@@ -240,13 +235,32 @@ class SmtpSender(NotificationSender):
             connection=connection,
         )
 
+        message.attach_alternative(
+            html_body,
+            "text/html",
+        )
+
+        logo = MIMEImage(
+            load_fanid_logo_bytes(),
+            _subtype="png",
+        )
+        logo.add_header(
+            "Content-ID",
+            f"<{FANID_LOGO_CID}>",
+        )
+        logo.add_header(
+            "Content-Disposition",
+            "inline",
+            filename="fanid-logo.png",
+        )
+
+        message.mixed_subtype = "related"
+        message.attach(logo)
+
         sent = message.send(fail_silently=False)
 
         if sent != 1:
-            raise RuntimeError(
-                "Le serveur SMTP n'a pas confirmé "
-                "l'envoi du message."
-            )
+            raise RuntimeError("Le serveur SMTP n'a pas confirmé " "l'envoi du message.")
 
     def send_push(
         self,
@@ -255,10 +269,7 @@ class SmtpSender(NotificationSender):
         body: str,
         **kwargs: Any,
     ) -> None:
-        raise NotImplementedError(
-            "Le backend SMTP ne prend pas en charge "
-            "les notifications push."
-        )
+        raise NotImplementedError("Le backend SMTP ne prend pas en charge " "les notifications push.")
 
 
 def build_notification_sender() -> NotificationSender:
@@ -280,7 +291,5 @@ def build_notification_sender() -> NotificationSender:
         return SmtpSender()
 
     raise ImproperlyConfigured(
-        "NOTIFICATION_BACKEND inconnu : "
-        f"{backend!r}. Valeurs admises : "
-        "'console', 'memory', 'smtp'."
+        "NOTIFICATION_BACKEND inconnu : " f"{backend!r}. Valeurs admises : " "'console', 'memory', 'smtp'."
     )

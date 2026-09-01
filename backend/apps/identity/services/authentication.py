@@ -45,7 +45,13 @@ from apps.core.observability.metrics import fanid_auth_login_total, fanid_auth_t
 from apps.core.outbox.publisher import publish_event
 
 from ..constants import SESSION_REVOKED_LOGOUT, SESSION_REVOKED_PASSWORD_CHANGE
-from ..events import AGGREGATE_USER, USER_LOGGED_IN, user_logged_in_payload
+from ..events import (
+    AGGREGATE_USER,
+    USER_LOGGED_IN,
+    USER_PASSWORD_CHANGED,
+    user_logged_in_payload,
+    user_password_changed_payload,
+)
 from ..exceptions import (
     DeviceLockedError,
     DeviceMismatchError,
@@ -142,13 +148,59 @@ class AuthenticationService:
 
         try:
             with transaction.atomic():
-                device = self._bind_device(user, command)
+                if user.must_change_password:
+                    user = User.objects.select_for_update().select_related("role").get(pk=user.pk)
+
+                    if user.temporary_password_used_at is not None:
+                        logger.info(
+                            "auth.login.failed",
+                            extra={
+                                "reason": ("temporary_password_already_used"),
+                            },
+                        )
+                        fanid_auth_login_total.labels(
+                            result="bad_credentials",
+                        ).inc()
+                        raise InvalidCredentialsError()
+
+                if (
+                    user.must_change_password
+                    and user.temporary_password_expires_at is not None
+                    and user.temporary_password_expires_at <= timezone.now()
+                ):
+                    logger.info(
+                        "auth.login.failed",
+                        extra={
+                            "reason": ("temporary_password_expired"),
+                        },
+                    )
+
+                    fanid_auth_login_total.labels(
+                        result="bad_credentials",
+                    ).inc()
+
+                    raise InvalidCredentialsError()
+
+                device = self._bind_device(
+                    user,
+                    command,
+                )
+
                 pair = TokenService.issue_pair(
                     user=user,
                     device=device,
                     ip=command.ip,
                     user_agent=command.user_agent,
                 )
+
+                if user.must_change_password:
+                    user.temporary_password_used_at = timezone.now()
+                    user.save(
+                        update_fields=[
+                            "temporary_password_used_at",
+                        ],
+                    )
+
                 publish_event(
                     event_type=USER_LOGGED_IN,
                     aggregate_type=AGGREGATE_USER,
@@ -381,10 +433,36 @@ class AuthenticationService:
                 details={"new_password": ["Le nouveau mot de passe doit etre different de l ancien."]}
             )
 
+        temporary_credential_replaced = bool(user.must_change_password)
+
         with transaction.atomic():
             user.set_password(new_password)
-            user.save(update_fields=["password"])
-            revoked = TokenService.revoke_all_for_user(user, SESSION_REVOKED_PASSWORD_CHANGE)
+
+            user.must_change_password = False
+
+            user.save(
+                update_fields=[
+                    "password",
+                    "must_change_password",
+                ],
+            )
+
+            revoked = TokenService.revoke_all_for_user(
+                user,
+                SESSION_REVOKED_PASSWORD_CHANGE,
+            )
+
+            publish_event(
+                event_type=USER_PASSWORD_CHANGED,
+                aggregate_type=AGGREGATE_USER,
+                aggregate_id=user.pk,
+                actor_id=user.pk,
+                payload=(
+                    user_password_changed_payload(
+                        temporary_credential_replaced=(temporary_credential_replaced),
+                    )
+                ),
+            )
 
         logger.info(
             "auth.session.revoked",

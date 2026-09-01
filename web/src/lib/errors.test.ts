@@ -3,6 +3,29 @@ import { describe, expect, it } from "vitest";
 import { toAppError } from "./errors";
 
 describe("toAppError", () => {
+  it("conserve une AppError déjà normalisée", () => {
+    const original = {
+      errorClass: "business" as const,
+      code: "SCANNER_INVITATION_ALREADY_EXISTS",
+      message:
+        "Une invitation a déjà été envoyée à ce compte. Vous pouvez la renvoyer depuis sa fiche scanner.",
+      details: {},
+      correlationId: "test-correlation",
+      traceId: null,
+      httpStatus: 409,
+    };
+
+    const result = toAppError(original);
+
+    expect(result).toBe(original);
+    expect(result.errorClass).toBe("business");
+    expect(result.code).toBe("SCANNER_INVITATION_ALREADY_EXISTS");
+    expect(result.message).toBe(
+      "Une invitation a déjà été envoyée à ce compte. Vous pouvez la renvoyer depuis sa fiche scanner.",
+    );
+    expect(result.httpStatus).toBe(409);
+  });
+
   it("classifies a network error (no response) as 'network'", () => {
     const result = toAppError({});
     expect(result.errorClass).toBe("network");

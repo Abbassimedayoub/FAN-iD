@@ -228,7 +228,9 @@ describe("AdminOrganizerDetailPage", () => {
 
     await screen.findByText("Association Lumière");
 
-    expect(calls).toEqual([`/api/v1/admin/organizers/${ORGANIZER_ID}`]);
+    expect(calls).toContain(`/api/v1/admin/organizers/${ORGANIZER_ID}`);
+
+    expect(calls).toContain(`/api/v1/admin/organizers/${ORGANIZER_ID}/events`);
   });
 
   it("revient vers la liste depuis la fiche", async () => {
@@ -339,8 +341,7 @@ describe("couverture des branches organizer detail", () => {
     );
 
     expect(await screen.findByText("Association Lumière")).toBeInTheDocument();
-
-    expect(calls).toBe(2);
+    expect(calls).toBe(3);
   });
 
   it("conserve une commission non numérique telle quelle", () => {

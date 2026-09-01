@@ -6,6 +6,11 @@ Montees sous `/api/v1/admin/organizers/`.
 
 from django.urls import path
 
+from .reactivation_views import (
+    AdminOrganizerReactivationApproveView,
+    AdminOrganizerReactivationRejectView,
+    AdminOrganizerReactivationRequestView,
+)
 from .views import (
     AdminOrganizerDetailView,
     AdminOrganizerListView,
@@ -42,4 +47,20 @@ urlpatterns = [
         OrganizerSuspendView.as_view(),
         name="suspend",
     ),
+    path(
+        "<uuid:organizer_id>/reactivation-request",
+        AdminOrganizerReactivationRequestView.as_view(),
+        name="reactivation-request",
+    ),
+    path(
+        "<uuid:organizer_id>/reactivation-request/approve",
+        AdminOrganizerReactivationApproveView.as_view(),
+        name="reactivation-request-approve",
+    ),
+    path(
+        "<uuid:organizer_id>/reactivation-request/reject",
+        AdminOrganizerReactivationRejectView.as_view(),
+        name="reactivation-request-reject",
+    ),
+
 ]

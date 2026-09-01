@@ -30,7 +30,9 @@ from .constants import (
     FINGERPRINT_PATTERN,
     MFA_PURPOSES,
     OTP_MAX_ATTEMPTS,
+    ROLE_IDS,
     ROLE_NAMES,
+    ROLE_SCANNER,
     SESSION_REVOKED_REASONS,
 )
 from .fields import CITextEmailField
@@ -108,12 +110,32 @@ class User(AbstractUser, TimeStampedModel, VersionedModel):
     )
 
     # --- État civil ---
-    date_of_birth = models.DateField()
+    date_of_birth = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=32, null=True, blank=True)
 
     # --- Conformité ---
-    terms_accepted_at = models.DateTimeField()
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
     anonymized_at = models.DateTimeField(null=True, blank=True)
+
+    # Comptes SCANNER créés par invitation.
+    must_change_password = models.BooleanField(
+        default=False,
+        db_default=False,
+    )
+    temporary_password_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    temporary_password_generation = models.PositiveIntegerField(
+        default=0,
+        db_default=0,
+    )
+
+    temporary_password_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
@@ -125,6 +147,24 @@ class User(AbstractUser, TimeStampedModel, VersionedModel):
 
     class Meta:
         db_table = "identity_user"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        role_id=ROLE_IDS[ROLE_SCANNER],
+                    )
+                    | (
+                        models.Q(
+                            date_of_birth__isnull=False,
+                        )
+                        & models.Q(
+                            terms_accepted_at__isnull=False,
+                        )
+                    )
+                ),
+                name=("ck_user_compliance_or_scanner"),
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.email

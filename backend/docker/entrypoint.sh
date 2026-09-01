@@ -22,9 +22,15 @@ case "$ROLE" in
     exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8001 --workers 1
     ;;
   worker)
+    echo "[entrypoint] validation Django avant démarrage du worker..."
+    python manage.py check --fail-level ERROR
+    python -c 'import jwt; print("[entrypoint] PyJWT import OK")'
     exec celery -A config worker --loglevel=INFO --concurrency=2
     ;;
   beat)
+    echo "[entrypoint] validation Django avant démarrage de beat..."
+    python manage.py check --fail-level ERROR
+    python -c 'import jwt; print("[entrypoint] PyJWT import OK")'
     # Planification statique (config.settings.base.CELERY_BEAT_SCHEDULE) : pas de
     # DatabaseScheduler au Sprint 0 (voir commentaire dans settings/base.py).
     exec celery -A config beat --loglevel=INFO

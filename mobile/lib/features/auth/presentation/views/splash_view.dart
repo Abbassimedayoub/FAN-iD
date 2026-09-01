@@ -64,7 +64,9 @@ class SplashView extends StatelessWidget {
                 ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight - FanSpacing.xxl * 2,
+                    minHeight: constraints.maxHeight > FanSpacing.xxl * 2
+                        ? constraints.maxHeight - FanSpacing.xxl * 2
+                        : 0.0,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

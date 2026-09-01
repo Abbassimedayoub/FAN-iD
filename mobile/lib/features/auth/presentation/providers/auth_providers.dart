@@ -6,8 +6,11 @@ import '../../data/repositories/auth_repository_impl.dart';
 import '../../data/storage/device_fingerprint_store.dart';
 import '../../data/storage/token_store.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/password_reset_repository.dart';
 import '../../domain/usecases/confirm_device_reset_use_case.dart';
+import '../../domain/usecases/confirm_password_reset_use_case.dart';
 import '../../domain/usecases/login_use_case.dart';
+import '../../domain/usecases/request_password_reset_use_case.dart';
 import '../../domain/usecases/register_use_case.dart';
 import '../../domain/usecases/request_device_reset_use_case.dart';
 
@@ -16,7 +19,7 @@ final authExpiryGenerationProvider = StateProvider<int>((_) => 0);
 final apiBaseUrlProvider = Provider<String>(
   (_) => const String.fromEnvironment(
     'FANID_API_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'http://10.0.2.2:8000',
   ),
 );
 
@@ -112,3 +115,31 @@ class AuthRuntime {
   final RequestDeviceResetUseCase requestDeviceResetUseCase;
   final ConfirmDeviceResetUseCase confirmDeviceResetUseCase;
 }
+
+final passwordResetRepositoryProvider = Provider<PasswordResetRepository>(
+  (ref) {
+    final repository = ref.watch(authRepositoryProvider);
+
+    if (repository is PasswordResetRepository) {
+      return repository as PasswordResetRepository;
+    }
+
+    throw StateError(
+      'Le repository auth courant ne prend pas en charge la récupération du mot de passe.',
+    );
+  },
+);
+
+final requestPasswordResetUseCaseProvider =
+    Provider<RequestPasswordResetUseCase>(
+  (ref) => RequestPasswordResetUseCase(
+    ref.watch(passwordResetRepositoryProvider),
+  ),
+);
+
+final confirmPasswordResetUseCaseProvider =
+    Provider<ConfirmPasswordResetUseCase>(
+  (ref) => ConfirmPasswordResetUseCase(
+    ref.watch(passwordResetRepositoryProvider),
+  ),
+);

@@ -1,13 +1,16 @@
 """
 Cycle de validation d un organisateur.
 
-Transitions autorisees pour S1-A.8b :
+Transitions autorisees :
 
-    PENDING  -> APPROVED
-    PENDING  -> REJECTED
-    APPROVED -> SUSPENDED
+    PENDING   -> APPROVED
+    PENDING   -> REJECTED
+    APPROVED  -> SUSPENDED
+    SUSPENDED -> APPROVED  via reouverture libre-service
 
-Toutes les autres transitions sont refusees explicitement.
+Les actions administratives historiques gardent leurs transitions propres :
+`approve()` reste reserve a PENDING -> APPROVED. La reouverture utilise
+explicitement `reopen()`.
 
 Le verrou optimiste repose sur un UPDATE conditionnel par `version`. Lire une
 version puis appeler `save()` ne suffirait pas : deux administrateurs pourraient
@@ -31,6 +34,7 @@ from ..events import (
     AGGREGATE_ORGANIZER,
     ORGANIZER_APPROVED_EVENT,
     ORGANIZER_REJECTED_EVENT,
+    ORGANIZER_REOPENED_EVENT,
     ORGANIZER_SUSPENDED_EVENT,
     organizer_decision_payload,
 )
@@ -182,6 +186,61 @@ class OrganizerOnboardingService:
 
         logger.info(
             "organizing.organizer.suspended",
+            extra={
+                "organizer_id": str(organizer.pk),
+                "actor_id": str(actor_id),
+                "version": new_version,
+            },
+        )
+
+        organizer.refresh_from_db()
+        return organizer
+
+    @classmethod
+    @transaction.atomic
+    def reopen(
+        cls,
+        *,
+        organizer_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        expected_version: int,
+    ) -> Organizer:
+        """
+        Reouvre le propre compte d un organisateur suspendu.
+
+        Cette transition est distincte de l approbation administrative :
+        elle conserve les informations de validation historiques et remet
+        uniquement le dossier en etat APPROVED.
+        """
+        organizer = cls._get(organizer_id)
+        cls._require_state(
+            organizer,
+            ORGANIZER_SUSPENDED,
+            ORGANIZER_APPROVED,
+        )
+
+        new_version = versioned_update(
+            model=Organizer,
+            pk=organizer.pk,
+            expected_version=expected_version,
+            updates={
+                "validation_status": ORGANIZER_APPROVED,
+                "rejection_reason": None,
+            },
+        )
+
+        publish_event(
+            event_type=ORGANIZER_REOPENED_EVENT,
+            aggregate_type=AGGREGATE_ORGANIZER,
+            aggregate_id=organizer.pk,
+            actor_id=actor_id,
+            payload=organizer_decision_payload(
+                status=ORGANIZER_APPROVED,
+            ),
+        )
+
+        logger.info(
+            "organizing.organizer.reopened",
             extra={
                 "organizer_id": str(organizer.pk),
                 "actor_id": str(actor_id),

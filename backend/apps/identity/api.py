@@ -21,7 +21,18 @@ import uuid
 
 from .authz import Action, Resource, Subject, authorize, may_attempt
 from .constants import ROLE_IDS, ROLE_ORGANIZER
+from .events import (
+    USER_LOGGED_IN,
+    USER_PASSWORD_CHANGED,
+    USER_PROFILE_UPDATED,
+)
 from .models import User
+from .services.scanner_accounts import (
+    deactivate_scanner_account,
+    create_invited_scanner_account,
+    derive_scanner_temporary_password,
+    rotate_scanner_temporary_password,
+)
 from .permissions import (
     ActionPermission,
     IsApprovedOrganizer,
@@ -40,6 +51,13 @@ __all__ = [
     "Resource",
     "Subject",
     "authorize",
+    "USER_LOGGED_IN",
+    "USER_PASSWORD_CHANGED",
+    "USER_PROFILE_UPDATED",
+    "create_invited_scanner_account",
+    "deactivate_scanner_account",
+    "derive_scanner_temporary_password",
+    "rotate_scanner_temporary_password",
     "grant_organizer_role",
     "may_attempt",
 ]

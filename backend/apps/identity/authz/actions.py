@@ -48,13 +48,26 @@ class Action(StrEnum):
     ORGANIZER_REJECT = "organizing:organizer:reject"
     ORGANIZER_SUSPEND = "organizing:organizer:suspend"
 
+    # --- Scanners organisateur -------------------------------------------
+    SCANNER_INVITE = "organizing:scanner:invite"
+    SCANNER_READ = "organizing:scanner:read"
+    SCANNER_REVOKE = "organizing:scanner:revoke"
+    SCANNER_CREDENTIAL_RESET = "organizing:scanner:credential-reset"
+
     # --- Catalogue --------------------------------------------------------
     CATEGORY_READ = "catalog:category:read"
+    CATEGORY_CREATE = "catalog:category:create"
+    CATEGORY_DELETE = "catalog:category:delete"
     EVENT_CREATE = "catalog:event:create"
     EVENT_READ = "catalog:event:read"
     EVENT_UPDATE = "catalog:event:update"
+    EVENT_DELETE = "catalog:event:delete"
     EVENT_PUBLISH = "catalog:event:publish"
     EVENT_ARCHIVE = "catalog:event:archive"
+    EVENT_UNARCHIVE = "catalog:event:unarchive"
+    EVENT_POSTPONE = "catalog:event:postpone"
+    EVENT_SUSPEND = "catalog:event:suspend"
+    EVENT_CANCEL = "catalog:event:cancel"
 
     TICKET_CATEGORY_CREATE = "catalog:ticket-category:create"
     TICKET_CATEGORY_READ = "catalog:ticket-category:read"

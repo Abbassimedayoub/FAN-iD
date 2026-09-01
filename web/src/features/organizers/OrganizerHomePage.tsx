@@ -1,6 +1,6 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { BrandMark } from "@/components/BrandMark";
 import { Badge, Button, Card } from "@/components/primitives";
@@ -8,6 +8,11 @@ import { useAuth } from "@/features/auth/AuthContext";
 import { logoutWeb } from "@/features/auth/logout";
 
 import { fetchMyOrganizer, myOrganizerQueryKey } from "./myOrganizer";
+import {
+  fetchMyOrganizerReactivationRequest,
+  myOrganizerReactivationQueryKey,
+  requestMyOrganizerReactivation,
+} from "./reactivationHome";
 import type { OrganizerStatus } from "./types";
 
 const STATUS_CONTENT: Record<
@@ -81,15 +86,23 @@ function OrganizerNavigation({
             Changer le mot de passe
           </Link>
 
-          <button
-            type="button"
-            disabled
-            aria-label="Événements bientôt disponibles"
-            title="Le module événements sera activé lorsque son backend sera disponible."
-            className="inline-flex min-h-[44px] cursor-not-allowed items-center justify-center rounded-xl border border-navy/10 bg-navy/5 px-4 py-2 text-sm font-semibold text-navy/40"
-          >
-            Événements · bientôt
-          </button>
+          {approved ? (
+            <Link
+              to="/organizer/events"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-navy/10 bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
+            >
+              Événements
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              aria-label="Événements bientôt disponibles"
+              className="inline-flex min-h-[44px] cursor-not-allowed items-center justify-center rounded-xl border border-navy/10 bg-navy/5 px-4 py-2 text-sm font-semibold text-navy/40"
+            >
+              Événements · bientôt
+            </button>
+          )}
         </div>
 
         <Button
@@ -109,8 +122,7 @@ function OrganizerNavigation({
         </p>
       ) : (
         <p className="mt-3 text-xs leading-5 text-navy/45">
-          Le module de création et de gestion des événements sera ajouté ici dès que les endpoints
-          événementiels FANID seront disponibles.
+          Créez et préparez vos événements avant leur publication.
         </p>
       )}
 
@@ -125,6 +137,7 @@ function OrganizerNavigation({
 
 export function OrganizerHomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { clearAuthentication } = useAuth();
 
@@ -143,6 +156,25 @@ export function OrganizerHomePage() {
   const query = useQuery({
     queryKey: myOrganizerQueryKey,
     queryFn: fetchMyOrganizer,
+  });
+
+  const reactivationQuery = useQuery({
+    queryKey: myOrganizerReactivationQueryKey,
+    queryFn: fetchMyOrganizerReactivationRequest,
+    enabled: query.data?.validation_status === "SUSPENDED",
+    retry: false,
+  });
+
+  const reactivationMutation = useMutation({
+    mutationFn: requestMyOrganizerReactivation,
+    onSuccess: (reactivationRequest) => {
+      queryClient.setQueryData(
+        myOrganizerReactivationQueryKey,
+        {
+          request: reactivationRequest,
+        },
+      );
+    },
   });
 
   async function handleLogout(): Promise<void> {
@@ -192,6 +224,21 @@ export function OrganizerHomePage() {
   const content = STATUS_CONTENT[organizer.validation_status];
   const approved = organizer.validation_status === "APPROVED";
 
+  const reactivationRequest =
+    reactivationQuery.data?.request ?? null;
+
+  const reactivationPending =
+    reactivationRequest?.status === "PENDING";
+
+  const existingOrganizerNotice =
+    (
+      location.state as
+        | {
+            existingOrganizerAccount?: boolean;
+          }
+        | null
+    )?.existingOrganizerAccount === true;
+
   return (
     <main className="min-h-screen bg-[#eef4f9] px-5 py-8 sm:px-8">
       <div className="mx-auto max-w-6xl">
@@ -209,6 +256,20 @@ export function OrganizerHomePage() {
           }}
         />
 
+        {existingOrganizerNotice ? (
+          <Card className="mb-6 border-primary/20 bg-primary/5 p-5">
+            <p className="text-sm font-semibold text-navy">
+              Ce compte organisateur existe déjà.
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-navy/60">
+              {organizer.validation_status === "SUSPENDED"
+                ? "Ce compte est suspendu. Demandez sa réouverture : seul un administrateur FANID pourra l’accepter avec sa vérification OTP."
+                : "Vous avez été redirigé vers l’espace organisateur déjà associé à cette adresse e-mail."}
+            </p>
+          </Card>
+        ) : null}
+
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <Card className="overflow-hidden border-white/80 p-0 shadow-[0_24px_70px_rgba(14,42,77,0.10)]">
             <div className="border-b border-navy/10 bg-white p-7 sm:p-9">
@@ -221,6 +282,83 @@ export function OrganizerHomePage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-navy/60">{content.description}</p>
+
+              {organizer.validation_status === "SUSPENDED" ? (
+                <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                  <p className="text-sm font-semibold text-navy">
+                    Réouverture soumise à validation administrateur
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-navy/65">
+                    Votre compte reste suspendu jusqu’à la décision d’un administrateur FANID.
+                    Vous ne pouvez pas le réactiver vous-même.
+                  </p>
+
+                  {reactivationQuery.isPending ? (
+                    <p
+                      role="status"
+                      className="mt-4 text-sm text-navy/55"
+                    >
+                      Vérification de votre demande de réouverture…
+                    </p>
+                  ) : null}
+
+                  {reactivationPending ? (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-semibold text-amber-900">
+                        Demande de réouverture en attente de validation administrateur.
+                      </p>
+
+                      <p className="mt-2 text-sm leading-6 text-amber-800">
+                        Un administrateur doit accepter cette demande avec sa vérification OTP.
+                        Vous recevrez un e-mail lorsque la décision sera prise.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {reactivationRequest?.status === "REJECTED" ? (
+                        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                          <p className="text-sm font-semibold text-red-800">
+                            La précédente demande de réouverture a été refusée.
+                          </p>
+
+                          {reactivationRequest.rejection_reason ? (
+                            <p className="mt-2 text-sm text-red-700">
+                              Motif : {reactivationRequest.rejection_reason}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <Button
+                        type="button"
+                        className="mt-4"
+                        disabled={
+                          reactivationMutation.isPending ||
+                          reactivationQuery.isPending
+                        }
+                        onClick={() => {
+                          reactivationMutation.mutate();
+                        }}
+                      >
+                        {reactivationMutation.isPending
+                          ? "Envoi de la demande…"
+                          : "Demander la réouverture"}
+                      </Button>
+                    </>
+                  )}
+
+                  {reactivationMutation.isError ||
+                  reactivationQuery.isError ? (
+                    <p
+                      role="alert"
+                      className="mt-3 text-sm text-red-700"
+                    >
+                      Impossible de traiter la demande de réouverture. Réessayez.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               {organizer.validation_status === "REJECTED" && organizer.rejection_reason ? (
                 <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
@@ -280,13 +418,12 @@ export function OrganizerHomePage() {
                     Votre organisation est autorisée à utiliser les fonctionnalités organisateur.
                   </p>
 
-                  <button
-                    type="button"
-                    disabled
-                    className="mt-5 inline-flex min-h-[46px] w-full cursor-not-allowed items-center justify-center rounded-xl bg-navy/10 px-4 text-sm font-semibold text-navy/40"
+                  <Link
+                    to="/organizer/events/new"
+                    className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90"
                   >
-                    Créer un événement · bientôt
-                  </button>
+                    Créer un événement
+                  </Link>
                 </>
               ) : (
                 <p className="mt-3 text-sm leading-6 text-navy/55">

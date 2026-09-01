@@ -1,3 +1,4 @@
+
 """
 Configuration ASGI — sert HTTP (DRF) et WebSocket (Channels) sous le même
 protocole, conforme à Source A §1.4.2 (ASGI/Gunicorn-Uvicorn).

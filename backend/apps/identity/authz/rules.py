@@ -104,15 +104,25 @@ POLICY: Final[Mapping[str, Mapping[Action, Grant]]] = MappingProxyType(
                 # de violation d integrite la ou un 403 est la bonne reponse.
                 Action.ORGANIZER_READ: Grant(Scope.OWN_ORGANIZER),
                 Action.ORGANIZER_UPDATE: Grant(Scope.OWN_ORGANIZER),
-
+                Action.SCANNER_INVITE: Grant(Scope.NONE),
+                Action.SCANNER_READ: Grant(Scope.NONE),
+                Action.SCANNER_REVOKE: Grant(Scope.NONE),
+                Action.SCANNER_CREDENTIAL_RESET: Grant(Scope.NONE),
                 # Catalogue organisateur. L approbation est un prérequis
                 # actor-level supplémentaire appliqué par IsApprovedOrganizer.
                 Action.CATEGORY_READ: Grant(Scope.NONE),
+                Action.CATEGORY_CREATE: Grant(Scope.NONE),
+                Action.CATEGORY_DELETE: Grant(Scope.OWN_ORGANIZER),
                 Action.EVENT_CREATE: Grant(Scope.NONE),
                 Action.EVENT_READ: Grant(Scope.OWN_ORGANIZER),
                 Action.EVENT_UPDATE: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_DELETE: Grant(Scope.OWN_ORGANIZER),
                 Action.EVENT_PUBLISH: Grant(Scope.OWN_ORGANIZER),
                 Action.EVENT_ARCHIVE: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_UNARCHIVE: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_POSTPONE: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_SUSPEND: Grant(Scope.OWN_ORGANIZER),
+                Action.EVENT_CANCEL: Grant(Scope.OWN_ORGANIZER),
                 Action.TICKET_CATEGORY_CREATE: Grant(Scope.OWN_ORGANIZER),
                 Action.TICKET_CATEGORY_READ: Grant(Scope.OWN_ORGANIZER),
                 Action.TICKET_CATEGORY_UPDATE: Grant(Scope.OWN_ORGANIZER),

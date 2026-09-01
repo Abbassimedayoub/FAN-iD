@@ -124,3 +124,13 @@ class DeviceResetAccountRateThrottle(LoginAccountRateThrottle):
     """
 
     scope = "device_reset_account"
+
+
+class PasswordResetAccountRateThrottle(LoginAccountRateThrottle):
+    """
+    Protège une boîte précise contre les demandes distribuées.
+
+    L'adresse reste uniquement sous forme de SHA-256 dans le cache.
+    """
+
+    scope = "password_reset_account"

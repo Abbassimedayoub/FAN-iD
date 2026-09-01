@@ -43,6 +43,39 @@ afterEach(() => {
 });
 
 describe("LoginForm", () => {
+  it("affiche et masque le mot de passe sans perdre sa valeur", () => {
+    render(<LoginForm />);
+
+    const passwordInput = screen.getByLabelText("Mot de passe");
+
+    fireEvent.change(passwordInput, {
+      target: { value: "Secret-FANID-2026" },
+    });
+
+    expect(passwordInput).toHaveAttribute("type", "password");
+    expect(passwordInput).toHaveValue("Secret-FANID-2026");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Afficher le mot de passe",
+      }),
+    );
+
+    expect(passwordInput).toHaveAttribute("type", "text");
+    expect(passwordInput).toHaveValue("Secret-FANID-2026");
+
+    const hideButton = screen.getByRole("button", {
+      name: "Masquer le mot de passe",
+    });
+
+    expect(hideButton).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(hideButton);
+
+    expect(passwordInput).toHaveAttribute("type", "password");
+    expect(passwordInput).toHaveValue("Secret-FANID-2026");
+  });
+
   it("validates the form with Zod before calling the API", async () => {
     let loginCalls = 0;
 
@@ -274,4 +307,14 @@ it("uses a safe generic message for an unknown backend login error code", async 
 
   expect(await screen.findByText("Connexion impossible. Réessayez.")).toBeInTheDocument();
   expect(getAccessToken()).toBeNull();
+});
+
+it("expose Mot de passe oublié comme un vrai lien cliquable", () => {
+  render(<LoginForm />);
+
+  expect(
+    screen.getByRole("link", {
+      name: "Mot de passe oublié ?",
+    }),
+  ).toHaveAttribute("href", "/forgot-password");
 });

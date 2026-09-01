@@ -15,7 +15,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    expect(container.read(apiBaseUrlProvider), 'http://localhost:8000');
+    expect(container.read(apiBaseUrlProvider), 'http://10.0.2.2:8000');
   });
 
   test('wires the auth runtime through Riverpod', () async {

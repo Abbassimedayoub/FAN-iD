@@ -30,7 +30,7 @@ function response(config: InternalAxiosRequestConfig, data: unknown, status = 20
   };
 }
 
-function organizer(validationStatus: "PENDING" | "APPROVED") {
+function organizer(validationStatus: "PENDING" | "APPROVED" | "SUSPENDED") {
   return {
     id: "organizer-1",
     org_name: "Association Lumière",
@@ -39,8 +39,8 @@ function organizer(validationStatus: "PENDING" | "APPROVED") {
     vat_number: null,
     contact_email: "contact@example.test",
     rejection_reason: null,
-    validated_at: validationStatus === "APPROVED" ? "2026-08-25T17:00:00Z" : null,
-    version: validationStatus === "APPROVED" ? 2 : 1,
+    validated_at: validationStatus === "PENDING" ? null : "2026-08-25T17:00:00Z",
+    version: validationStatus === "PENDING" ? 1 : validationStatus === "APPROVED" ? 2 : 3,
     created_at: "2026-08-25T16:00:00Z",
     updated_at: "2026-08-25T16:00:00Z",
   };
@@ -150,12 +150,121 @@ it("affiche le tableau de bord APPROVED sans inventer un endpoint événementiel
   ).toBeInTheDocument();
 
   expect(
-    screen.getByRole("button", {
-      name: "Créer un événement · bientôt",
+    screen.getByRole("link", {
+      name: "Créer un événement",
     }),
-  ).toBeDisabled();
+  ).toHaveAttribute("href", "/organizer/events/new");
+
+  expect(
+    screen.getByRole("link", {
+      name: "Événements",
+    }),
+  ).toHaveAttribute("href", "/organizer/events");
 
   expect(requestedUrls).toEqual(["/api/v1/organizers/me"]);
+
+  queryClient.clear();
+});
+
+it("permet à un organisateur suspendu de demander la réouverture sans se réactiver lui-même", async () => {
+  let requestCalls = 0;
+
+  httpClient.defaults.adapter = async (config) => {
+    if (
+      config.method === "get" &&
+      config.url === "/api/v1/organizers/me"
+    ) {
+      return response(
+        config,
+        organizer("SUSPENDED"),
+      );
+    }
+
+    if (
+      config.method === "get" &&
+      config.url ===
+        "/api/v1/organizers/me/reactivation-request"
+    ) {
+      return response(config, {
+        request: null,
+      });
+    }
+
+    if (
+      config.method === "post" &&
+      config.url ===
+        "/api/v1/organizers/me/reactivation-request"
+    ) {
+      requestCalls += 1;
+
+      return response(
+        config,
+        {
+          id: "reactivation-request-1",
+          organizer_id: "organizer-1",
+          requested_by_id: "user-organizer-1",
+          organizer_version: 3,
+          status: "PENDING",
+          reviewed_by_id: null,
+          reviewed_at: null,
+          rejection_reason: null,
+          created_at: "2026-08-30T16:00:00Z",
+          updated_at: "2026-08-30T16:00:00Z",
+        },
+        201,
+      );
+    }
+
+    throw new Error(
+      `Requête inattendue : ${config.method} ${config.url}`,
+    );
+  };
+
+  const { queryClient } = renderPage();
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "Compte organisateur suspendu",
+    }),
+  ).toBeInTheDocument();
+
+  expect(
+    await screen.findByRole("button", {
+      name: "Demander la réouverture",
+    }),
+  ).toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Demander la réouverture",
+    }),
+  );
+
+  expect(
+    await screen.findByText(
+      "Demande de réouverture en attente de validation administrateur.",
+    ),
+  ).toBeInTheDocument();
+
+  expect(
+    screen.getByRole("heading", {
+      name: "Compte organisateur suspendu",
+    }),
+  ).toBeInTheDocument();
+
+  expect(
+    screen.queryByRole("button", {
+      name: "Réouvrir mon compte",
+    }),
+  ).not.toBeInTheDocument();
+
+  expect(
+    screen.queryByRole("link", {
+      name: "Créer un événement",
+    }),
+  ).not.toBeInTheDocument();
+
+  expect(requestCalls).toBe(1);
 
   queryClient.clear();
 });

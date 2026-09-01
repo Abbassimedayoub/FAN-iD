@@ -24,6 +24,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthRepository implements AuthRepository {
+  @override
+  Future<void> requestScannerLeave() async {}
+
   Object? loginFailure;
   int confirmCalls = 0;
 

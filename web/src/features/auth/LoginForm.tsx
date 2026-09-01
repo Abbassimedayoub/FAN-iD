@@ -47,6 +47,7 @@ interface LoginFormProps {
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -109,16 +110,59 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             Mot de passe
           </label>
 
-          <Input
-            id="login-password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="••••••••••••"
-            aria-invalid={errors.password ? "true" : "false"}
-            aria-describedby={errors.password ? "login-password-error" : undefined}
-            className="min-h-[50px] w-full"
-            {...register("password")}
-          />
+          <div className="relative">
+            <Input
+              id="login-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="••••••••••••"
+              aria-invalid={errors.password ? "true" : "false"}
+              aria-describedby={errors.password ? "login-password-error" : undefined}
+              className="min-h-[50px] w-full pr-14"
+              {...register("password")}
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-pressed={showPassword}
+              aria-controls="login-password"
+              className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-navy/60 transition hover:bg-navy/5 hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              {showPassword ? (
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="m3 3 18 18" />
+                  <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
+                  <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5.5 0 9.5 5 9.5 5a16.3 16.3 0 0 1-3 3.5" />
+                  <path d="M6.6 6.6C4 8.3 2.5 11 2.5 11s4 5 9.5 5a10.6 10.6 0 0 0 4-.8" />
+                </svg>
+              ) : (
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+            </button>
+          </div>
 
           {errors.password ? (
             <p
@@ -132,7 +176,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         </div>
 
         <div className="-mt-2 flex justify-end">
-          <span className="text-xs font-semibold text-primary">Mot de passe oublié ?</span>
+          <a
+            href="/forgot-password"
+            className="inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-semibold text-primary transition hover:bg-primary/5 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Mot de passe oublié ?
+          </a>
         </div>
 
         {apiError ? (

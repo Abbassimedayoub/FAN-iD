@@ -98,3 +98,76 @@ def test_readiness_degraded_when_celery_down_but_db_up():
     body = response.json()
     assert body["status"] == "degraded"
     assert body["checks"]["celery"]["status"] == "degraded"
+
+
+@pytest.mark.django_db
+def test_readiness_reports_outbox_ok_when_queue_is_empty():
+    from apps.core.views import ReadinessView
+
+    result = ReadinessView._check_outbox()
+
+    assert result == {
+        "status": "ok",
+    }
+
+
+@pytest.mark.django_db
+def test_readiness_reports_stuck_outbox_as_degraded(settings):
+    from datetime import timedelta
+    import uuid
+
+    from django.utils import timezone
+
+    from apps.core.outbox.models import OutboxEvent
+    from apps.core.views import ReadinessView
+
+    settings.OUTBOX_STUCK_AFTER_SECONDS = 30
+
+    OutboxEvent.objects.create(
+        event_type="test.health.stuck",
+        event_version=1,
+        aggregate_type="health",
+        aggregate_id=uuid.uuid4(),
+        payload={},
+        status=OutboxEvent.Status.PENDING,
+        attempts=0,
+        available_at=timezone.now(),
+        occurred_at=(
+            timezone.now()
+            - timedelta(minutes=5)
+        ),
+    )
+
+    result = ReadinessView._check_outbox()
+
+    assert result["status"] == "degraded"
+    assert result["detail"] == "stuck events detected"
+    assert result["stuck"] == 1
+
+
+@pytest.mark.django_db
+def test_readiness_reports_dead_outbox_as_degraded():
+    import uuid
+
+    from django.utils import timezone
+
+    from apps.core.outbox.models import OutboxEvent
+    from apps.core.views import ReadinessView
+
+    OutboxEvent.objects.create(
+        event_type="test.health.dead",
+        event_version=1,
+        aggregate_type="health",
+        aggregate_id=uuid.uuid4(),
+        payload={},
+        status=OutboxEvent.Status.DEAD,
+        attempts=5,
+        available_at=timezone.now(),
+        occurred_at=timezone.now(),
+    )
+
+    result = ReadinessView._check_outbox()
+
+    assert result["status"] == "degraded"
+    assert result["detail"] == "dead events detected"
+    assert result["dead"] == 1

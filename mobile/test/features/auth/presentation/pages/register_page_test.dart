@@ -10,6 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthRepository implements AuthRepository {
+  @override
+  Future<void> requestScannerLeave() async {}
+
   int registerCalls = 0;
 
   @override

@@ -6,6 +6,8 @@ class AuthUser {
     required this.lastName,
     required this.role,
     required this.createdAt,
+    this.mustChangePassword = false,
+    this.phone,
   });
 
   final String id;
@@ -14,6 +16,8 @@ class AuthUser {
   final String lastName;
   final String role;
   final DateTime createdAt;
+  final bool mustChangePassword;
+  final String? phone;
 }
 
 class AuthDevice {

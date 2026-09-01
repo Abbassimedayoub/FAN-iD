@@ -25,6 +25,23 @@ interface ApiErrorBody {
   };
 }
 
+function isAppError(error: unknown): error is AppError {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const candidate = error as Partial<AppError>;
+
+  return (
+    typeof candidate.errorClass === "string" &&
+    typeof candidate.code === "string" &&
+    typeof candidate.message === "string" &&
+    typeof candidate.details === "object" &&
+    candidate.details !== null &&
+    (typeof candidate.httpStatus === "number" || candidate.httpStatus === null)
+  );
+}
+
 function isApiErrorBody(data: unknown): data is ApiErrorBody {
   return (
     typeof data === "object" &&
@@ -40,6 +57,10 @@ function isApiErrorBody(data: unknown): data is ApiErrorBody {
  * trace_id } }`, §17 master prompt / §3.3 Source B).
  */
 export function toAppError(error: unknown): AppError {
+  if (isAppError(error)) {
+    return error;
+  }
+
   const httpStatus = getHttpStatus(error);
   const data = getResponseData(error);
 

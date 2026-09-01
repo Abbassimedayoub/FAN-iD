@@ -23,16 +23,10 @@ def organizer_decision_email(
     organizer: Organizer,
     decision: str,
 ) -> tuple[str, str]:
-    first_name = (
-        organizer.user.first_name.strip()
-        or "Bonjour"
-    )
+    first_name = organizer.user.first_name.strip() or "Bonjour"
 
     if decision == ORGANIZER_APPROVED:
-        subject = (
-            "[FANID] Votre demande organisateur "
-            "est approuvée"
-        )
+        subject = "[FANID] Votre demande organisateur " "est approuvée"
 
         body = (
             f"Bonjour {first_name},\n\n"
@@ -50,15 +44,9 @@ def organizer_decision_email(
         return subject, body
 
     if decision == ORGANIZER_REJECTED:
-        subject = (
-            "[FANID] Décision concernant votre "
-            "demande organisateur"
-        )
+        subject = "[FANID] Décision concernant votre " "demande organisateur"
 
-        reason = (
-            organizer.rejection_reason
-            or "Aucun motif complémentaire n’a été fourni."
-        )
+        reason = organizer.rejection_reason or "Aucun motif complémentaire n’a été fourni."
 
         body = (
             f"Bonjour {first_name},\n\n"
@@ -76,10 +64,7 @@ def organizer_decision_email(
         return subject, body
 
     if decision == ORGANIZER_SUSPENDED:
-        subject = (
-            "[FANID] Votre compte organisateur "
-            "a été suspendu"
-        )
+        subject = "[FANID] Votre compte organisateur " "a été suspendu"
 
         body = (
             f"Bonjour {first_name},\n\n"
@@ -98,9 +83,7 @@ def organizer_decision_email(
 
         return subject, body
 
-    raise ValueError(
-        f"Décision organisateur non supportée : {decision!r}"
-    )
+    raise ValueError(f"Décision organisateur non supportée : {decision!r}")
 
 
 @shared_task(
@@ -121,11 +104,7 @@ def send_organizer_decision_email(
     """
 
     try:
-        organizer = (
-            Organizer.objects
-            .select_related("user")
-            .get(pk=organizer_id)
-        )
+        organizer = Organizer.objects.select_related("user").get(pk=organizer_id)
     except Organizer.DoesNotExist:
         logger.warning(
             "notifying.organizer.missing",

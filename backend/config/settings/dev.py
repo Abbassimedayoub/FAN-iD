@@ -16,3 +16,12 @@ SPECTACULAR_SETTINGS = {**SPECTACULAR_SETTINGS, "SERVE_PUBLIC": True}  # noqa: F
 OTEL_TRACES_SAMPLE_RATE = 1.0  # 100% en dev, §5.3 Source B
 
 NOTIFICATION_BACKEND = env("NOTIFICATION_BACKEND", default="console")
+
+
+# Local development origins for Django Admin / CSRF
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+]

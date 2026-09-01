@@ -81,12 +81,14 @@ SESSION_REVOKED_ROTATION_REUSE = "ROTATION_REUSE"
 SESSION_REVOKED_PASSWORD_CHANGE = "PASSWORD_CHANGE"
 SESSION_REVOKED_ADMIN = "ADMIN"
 SESSION_REVOKED_DEVICE_RESET = "DEVICE_RESET"
+SESSION_REVOKED_SCANNER_REMOVED = "SCANNER_REMOVED"
 SESSION_REVOKED_REASONS: tuple[str, ...] = (
     SESSION_REVOKED_LOGOUT,
     SESSION_REVOKED_ROTATION_REUSE,
     SESSION_REVOKED_PASSWORD_CHANGE,
     SESSION_REVOKED_ADMIN,
     SESSION_REVOKED_DEVICE_RESET,
+    SESSION_REVOKED_SCANNER_REMOVED,
 )
 
 # --------------------------------------------------------------------- MFA
@@ -94,11 +96,17 @@ SESSION_REVOKED_REASONS: tuple[str, ...] = (
 MFA_PURPOSE_DEVICE_RESET = "DEVICE_RESET"
 MFA_PURPOSE_STEP_UP = "STEP_UP"
 MFA_PURPOSE_EMAIL_CHANGE = "EMAIL_CHANGE"
+MFA_PURPOSE_PASSWORD_RESET = "PASSWORD_RESET"
 MFA_PURPOSES: tuple[str, ...] = (
     MFA_PURPOSE_DEVICE_RESET,
     MFA_PURPOSE_STEP_UP,
     MFA_PURPOSE_EMAIL_CHANGE,
+    MFA_PURPOSE_PASSWORD_RESET,
 )
+
+#: Mot de passe oublié : durée volontairement plus longue que le STEP_UP.
+#: Le lien magique et le code de secours partagent exactement cette expiration.
+PASSWORD_RESET_TTL_MINUTES = 15
 
 #: Le code n'est JAMAIS stocké en clair : seul son SHA-256 l'est (plan S1 §3.1).
 #: Ce format est verrouillé par une contrainte CHECK en base — un code à

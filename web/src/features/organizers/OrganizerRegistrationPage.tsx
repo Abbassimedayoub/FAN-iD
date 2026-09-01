@@ -76,7 +76,11 @@ const accountSchema = z
     password: z
       .string()
       .min(10, "Le mot de passe doit contenir au moins 10 caractères.")
-      .max(128, "Mot de passe trop long."),
+      .max(128, "Mot de passe trop long.")
+      .refine(
+        (value) => !/^\d+$/.test(value),
+        "Le mot de passe ne peut pas être entièrement numérique.",
+      ),
     passwordConfirmation: z.string().min(1, "Confirmez votre mot de passe."),
     termsAccepted: z
       .boolean()
@@ -119,6 +123,8 @@ function accountErrorMessage(error: unknown): string {
   switch (getErrorCode(error)) {
     case "EMAIL_ALREADY_EXISTS":
       return "Un compte existe déjà avec cette adresse e-mail.";
+    case "INVALID_CREDENTIALS":
+      return "Ce compte existe déjà, mais le mot de passe saisi est incorrect.";
     case "UNDERAGE":
       return "Vous devez avoir au moins 16 ans pour créer un compte.";
     case "TERMS_NOT_ACCEPTED":
@@ -158,6 +164,77 @@ function FieldError({ id, message }: { id: string; message: string | undefined }
     <p id={id} role="alert" className="mt-2 text-xs font-medium text-red-600">
       {message}
     </p>
+  );
+}
+
+function PasswordRule({
+  valid,
+  children,
+  serverOnly = false,
+}: {
+  valid?: boolean;
+  children: string;
+  serverOnly?: boolean;
+}) {
+  const active = valid === true;
+
+  return (
+    <li
+      className={[
+        "flex items-start gap-2 transition-colors",
+        active ? "text-emerald-700" : "text-navy/55",
+      ].join(" ")}
+    >
+      <span
+        aria-hidden="true"
+        className={[
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+          active ? "bg-emerald-100 text-emerald-700" : "bg-navy/5 text-navy/45",
+        ].join(" ")}
+      >
+        {active ? "✓" : serverOnly ? "◆" : "○"}
+      </span>
+
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function PasswordEyeIcon({ visible }: { visible: boolean }) {
+  if (visible) {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-5 w-5"
+      >
+        <path d="m3 3 18 18" />
+        <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
+        <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5.5 0 9.5 5 9.5 5a16.3 16.3 0 0 1-3 3.5" />
+        <path d="M6.6 6.6C4 8.3 2.5 11 2.5 11s4 5 9.5 5a10.6 10.6 0 0 0 4-.8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+    >
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   );
 }
 
@@ -207,6 +284,8 @@ export function OrganizerRegistrationPage() {
   const [storedAccount, setStoredAccount] = useState<StoredAccount | null>(null);
   const [accountApiError, setAccountApiError] = useState<string | null>(null);
   const [applicationApiError, setApplicationApiError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
 
   const accountForm = useForm<AccountValues>({
     resolver: zodResolver(accountSchema),
@@ -222,6 +301,13 @@ export function OrganizerRegistrationPage() {
     },
   });
 
+  const password = accountForm.watch("password");
+  const passwordConfirmation = accountForm.watch("passwordConfirmation");
+
+  const hasMinimumLength = password.length >= 10;
+  const isNotOnlyNumeric = password.length > 0 && !/^\d+$/.test(password);
+  const confirmationMatches = passwordConfirmation.length > 0 && password === passwordConfirmation;
+
   const organizationForm = useForm<OrganizationValues>({
     resolver: zodResolver(organizationSchema),
     defaultValues: {
@@ -235,7 +321,7 @@ export function OrganizerRegistrationPage() {
     setAccountApiError(null);
 
     try {
-      await registerOrganizerAccount({
+      const accountUser = await registerOrganizerAccount({
         email: values.email.trim(),
         password: values.password,
         first_name: values.firstName.trim(),
@@ -244,6 +330,19 @@ export function OrganizerRegistrationPage() {
         terms_accepted: values.termsAccepted,
         ...(values.phone.trim() ? { phone: values.phone.trim() } : {}),
       });
+
+      if (accountUser.role === "ORGANIZER") {
+        authenticate(accountUser);
+
+        navigate("/organizer", {
+          replace: true,
+          state: {
+            existingOrganizerAccount: true,
+          },
+        });
+
+        return;
+      }
 
       setStoredAccount({
         email: values.email.trim(),
@@ -489,18 +588,71 @@ export function OrganizerRegistrationPage() {
                       >
                         Mot de passe
                       </label>
-                      <Input
-                        id="organizer-password"
-                        type="password"
-                        autoComplete="new-password"
-                        className="min-h-[50px] w-full"
-                        aria-invalid={accountForm.formState.errors.password ? "true" : "false"}
-                        {...accountForm.register("password")}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="organizer-password"
+                          type={showPassword ? "text" : "password"}
+                          autoComplete="new-password"
+                          maxLength={128}
+                          placeholder="••••••••••••"
+                          aria-invalid={accountForm.formState.errors.password ? "true" : "false"}
+                          aria-describedby={
+                            accountForm.formState.errors.password
+                              ? "organizer-password-error organizer-password-rules"
+                              : "organizer-password-rules"
+                          }
+                          className="w-full pr-14"
+                          {...accountForm.register("password")}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((visible) => !visible)}
+                          aria-label={
+                            showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"
+                          }
+                          aria-pressed={showPassword}
+                          aria-controls="organizer-password"
+                          className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-navy/60 transition hover:bg-navy/5 hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        >
+                          <PasswordEyeIcon visible={showPassword} />
+                        </button>
+                      </div>
                       <FieldError
                         id="organizer-password-error"
                         message={accountForm.formState.errors.password?.message}
                       />
+                      <div
+                        id="organizer-password-rules"
+                        className="mt-4 rounded-2xl border border-[#e2e9f0] bg-[#f8fafc] p-4"
+                      >
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-navy/55">
+                          Conditions du mot de passe
+                        </p>
+
+                        <ul className="mt-3 space-y-2 text-sm">
+                          <PasswordRule valid={hasMinimumLength}>
+                            Contenir au moins 10 caractères.
+                          </PasswordRule>
+
+                          <PasswordRule valid={isNotOnlyNumeric}>
+                            Ne pas être entièrement numérique.
+                          </PasswordRule>
+
+                          <PasswordRule serverOnly>
+                            Ne pas être trop similaire à votre adresse e-mail, votre prénom ou votre
+                            nom.
+                          </PasswordRule>
+
+                          <PasswordRule serverOnly>
+                            Ne pas être un mot de passe couramment utilisé.
+                          </PasswordRule>
+                        </ul>
+
+                        <p className="mt-4 text-xs leading-5 text-navy/40">
+                          ◆ Vérifié exactement par Django lors de la création du compte.
+                        </p>
+                      </div>
                     </div>
 
                     <div>
@@ -510,20 +662,64 @@ export function OrganizerRegistrationPage() {
                       >
                         Confirmer le mot de passe
                       </label>
-                      <Input
-                        id="organizer-password-confirmation"
-                        type="password"
-                        autoComplete="new-password"
-                        className="min-h-[50px] w-full"
-                        aria-invalid={
-                          accountForm.formState.errors.passwordConfirmation ? "true" : "false"
-                        }
-                        {...accountForm.register("passwordConfirmation")}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="organizer-password-confirmation"
+                          type={showPasswordConfirmation ? "text" : "password"}
+                          autoComplete="new-password"
+                          maxLength={128}
+                          placeholder="••••••••••••"
+                          aria-invalid={
+                            accountForm.formState.errors.passwordConfirmation ? "true" : "false"
+                          }
+                          aria-describedby={
+                            [
+                              accountForm.formState.errors.passwordConfirmation
+                                ? "organizer-password-confirmation-error"
+                                : null,
+                              passwordConfirmation.length > 0
+                                ? "organizer-password-confirmation-status"
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" ") || undefined
+                          }
+                          className="w-full pr-14"
+                          {...accountForm.register("passwordConfirmation")}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordConfirmation((visible) => !visible)}
+                          aria-label={
+                            showPasswordConfirmation
+                              ? "Masquer la confirmation du mot de passe"
+                              : "Afficher la confirmation du mot de passe"
+                          }
+                          aria-pressed={showPasswordConfirmation}
+                          aria-controls="organizer-password-confirmation"
+                          className="absolute right-1 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-lg text-navy/60 transition hover:bg-navy/5 hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        >
+                          <PasswordEyeIcon visible={showPasswordConfirmation} />
+                        </button>
+                      </div>
                       <FieldError
                         id="organizer-password-confirmation-error"
                         message={accountForm.formState.errors.passwordConfirmation?.message}
                       />
+                      {passwordConfirmation.length > 0 ? (
+                        <p
+                          id="organizer-password-confirmation-status"
+                          className={[
+                            "mt-2 text-xs font-semibold",
+                            confirmationMatches ? "text-emerald-700" : "text-amber-700",
+                          ].join(" ")}
+                        >
+                          {confirmationMatches
+                            ? "✓ Les deux mots de passe correspondent."
+                            : "○ Les deux mots de passe ne correspondent pas encore."}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 

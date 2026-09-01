@@ -3,10 +3,15 @@ Routes racine. Au Sprint 0 : uniquement les 4 endpoints plateforme (§3.2 Source
 Aucune route métier — les bounded contexts n'exposent rien avant leur sprint.
 """
 
+from django.conf import settings
+from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+import config.admin_autoregister  # noqa: F401
+
 urlpatterns = [
+    path("admin/", admin.site.urls),
     path("", include("django_prometheus.urls")),
     path("api/v1/", include("apps.core.urls")),
     path("api/v1/", include("apps.catalog.urls")),
@@ -21,3 +26,10 @@ urlpatterns = [
         name="swagger-ui",
     ),
 ]
+
+if settings.DEBUG and "debug_toolbar" in settings.INSTALLED_APPS:
+    import debug_toolbar
+
+    urlpatterns += [
+        path("__debug__/", include(debug_toolbar.urls)),
+    ]

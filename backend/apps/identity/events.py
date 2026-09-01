@@ -99,3 +99,63 @@ def device_reset_confirmed_payload(*, device_revoked: bool, sessions_revoked: in
     la lecture, puisque la ligne est revoquee.
     """
     return {"device_revoked": device_revoked, "sessions_revoked": sessions_revoked}
+
+
+#: Demande réelle de récupération de mot de passe.
+#: Aucun e-mail, code ou jeton n'est copié dans l'Outbox.
+PASSWORD_RESET_REQUESTED: Final = "identity.password.reset.requested"
+
+
+def password_reset_requested_payload(
+    *,
+    challenge_id: Any,
+) -> dict[str, Any]:
+    return {
+        "challenge_id": str(challenge_id),
+    }
+
+
+#: Mot de passe effectivement réinitialisé.
+PASSWORD_RESET_COMPLETED: Final = "identity.password.reset.completed"
+
+
+def password_reset_completed_payload(
+    *,
+    sessions_revoked: int,
+) -> dict[str, Any]:
+    return {
+        "sessions_revoked": sessions_revoked,
+    }
+
+
+#: Mot de passe effectivement modifié depuis
+#: une session authentifiée.
+USER_PASSWORD_CHANGED: Final = "identity.user.password_changed"
+
+
+def user_password_changed_payload(
+    *,
+    temporary_credential_replaced: bool,
+) -> dict[str, Any]:
+    """
+    Aucun secret dans l'Outbox.
+
+    Le booléen indique si ce changement termine
+    l'activation initiale d'un scanner.
+    """
+
+    return {
+        "temporary_credential_replaced": (temporary_credential_replaced),
+    }
+
+
+USER_PROFILE_UPDATED = "identity.user.profile_updated"
+
+
+def user_profile_updated_payload(
+    *,
+    changed_fields: list[str],
+) -> dict[str, object]:
+    return {
+        "changed_fields": sorted(set(changed_fields)),
+    }

@@ -9,6 +9,13 @@ class NotifyingConfig(AppConfig):
         from apps.core.outbox.relay import register_consumer
 
         from .consumers import OrganizerDecisionEmailConsumer
+        from .event_scanner_consumers import (
+            EventScannerNotificationConsumer,
+        )
 
         register_consumer(OrganizerDecisionEmailConsumer())
+        register_consumer(
+            EventScannerNotificationConsumer()
+        )
+
     label = "notifying"

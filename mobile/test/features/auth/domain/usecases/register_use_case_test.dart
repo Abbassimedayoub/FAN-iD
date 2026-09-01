@@ -5,6 +5,9 @@ import 'package:fanid_mobile/features/auth/domain/usecases/register_use_case.dar
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthRepository implements AuthRepository {
+  @override
+  Future<void> requestScannerLeave() async {}
+
   String? email;
   String? password;
   String? firstName;

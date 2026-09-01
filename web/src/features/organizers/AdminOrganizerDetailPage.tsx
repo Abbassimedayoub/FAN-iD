@@ -9,6 +9,8 @@ import {
   type OrganizerActionFeedback,
   type OrganizerActionReopen,
 } from "./AdminOrganizerDetailView";
+import { AdminOrganizerReactivationPanel } from "./AdminOrganizerReactivationPanel";
+import { AdminOrganizerEventsPanel } from "./AdminOrganizerEventsPanel";
 import { useOrganizer } from "./useOrganizer";
 import {
   useApproveOrganizer,
@@ -203,61 +205,70 @@ export function AdminOrganizerDetailPage() {
   const currentVersion = query.data?.version;
 
   return (
-    <AdminOrganizerDetailView
-      data={query.data}
-      isPending={query.isPending}
-      isFetching={query.isFetching}
-      error={query.isError ? query.error : null}
-      onRetry={() => {
-        void query.refetch();
-      }}
-      onBack={() => {
-        navigate("/admin/organizers");
-      }}
-      actions={{
-        isPending: isActionPending,
-        feedback,
-        isStaleResource,
-        reopenAction,
-        onClearReopenAction: () => setReopenAction(null),
-        onApprove: () => {
-          if (currentVersion == null) return Promise.resolve(false);
+    <>
+      <AdminOrganizerDetailView
+        data={query.data}
+        isPending={query.isPending}
+        isFetching={query.isFetching}
+        error={query.isError ? query.error : null}
+        onRetry={() => {
+          void query.refetch();
+        }}
+        onBack={() => {
+          navigate("/admin/organizers");
+        }}
+        actions={{
+          isPending: isActionPending,
+          feedback,
+          isStaleResource,
+          reopenAction,
+          onClearReopenAction: () => setReopenAction(null),
+          onApprove: () => {
+            if (currentVersion == null) return Promise.resolve(false);
 
-          return runAction({
-            kind: "approve",
-            version: currentVersion,
-            successMessage: "Demande approuvée.",
-          });
-        },
-        onReject: (reason) => {
-          if (currentVersion == null) return Promise.resolve(false);
+            return runAction({
+              kind: "approve",
+              version: currentVersion,
+              successMessage: "Demande approuvée.",
+            });
+          },
+          onReject: (reason) => {
+            if (currentVersion == null) return Promise.resolve(false);
 
-          return runAction({
-            kind: "reject",
-            version: currentVersion,
-            reason,
-            successMessage: "Demande rejetée.",
-          });
-        },
-        onSuspend: () => {
-          if (currentVersion == null) return Promise.resolve(false);
+            return runAction({
+              kind: "reject",
+              version: currentVersion,
+              reason,
+              successMessage: "Demande rejetée.",
+            });
+          },
+          onSuspend: () => {
+            if (currentVersion == null) return Promise.resolve(false);
 
-          return runAction({
-            kind: "suspend",
-            version: currentVersion,
-            successMessage: "Organisateur suspendu.",
-          });
-        },
-        onReloadStale: reloadStaleResource,
-        stepUp: stepUpState
-          ? {
-              expiresInSeconds: stepUpState.challenge.expires_in_seconds,
-              error: stepUpError,
-              onClose: closeStepUp,
-              onConfirm: (code) => confirmPendingStepUp(stepUpState, code),
-            }
-          : undefined,
-      }}
-    />
+            return runAction({
+              kind: "suspend",
+              version: currentVersion,
+              successMessage: "Organisateur suspendu.",
+            });
+          },
+          onReloadStale: reloadStaleResource,
+          stepUp: stepUpState
+            ? {
+                expiresInSeconds: stepUpState.challenge.expires_in_seconds,
+                error: stepUpError,
+                onClose: closeStepUp,
+                onConfirm: (code) => confirmPendingStepUp(stepUpState, code),
+              }
+            : undefined,
+        }}
+      />
+
+      {query.data ? (
+        <>
+          <AdminOrganizerEventsPanel organizerId={query.data.id} />
+          <AdminOrganizerReactivationPanel organizer={query.data} />
+        </>
+      ) : null}
+    </>
   );
 }

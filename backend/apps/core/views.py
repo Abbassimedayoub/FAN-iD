@@ -89,6 +89,7 @@ class ReadinessView(View):
             "database": self._check_database(timeout),
             "redis": self._check_redis(timeout),
             "celery": self._check_celery(timeout),
+            "outbox": self._check_outbox(),
         }
 
         db_ok = checks["database"]["status"] == "ok"
@@ -165,6 +166,69 @@ class ReadinessView(View):
         except Exception:
             logger.warning("readiness_redis_check_failed", exc_info=True)
             return {"status": "degraded", "detail": _GENERIC_UNAVAILABLE_DETAIL}
+
+
+    @staticmethod
+    def _check_outbox() -> dict:
+        """
+        Signale une file Outbox qui ne progresse plus.
+
+        Une file active peut contenir brièvement des événements PENDING ou
+        FAILED. Elle devient dégradée uniquement lorsqu'un événement dépasse
+        OUTBOX_STUCK_AFTER_SECONDS, ou lorsqu'un événement DEAD existe.
+        """
+        try:
+            from datetime import timedelta
+
+            from django.utils import timezone
+
+            from apps.core.outbox.models import OutboxEvent
+
+            dead_count = OutboxEvent.objects.filter(
+                status=OutboxEvent.Status.DEAD,
+            ).count()
+
+            if dead_count:
+                return {
+                    "status": "degraded",
+                    "detail": "dead events detected",
+                    "dead": dead_count,
+                }
+
+            cutoff = (
+                timezone.now()
+                - timedelta(
+                    seconds=settings.OUTBOX_STUCK_AFTER_SECONDS,
+                )
+            )
+
+            stuck_count = OutboxEvent.objects.filter(
+                status__in=[
+                    OutboxEvent.Status.PENDING,
+                    OutboxEvent.Status.FAILED,
+                ],
+                occurred_at__lt=cutoff,
+            ).count()
+
+            if stuck_count:
+                return {
+                    "status": "degraded",
+                    "detail": "stuck events detected",
+                    "stuck": stuck_count,
+                }
+
+            return {
+                "status": "ok",
+            }
+        except Exception:
+            logger.warning(
+                "readiness_outbox_check_failed",
+                exc_info=True,
+            )
+            return {
+                "status": "degraded",
+                "detail": _GENERIC_UNAVAILABLE_DETAIL,
+            }
 
     @staticmethod
     def _check_celery(timeout: float) -> dict:
