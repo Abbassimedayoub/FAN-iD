@@ -554,7 +554,9 @@ describe("AdminOrganizerDetailPage step-up", () => {
 
     expect(await screen.findByRole("dialog", { name: "Rejeter la demande" })).toBeInTheDocument();
 
-    expect(screen.getByLabelText("Motif du rejet")).toHaveValue("Pièce justificative manquante");
+    await waitFor(() => {
+      expect(screen.getByLabelText("Motif du rejet")).toHaveValue("Pièce justificative manquante");
+    });
 
     expect(rejectPayloads).toEqual([
       JSON.stringify({
