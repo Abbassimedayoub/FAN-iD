@@ -315,9 +315,10 @@ describe("SessionsPage", () => {
 
     expect(queryClient.getQueryData(previousAccountQueryKey)).toBeUndefined();
 
-    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
-
-    expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+    await waitFor(() => {
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+    });
   });
 
   it("permet de réessayer la liste après une erreur serveur", async () => {

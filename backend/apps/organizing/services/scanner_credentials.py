@@ -3,23 +3,13 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from django.db import (
-    IntegrityError,
-    transaction,
-)
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    NotFoundBusinessError,
-)
-from apps.core.outbox.publisher import (
-    publish_event,
-)
-from apps.identity.api import (
-    rotate_scanner_temporary_password,
-)
+from apps.core.exceptions import ConflictError, NotFoundBusinessError
+from apps.core.outbox.publisher import publish_event
+from apps.identity.api import rotate_scanner_temporary_password
 
 from ..constants import (
     SCANNER_CREDENTIAL_REQUEST_FULFILLED,
@@ -34,11 +24,7 @@ from ..events import (
     scanner_password_help_requested_payload,
     scanner_temp_password_reissued_payload,
 )
-from ..models import (
-    Organizer,
-    Scanner,
-    ScannerCredentialRequest,
-)
+from ..models import Organizer, Scanner, ScannerCredentialRequest
 
 
 class ScannerCredentialService:

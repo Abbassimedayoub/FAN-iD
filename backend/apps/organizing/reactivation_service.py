@@ -6,10 +6,7 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    NotFoundBusinessError,
-)
+from apps.core.exceptions import ConflictError, NotFoundBusinessError
 
 from .constants import ORGANIZER_SUSPENDED
 from .models import Organizer, OrganizerReactivationRequest
@@ -19,9 +16,7 @@ from .services.onboarding import OrganizerOnboardingService
 def _schedule_requested_email(
     request_id: uuid.UUID,
 ) -> None:
-    from .reactivation_tasks import (
-        send_reactivation_requested_emails,
-    )
+    from .reactivation_tasks import send_reactivation_requested_emails
 
     request_id_text = str(request_id)
 
@@ -35,9 +30,7 @@ def _schedule_requested_email(
 def _schedule_decision_email(
     request_id: uuid.UUID,
 ) -> None:
-    from .reactivation_tasks import (
-        send_reactivation_decision_emails,
-    )
+    from .reactivation_tasks import send_reactivation_decision_emails
 
     request_id_text = str(request_id)
 

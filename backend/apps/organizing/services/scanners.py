@@ -3,20 +3,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from django.db import (
-    IntegrityError,
-    transaction,
-)
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    NotFoundBusinessError,
-    StaleResourceError,
-)
-from apps.core.outbox.publisher import (
-    publish_event,
-)
+from apps.core.exceptions import ConflictError, NotFoundBusinessError, StaleResourceError
+from apps.core.outbox.publisher import publish_event
 from apps.identity.api import (
     create_invited_scanner_account,
     deactivate_scanner_account,
@@ -35,11 +26,11 @@ from ..constants import (
 )
 from ..events import (
     AGGREGATE_SCANNER,
-    SCANNER_INVITED_EVENT,
     SCANNER_INVITATION_REISSUED_EVENT,
+    SCANNER_INVITED_EVENT,
     SCANNER_REVOKED_EVENT,
-    scanner_invited_payload,
     scanner_invitation_reissued_payload,
+    scanner_invited_payload,
     scanner_revoked_payload,
 )
 from ..models import Organizer, Scanner

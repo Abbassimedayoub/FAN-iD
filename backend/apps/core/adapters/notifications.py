@@ -1,17 +1,13 @@
-from email.mime.image import MIMEImage
 import logging
 import os
+from email.mime.image import MIMEImage
 from typing import Any
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import EmailMultiAlternatives, get_connection
 
-from apps.core.email_branding import (
-    FANID_LOGO_CID,
-    load_fanid_logo_bytes,
-    render_fanid_email_html,
-)
+from apps.core.email_branding import FANID_LOGO_CID, load_fanid_logo_bytes, render_fanid_email_html
 from apps.core.interfaces import NotificationSender
 
 logger = logging.getLogger("fanid.core")

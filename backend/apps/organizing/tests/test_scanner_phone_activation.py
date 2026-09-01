@@ -8,18 +8,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.core.outbox.models import OutboxEvent
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    SCANNER_ACTIVE,
-    SCANNER_OPENED,
-)
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-)
-from apps.organizing.scanner_consumers import (
-    activate_scanner_if_ready,
-)
+from apps.organizing.constants import ORGANIZER_APPROVED, SCANNER_ACTIVE, SCANNER_OPENED
+from apps.organizing.models import Organizer, Scanner
+from apps.organizing.scanner_consumers import activate_scanner_if_ready
 
 User = get_user_model()
 

@@ -8,15 +8,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.catalog.events import (
-    CATALOG_EVENT_CANCELLED,
-    CATALOG_EVENT_POSTPONED,
-    CATALOG_EVENT_SUSPENDED,
-)
-from apps.catalog.models import (
-    Category,
-    Event,
-)
+from apps.catalog.events import CATALOG_EVENT_CANCELLED, CATALOG_EVENT_POSTPONED, CATALOG_EVENT_SUSPENDED
+from apps.catalog.models import Category, Event
 from apps.core.outbox.models import OutboxEvent
 
 User = get_user_model()

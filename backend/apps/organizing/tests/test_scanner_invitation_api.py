@@ -9,19 +9,10 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.adapters.notifications import (
-    InMemorySender,
-)
-from apps.core.outbox.models import (
-    OutboxEvent,
-)
-from apps.identity.api import (
-    USER_PASSWORD_CHANGED,
-    derive_scanner_temporary_password,
-)
-from apps.organizing.api import (
-    resolve_organizer_context,
-)
+from apps.core.adapters.notifications import InMemorySender
+from apps.core.outbox.models import OutboxEvent
+from apps.identity.api import USER_PASSWORD_CHANGED, derive_scanner_temporary_password
+from apps.organizing.api import resolve_organizer_context
 from apps.organizing.constants import (
     ORGANIZER_APPROVED,
     ORGANIZER_PENDING,
@@ -29,19 +20,10 @@ from apps.organizing.constants import (
     SCANNER_EMAIL_SENT,
     SCANNER_OPENED,
 )
-from apps.organizing.events import (
-    SCANNER_INVITED_EVENT,
-)
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-)
-from apps.organizing.scanner_consumers import (
-    ScannerLifecycleConsumer,
-)
-from apps.organizing.scanner_tasks import (
-    send_scanner_invitation_emails,
-)
+from apps.organizing.events import SCANNER_INVITED_EVENT
+from apps.organizing.models import Organizer, Scanner
+from apps.organizing.scanner_consumers import ScannerLifecycleConsumer
+from apps.organizing.scanner_tasks import send_scanner_invitation_emails
 
 User = get_user_model()
 

@@ -2,11 +2,7 @@ from __future__ import annotations
 
 from apps.core.outbox.consumer import BaseConsumer
 from apps.core.outbox.models import OutboxEvent
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    ORGANIZER_REJECTED,
-    ORGANIZER_SUSPENDED,
-)
+from apps.organizing.constants import ORGANIZER_APPROVED, ORGANIZER_REJECTED, ORGANIZER_SUSPENDED
 from apps.organizing.events import (
     ORGANIZER_APPROVED_EVENT,
     ORGANIZER_REJECTED_EVENT,

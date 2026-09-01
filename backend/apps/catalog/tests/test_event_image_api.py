@@ -6,20 +6,12 @@ import io
 import pytest
 from django.apps import apps
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import (
-    SimpleUploadedFile,
-)
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.catalog.models import (
-    Category,
-    Event,
-)
-from apps.core.adapters.storage import (
-    InMemoryStorage,
-    LocalStorage,
-)
+from apps.catalog.models import Category, Event
+from apps.core.adapters.storage import InMemoryStorage, LocalStorage
 
 User = get_user_model()
 

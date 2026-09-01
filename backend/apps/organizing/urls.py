@@ -6,36 +6,22 @@ Aucune barre oblique finale, par coherence avec le reste de l API.
 
 from django.urls import path
 
-from .scanner_archive_views import (
-    OrganizerScannerBulkArchiveView,
-)
-
+from .reactivation_views import OrganizerReactivationRequestView
+from .scanner_archive_views import OrganizerScannerBulkArchiveView
+from .scanner_credential_views import OrganizerScannerPasswordReissueView, ScannerPasswordHelpRequestView
+from .scanner_invitation_views import OrganizerScannerInvitationResendView
 from .scanner_leave_views import (
-    ScannerLeaveSecurityCodeView,
     OrganizerScannerLeaveDecisionView,
     ScannerLeaveRequestView,
+    ScannerLeaveSecurityCodeView,
 )
-
-from .scanner_invitation_views import (
-    OrganizerScannerInvitationResendView,
-)
-
-from .scanner_credential_views import (
-    OrganizerScannerPasswordReissueView,
-    ScannerPasswordHelpRequestView,
-)
-
-from .views import (
-    OrganizerApplyView,
-    OrganizerMeView,
-)
-from .reactivation_views import OrganizerReactivationRequestView
 from .scanner_security_views import OrganizerScannerSecurityCodeView
 from .scanner_views import (
     OrganizerArchivedScannerCollectionView,
     OrganizerScannerCollectionView,
     OrganizerScannerDetailView,
 )
+from .views import OrganizerApplyView, OrganizerMeView
 
 app_name = "organizing"
 

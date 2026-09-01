@@ -6,10 +6,7 @@ import uuid
 from typing import Any
 
 from django.core import signing
-from django.db import (
-    IntegrityError,
-    transaction,
-)
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
 from django.http import FileResponse
 from django.utils import timezone
@@ -22,16 +19,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.adapters.storage import (
-    LocalStorage,
-    build_object_storage,
-    resolve_local_presigned_key,
-)
-from apps.core.concurrency import (
-    format_etag,
-    parse_if_match,
-    versioned_update,
-)
+from apps.core.adapters.storage import LocalStorage, build_object_storage, resolve_local_presigned_key
+from apps.core.concurrency import format_etag, parse_if_match, versioned_update
 from apps.core.exceptions import (
     ConflictError,
     InvalidStateTransitionError,
@@ -39,14 +28,9 @@ from apps.core.exceptions import (
     StaleResourceError,
 )
 from apps.core.openapi import ERROR_RESPONSE
-from apps.core.pagination import StandardPagination
 from apps.core.outbox.publisher import publish_event
-from apps.identity.api import (
-    Action,
-    ActionPermission,
-    IsApprovedOrganizer,
-    Resource,
-)
+from apps.core.pagination import StandardPagination
+from apps.identity.api import Action, ActionPermission, IsApprovedOrganizer, Resource
 from apps.organizing.api import (
     get_scanner_assignment_summary,
     list_scanner_assignment_summaries,
@@ -62,38 +46,33 @@ from .events import (
     event_lifecycle_payload,
     event_status_payload,
 )
-from .models import (
-    Category,
-    Event,
-    EventScannerAssignment,
-    TicketCategory,
-)
+from .models import Category, Event, EventScannerAssignment, TicketCategory
 from .permissions import (
     CategoryCollectionPermission,
     CategoryResourcePermission,
     EventArchivePermission,
-    EventUnarchivePermission,
     EventCancelPermission,
     EventCollectionPermission,
     EventImagePermission,
     EventPostponePermission,
     EventPublishPermission,
     EventResourcePermission,
-    EventSuspendPermission,
     EventScannerAssignmentPermission,
+    EventSuspendPermission,
+    EventUnarchivePermission,
     TicketCategoryCollectionPermission,
     TicketCategoryResourcePermission,
 )
 from .serializers import (
-    CategoryWriteSerializer,
     CategorySerializer,
+    CategoryWriteSerializer,
     EventCancelSerializer,
     EventPostponeSerializer,
+    EventScannerAssignmentSerializer,
+    EventScannerAssignSerializer,
     EventSerializer,
     EventSuspendSerializer,
     EventWriteSerializer,
-    EventScannerAssignSerializer,
-    EventScannerAssignmentSerializer,
     TicketCategorySerializer,
     TicketCategoryWriteSerializer,
 )

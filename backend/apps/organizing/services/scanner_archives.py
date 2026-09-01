@@ -5,16 +5,9 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    NotFoundBusinessError,
-    StaleResourceError,
-)
+from apps.core.exceptions import ConflictError, NotFoundBusinessError, StaleResourceError
 
-from ..constants import (
-    SCANNER_DELETED,
-    SCANNER_INVITATION_CANCELLED,
-)
+from ..constants import SCANNER_DELETED, SCANNER_INVITATION_CANCELLED
 from ..models import Organizer, Scanner
 
 

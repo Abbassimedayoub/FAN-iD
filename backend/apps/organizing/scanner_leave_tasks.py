@@ -7,10 +7,7 @@ from django.utils import timezone
 
 from apps.core.adapters.notifications import build_notification_sender
 
-from .constants import (
-    SCANNER_ACTIVE,
-    SCANNER_LEAVE_REQUESTED,
-)
+from .constants import SCANNER_ACTIVE, SCANNER_LEAVE_REQUESTED
 from .models import Scanner
 
 

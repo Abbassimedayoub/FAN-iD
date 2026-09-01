@@ -6,15 +6,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    SCANNER_ACTIVE,
-)
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-    ScannerRevocationChallenge,
-)
+from apps.organizing.constants import ORGANIZER_APPROVED, SCANNER_ACTIVE
+from apps.organizing.models import Organizer, Scanner, ScannerRevocationChallenge
 from apps.organizing.scanner_security import (
     SCANNER_SECURITY_ACTION_REVOKE,
     SCANNER_SECURITY_OTP_MAX_ATTEMPTS,

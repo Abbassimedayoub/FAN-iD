@@ -9,22 +9,11 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
+from apps.core.adapters.notifications import build_notification_sender
 
-from .constants import (
-    MFA_PURPOSE_PASSWORD_RESET,
-    PASSWORD_RESET_TTL_MINUTES,
-)
-from .models import (
-    MfaChallenge,
-    User,
-)
-from .services.password_reset import (
-    build_password_reset_magic_token,
-    derive_password_reset_code,
-)
+from .constants import MFA_PURPOSE_PASSWORD_RESET, PASSWORD_RESET_TTL_MINUTES
+from .models import MfaChallenge, User
+from .services.password_reset import build_password_reset_magic_token, derive_password_reset_code
 
 logger = logging.getLogger("fanid.identity")
 

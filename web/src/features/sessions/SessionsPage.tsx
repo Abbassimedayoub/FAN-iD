@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AdminShell } from "@/components/AdminShell";
@@ -16,17 +16,11 @@ export function SessionsPage() {
   const queryClient = useQueryClient();
   const { clearAuthentication, user } = useAuth();
   const query = useSessions();
-  const clearCacheOnUnmount = useRef(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
 
   useEffect(() => {
     return () => {
-      if (clearCacheOnUnmount.current) {
-        queryClient.clear();
-        return;
-      }
-
       queryClient.removeQueries({
         queryKey: sessionsQueryKey,
         exact: true,
@@ -34,11 +28,22 @@ export function SessionsPage() {
     };
   }, [queryClient]);
 
+  async function clearSessionAndRedirect(): Promise<void> {
+    await queryClient.cancelQueries();
+
+    queryClient.removeQueries({
+      predicate: (query) => !(query.queryKey[0] === "auth" && query.queryKey[1] === "sessions"),
+    });
+
+    queryClient.getMutationCache().clear();
+
+    clearAuthentication();
+    navigate("/login", { replace: true });
+  }
+
   const revokeMutation = useRevokeSession({
     onCurrentSessionRevoked: () => {
-      clearCacheOnUnmount.current = true;
-      clearAuthentication();
-      navigate("/login", { replace: true });
+      void clearSessionAndRedirect();
     },
   });
 
@@ -69,10 +74,7 @@ export function SessionsPage() {
 
     try {
       await logoutWeb();
-
-      clearCacheOnUnmount.current = true;
-      clearAuthentication();
-      navigate("/login", { replace: true });
+      await clearSessionAndRedirect();
     } catch {
       setLogoutError(true);
       setLogoutPending(false);

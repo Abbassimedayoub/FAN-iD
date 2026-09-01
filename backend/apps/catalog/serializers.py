@@ -6,11 +6,7 @@ from rest_framework import serializers
 
 from apps.core.adapters.storage import build_object_storage
 
-from .models import (
-    Category,
-    Event,
-    TicketCategory,
-)
+from .models import Category, Event
 
 EVENT_IMAGE_URL_TTL_SECONDS = 300
 

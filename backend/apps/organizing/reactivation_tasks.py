@@ -4,13 +4,11 @@ import uuid
 from typing import Any, Iterable
 
 from celery import shared_task
-from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
+from apps.core.adapters.notifications import build_notification_sender
 
 from .models import OrganizerReactivationRequest
 

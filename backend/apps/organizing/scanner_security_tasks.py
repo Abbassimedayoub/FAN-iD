@@ -6,9 +6,7 @@ from typing import Any
 from celery import shared_task
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
+from apps.core.adapters.notifications import build_notification_sender
 
 from .models import ScannerRevocationChallenge
 from .scanner_security import (

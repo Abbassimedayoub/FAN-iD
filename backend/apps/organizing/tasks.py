@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 # FANID_ORGANIZER_REACTIVATION_TASKS
-from .reactivation_tasks import (
-    send_reactivation_decision_emails,
-    send_reactivation_requested_emails,
-)
+from .reactivation_tasks import send_reactivation_decision_emails, send_reactivation_requested_emails
 
 __all__ = [
     "send_reactivation_decision_emails",

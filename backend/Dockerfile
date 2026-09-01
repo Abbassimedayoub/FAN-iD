@@ -68,7 +68,7 @@ RUN apt-get update \
 
 COPY requirements/ requirements/
 
-RUN python -m pip install --no-cache-dir --user -r requirements/prod.txt
+RUN python -m pip install --no-cache-dir --prefix=/install -r requirements/prod.txt
 
 
 FROM base AS prod
@@ -76,16 +76,11 @@ FROM base AS prod
 RUN groupadd -r fanid \
     && useradd -r -g fanid fanid
 
-COPY --from=prod-builder /root/.local /root/.local
+COPY --from=prod-builder /install /usr/local
 
-ENV PATH=/root/.local/bin:$PATH
+COPY --chown=fanid:fanid . .
 
-COPY . .
-
-COPY docker/entrypoint.sh /app/docker/entrypoint.sh
-
-RUN chmod +x /app/docker/entrypoint.sh \
-    && chown -R fanid:fanid /app
+RUN chmod +x /app/docker/entrypoint.sh
 
 USER fanid
 

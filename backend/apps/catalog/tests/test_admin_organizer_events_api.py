@@ -1,27 +1,15 @@
 from __future__ import annotations
 
-from datetime import (
-    date,
-    timedelta,
-)
+from datetime import date, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.urls import resolve
 from django.utils import timezone
-from rest_framework.test import (
-    APIRequestFactory,
-    force_authenticate,
-)
+from rest_framework.test import APIRequestFactory, force_authenticate
 
-from apps.catalog.models import (
-    Category,
-    Event,
-    TicketCategory,
-)
-from apps.catalog.views import (
-    AdminOrganizerEventListView,
-)
+from apps.catalog.models import Category, Event, TicketCategory
+from apps.catalog.views import AdminOrganizerEventListView
 
 User = get_user_model()
 

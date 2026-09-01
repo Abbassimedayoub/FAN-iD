@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import pytest
 
 from apps.core.adapters import notifications
-from apps.core.adapters.notifications import (
-    ConsoleSender,
-    SmtpSender,
-)
-from apps.core.email_branding import (
-    FANID_LOGO_CID,
-    load_fanid_logo_bytes,
-    render_fanid_email_html,
-)
+from apps.core.adapters.notifications import ConsoleSender, SmtpSender
+from apps.core.email_branding import FANID_LOGO_CID, load_fanid_logo_bytes, render_fanid_email_html
 
 
 @pytest.mark.parametrize(

@@ -6,7 +6,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 import boto3
 from django.conf import settings
@@ -158,7 +158,7 @@ class S3Storage(ObjectStorage):
         *,
         bucket: str,
         region: str,
-        client=None,
+        client: Any | None = None,
     ) -> None:
         if not bucket:
             raise ImproperlyConfigured("AWS_S3_BUCKET est requis.")

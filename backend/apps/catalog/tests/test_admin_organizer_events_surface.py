@@ -4,9 +4,7 @@ import uuid
 
 from django.urls import resolve
 
-from apps.catalog.views import (
-    AdminOrganizerEventListView,
-)
+from apps.catalog.views import AdminOrganizerEventListView
 from apps.identity.api import Action
 
 

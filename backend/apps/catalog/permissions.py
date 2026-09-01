@@ -4,11 +4,7 @@ from typing import Any
 
 from rest_framework.permissions import SAFE_METHODS
 
-from apps.identity.api import (
-    Action,
-    ActionPermission,
-    OrganizerResourcePermission,
-)
+from apps.identity.api import Action, ActionPermission, OrganizerResourcePermission
 
 
 class CategoryCollectionPermission(ActionPermission):

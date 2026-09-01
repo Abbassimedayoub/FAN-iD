@@ -5,43 +5,23 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import (
-    IsAuthenticated,
-)
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.concurrency import parse_if_match
-from apps.core.exceptions import (
-    NotFoundBusinessError,
-)
+from apps.core.exceptions import NotFoundBusinessError
 from apps.core.openapi import ERROR_RESPONSE
-from apps.identity.api import (
-    IsApprovedOrganizer,
-)
+from apps.identity.api import IsApprovedOrganizer
 
 from .constants import SCANNER_STATUSES
 from .models import Organizer, Scanner
-from .scanner_permissions import (
-    OrganizerScannerCollectionPermission,
-    OrganizerScannerResourcePermission,
-)
-from .scanner_serializers import (
-    ScannerInviteSerializer,
-    ScannerSerializer,
-)
-from .scanner_security import (
-    SCANNER_SECURITY_ACTION_REVOKE,
-    ScannerSecurityService,
-)
-from .scanner_security_serializers import (
-    ScannerSecurityCodeConfirmSerializer,
-)
-from .services.scanners import (
-    ScannerAccessService,
-    ScannerInvitationService,
-)
+from .scanner_permissions import OrganizerScannerCollectionPermission, OrganizerScannerResourcePermission
+from .scanner_security import SCANNER_SECURITY_ACTION_REVOKE, ScannerSecurityService
+from .scanner_security_serializers import ScannerSecurityCodeConfirmSerializer
+from .scanner_serializers import ScannerInviteSerializer, ScannerSerializer
+from .services.scanners import ScannerAccessService, ScannerInvitationService
 from .views import OrganizerScopedMixin
 
 

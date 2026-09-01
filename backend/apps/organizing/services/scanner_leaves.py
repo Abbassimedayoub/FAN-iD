@@ -6,17 +6,10 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    NotFoundBusinessError,
-    StaleResourceError,
-)
+from apps.core.exceptions import ConflictError, NotFoundBusinessError, StaleResourceError
 from apps.core.outbox.publisher import publish_event
 
-from ..constants import (
-    SCANNER_ACTIVE,
-    SCANNER_LEAVE_REQUESTED,
-)
+from ..constants import SCANNER_ACTIVE, SCANNER_LEAVE_REQUESTED
 from ..events import (
     AGGREGATE_SCANNER,
     SCANNER_LEAVE_REJECTED_EVENT,

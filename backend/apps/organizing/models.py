@@ -34,11 +34,11 @@ from django.db.models.functions import Lower
 from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
 
 from .constants import (
-    SCANNER_CREDENTIAL_REQUEST_PENDING,
-    SCANNER_CREDENTIAL_REQUEST_STATUSES,
     ORG_NAME_MAX_LENGTH,
     ORGANIZER_PENDING,
     ORGANIZER_STATUSES,
+    SCANNER_CREDENTIAL_REQUEST_PENDING,
+    SCANNER_CREDENTIAL_REQUEST_STATUSES,
     SCANNER_INVITED,
     SCANNER_STATUSES,
 )

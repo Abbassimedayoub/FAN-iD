@@ -5,11 +5,7 @@ import io
 import pytest
 from django.core import signing
 
-from apps.core.adapters.storage import (
-    LocalStorage,
-    S3Storage,
-    resolve_local_presigned_key,
-)
+from apps.core.adapters.storage import LocalStorage, S3Storage, resolve_local_presigned_key
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"fanid-image"
 

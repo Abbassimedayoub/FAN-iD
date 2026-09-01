@@ -8,19 +8,14 @@ from rest_framework.views import APIView
 
 from apps.core.concurrency import parse_if_match
 from apps.core.exceptions import NotFoundBusinessError
-from apps.identity.api import (
-    Action,
-    ActionPermission,
-)
+from apps.identity.api import Action, ActionPermission
 
 from .models import Organizer, OrganizerReactivationRequest
 from .reactivation_serializers import (
     OrganizerReactivationRejectSerializer,
     OrganizerReactivationRequestSerializer,
 )
-from .reactivation_service import (
-    OrganizerReactivationService,
-)
+from .reactivation_service import OrganizerReactivationService
 
 
 def _my_organizer(

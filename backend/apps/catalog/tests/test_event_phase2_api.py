@@ -8,16 +8,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.catalog.events import (
-    AGGREGATE_EVENT,
-    CATALOG_EVENT_PUBLISHED,
-)
-from apps.catalog.models import (
-    Category,
-    Event,
-    TicketCategory,
-)
-
+from apps.catalog.events import AGGREGATE_EVENT, CATALOG_EVENT_PUBLISHED
+from apps.catalog.models import Category, Event, TicketCategory
 from apps.core.outbox.models import OutboxEvent
 
 User = get_user_model()

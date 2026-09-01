@@ -2,17 +2,9 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from apps.core.outbox.consumer import (
-    BaseConsumer,
-)
-from apps.core.outbox.models import (
-    OutboxEvent,
-)
-from apps.identity.api import (
-    USER_LOGGED_IN,
-    USER_PASSWORD_CHANGED,
-    USER_PROFILE_UPDATED,
-)
+from apps.core.outbox.consumer import BaseConsumer
+from apps.core.outbox.models import OutboxEvent
+from apps.identity.api import USER_LOGGED_IN, USER_PASSWORD_CHANGED, USER_PROFILE_UPDATED
 
 from .constants import (
     SCANNER_ACTIVE,
@@ -23,28 +15,22 @@ from .constants import (
     SCANNER_OPENED,
 )
 from .events import (
+    SCANNER_INVITATION_REISSUED_EVENT,
     SCANNER_INVITED_EVENT,
     SCANNER_LEAVE_REJECTED_EVENT,
     SCANNER_LEAVE_REQUESTED_EVENT,
-    SCANNER_REVOKED_EVENT,
     SCANNER_PASSWORD_HELP_REQUESTED_EVENT,
+    SCANNER_REVOKED_EVENT,
     SCANNER_TEMP_PASSWORD_REISSUED_EVENT,
-    SCANNER_INVITATION_REISSUED_EVENT,
 )
 from .models import Scanner
-from .scanner_credential_tasks import (
-    send_scanner_password_help_emails,
-    send_scanner_password_reissued_emails,
-)
-from .scanner_leave_tasks import (
-    send_scanner_leave_rejected_emails,
-    send_scanner_leave_request_emails,
-)
+from .scanner_credential_tasks import send_scanner_password_help_emails, send_scanner_password_reissued_emails
+from .scanner_leave_tasks import send_scanner_leave_rejected_emails, send_scanner_leave_request_emails
 from .scanner_tasks import (
     send_scanner_invitation_emails,
+    send_scanner_invitation_reissued_emails,
     send_scanner_milestone_emails,
     send_scanner_revocation_emails,
-    send_scanner_invitation_reissued_emails,
 )
 
 TERMINAL_STATUSES = {

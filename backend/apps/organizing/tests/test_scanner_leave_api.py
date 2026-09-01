@@ -13,23 +13,15 @@ from apps.organizing.constants import (
     SCANNER_DELETED,
     SCANNER_LEAVE_REQUESTED,
 )
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-    ScannerRevocationChallenge,
-)
+from apps.organizing.models import Organizer, Scanner, ScannerRevocationChallenge
 from apps.organizing.scanner_security import (
     SCANNER_SECURITY_ACTION_LEAVE_ACCEPT,
     SCANNER_SECURITY_ACTION_LEAVE_REQUEST,
     ScannerSecurityService,
     derive_scanner_security_code,
 )
-from apps.organizing.scanner_security_tasks import (
-    send_scanner_security_code_email,
-)
-from apps.organizing.services.scanner_leaves import (
-    ScannerLeaveService,
-)
+from apps.organizing.scanner_security_tasks import send_scanner_security_code_email
+from apps.organizing.services.scanner_leaves import ScannerLeaveService
 
 User = get_user_model()
 

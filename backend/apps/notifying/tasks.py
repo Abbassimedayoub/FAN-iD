@@ -5,14 +5,8 @@ from typing import Any
 
 from celery import shared_task
 
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    ORGANIZER_REJECTED,
-    ORGANIZER_SUSPENDED,
-)
+from apps.core.adapters.notifications import build_notification_sender
+from apps.organizing.constants import ORGANIZER_APPROVED, ORGANIZER_REJECTED, ORGANIZER_SUSPENDED
 from apps.organizing.models import Organizer
 
 logger = logging.getLogger("fanid.notifying")

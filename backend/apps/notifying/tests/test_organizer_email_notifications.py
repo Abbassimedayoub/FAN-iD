@@ -8,22 +8,12 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    InMemorySender,
-)
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    ORGANIZER_REJECTED,
-    ORGANIZER_SUSPENDED,
-)
-from apps.organizing.events import (
-    ORGANIZER_APPROVED_EVENT,
-)
-from apps.organizing.models import Organizer
+from apps.core.adapters.notifications import InMemorySender
 from apps.notifying import tasks
-from apps.notifying.consumers import (
-    OrganizerDecisionEmailConsumer,
-)
+from apps.notifying.consumers import OrganizerDecisionEmailConsumer
+from apps.organizing.constants import ORGANIZER_APPROVED, ORGANIZER_REJECTED, ORGANIZER_SUSPENDED
+from apps.organizing.events import ORGANIZER_APPROVED_EVENT
+from apps.organizing.models import Organizer
 
 User = get_user_model()
 

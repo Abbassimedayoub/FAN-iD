@@ -7,12 +7,8 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
-from apps.identity.api import (
-    derive_scanner_temporary_password,
-)
+from apps.core.adapters.notifications import build_notification_sender
+from apps.identity.api import derive_scanner_temporary_password
 
 from .constants import (
     SCANNER_DELETED,

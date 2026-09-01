@@ -6,18 +6,9 @@ from typing import Any
 from celery import shared_task
 from django.utils import timezone
 
-from apps.catalog.api import (
-    get_event_notification_summary,
-    list_active_scanner_ids_for_event,
-)
-from apps.catalog.events import (
-    CATALOG_EVENT_CANCELLED,
-    CATALOG_EVENT_POSTPONED,
-    CATALOG_EVENT_SUSPENDED,
-)
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
+from apps.catalog.api import get_event_notification_summary, list_active_scanner_ids_for_event
+from apps.catalog.events import CATALOG_EVENT_CANCELLED, CATALOG_EVENT_POSTPONED, CATALOG_EVENT_SUSPENDED
+from apps.core.adapters.notifications import build_notification_sender
 from apps.organizing.api import (
     get_organizer_notification_summary,
     get_scanner_assignment_summary,

@@ -6,11 +6,7 @@ import pytest
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.catalog.models import (
-    Category,
-    Event,
-    TicketCategory,
-)
+from apps.catalog.models import Category, Event, TicketCategory
 
 
 @pytest.fixture

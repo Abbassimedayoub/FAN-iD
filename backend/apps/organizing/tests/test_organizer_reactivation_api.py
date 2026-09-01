@@ -7,20 +7,10 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.adapters.notifications import (
-    InMemorySender,
-)
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    ORGANIZER_SUSPENDED,
-)
-from apps.organizing.models import (
-    Organizer,
-    OrganizerReactivationRequest,
-)
-from apps.organizing.reactivation_service import (
-    OrganizerReactivationService,
-)
+from apps.core.adapters.notifications import InMemorySender
+from apps.organizing.constants import ORGANIZER_APPROVED, ORGANIZER_SUSPENDED
+from apps.organizing.models import Organizer, OrganizerReactivationRequest
+from apps.organizing.reactivation_service import OrganizerReactivationService
 from apps.organizing.reactivation_tasks import (
     send_reactivation_decision_emails,
     send_reactivation_requested_emails,

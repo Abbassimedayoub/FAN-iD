@@ -7,29 +7,12 @@ from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.outbox.models import (
-    OutboxEvent,
-)
-from apps.identity.constants import (
-    MFA_PURPOSE_PASSWORD_RESET,
-    OTP_MAX_ATTEMPTS,
-)
-from apps.identity.events import (
-    PASSWORD_RESET_COMPLETED,
-    PASSWORD_RESET_REQUESTED,
-)
-from apps.identity.models import (
-    MfaChallenge,
-    Session,
-    User,
-)
-from apps.identity.services.password_reset import (
-    build_password_reset_magic_token,
-    derive_password_reset_code,
-)
-from apps.identity.services.tokens import (
-    TokenService,
-)
+from apps.core.outbox.models import OutboxEvent
+from apps.identity.constants import MFA_PURPOSE_PASSWORD_RESET, OTP_MAX_ATTEMPTS
+from apps.identity.events import PASSWORD_RESET_COMPLETED, PASSWORD_RESET_REQUESTED
+from apps.identity.models import MfaChallenge, Session, User
+from apps.identity.services.password_reset import build_password_reset_magic_token, derive_password_reset_code
+from apps.identity.services.tokens import TokenService
 
 REQUEST_URL = "/api/v1/auth/password/reset/request"
 CONFIRM_URL = "/api/v1/auth/password/reset/confirm"

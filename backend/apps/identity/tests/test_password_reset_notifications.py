@@ -9,30 +9,13 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    InMemorySender,
-)
-from apps.identity.constants import (
-    MFA_PURPOSE_PASSWORD_RESET,
-    PASSWORD_RESET_TTL_MINUTES,
-)
-from apps.identity.events import (
-    PASSWORD_RESET_COMPLETED,
-    PASSWORD_RESET_REQUESTED,
-)
-from apps.identity.services.password_reset import (
-    derive_password_reset_code,
-)
-from apps.identity.models import (
-    MfaChallenge,
-)
-from apps.identity import (
-    consumers,
-    tasks,
-)
-from apps.identity.consumers import (
-    PasswordResetEmailConsumer,
-)
+from apps.core.adapters.notifications import InMemorySender
+from apps.identity import consumers, tasks
+from apps.identity.constants import MFA_PURPOSE_PASSWORD_RESET, PASSWORD_RESET_TTL_MINUTES
+from apps.identity.consumers import PasswordResetEmailConsumer
+from apps.identity.events import PASSWORD_RESET_COMPLETED, PASSWORD_RESET_REQUESTED
+from apps.identity.models import MfaChallenge
+from apps.identity.services.password_reset import derive_password_reset_code
 
 User = get_user_model()
 

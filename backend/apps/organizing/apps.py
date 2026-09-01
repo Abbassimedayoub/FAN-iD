@@ -7,12 +7,8 @@ class OrganizingConfig(AppConfig):
     label = "organizing"
 
     def ready(self) -> None:
-        from apps.core.outbox.relay import (
-            register_consumer,
-        )
+        from apps.core.outbox.relay import register_consumer
 
-        from .scanner_consumers import (
-            ScannerLifecycleConsumer,
-        )
+        from .scanner_consumers import ScannerLifecycleConsumer
 
         register_consumer(ScannerLifecycleConsumer())

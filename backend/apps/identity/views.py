@@ -8,41 +8,31 @@ lignes appartient a un service.
 
 from __future__ import annotations
 
-from django.db import transaction
-
 import logging
 from typing import Any, cast
 
 from django.conf import settings
+from django.db import transaction
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework.exceptions import ValidationError
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
-from apps.core.outbox.publisher import publish_event
 from apps.core.adapters.notifications import build_notification_sender
 from apps.core.concurrency import format_etag, parse_if_match
 from apps.core.exceptions import NotFoundBusinessError, StaleResourceError
 from apps.core.http import FanIdApiRequest
 from apps.core.openapi import ERROR_RESPONSE
+from apps.core.outbox.publisher import publish_event
 
 from .authentication import default_binding_service
 from .authz import Action
-from .constants import (
-    CLIENT_WEB,
-    OTP_TTL_MINUTES,
-    PASSWORD_RESET_TTL_MINUTES,
-    SESSION_REVOKED_LOGOUT,
-)
-from .events import (
-    AGGREGATE_USER,
-    USER_PROFILE_UPDATED,
-    user_profile_updated_payload,
-)
+from .constants import CLIENT_WEB, OTP_TTL_MINUTES, PASSWORD_RESET_TTL_MINUTES, SESSION_REVOKED_LOGOUT
+from .events import AGGREGATE_USER, USER_PROFILE_UPDATED, user_profile_updated_payload
 from .models import Device, Session, User
 from .permissions import ActionPermission, SelfResourcePermission, SelfUserPermission
 from .serializers import (

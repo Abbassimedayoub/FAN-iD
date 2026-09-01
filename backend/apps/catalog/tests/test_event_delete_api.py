@@ -8,11 +8,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.catalog.models import (
-    Category,
-    Event,
-    TicketCategory,
-)
+from apps.catalog.models import Category, Event, TicketCategory
 
 User = get_user_model()
 

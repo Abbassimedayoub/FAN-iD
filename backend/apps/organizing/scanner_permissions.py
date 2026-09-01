@@ -1,7 +1,4 @@
-from apps.identity.api import (
-    Action,
-    MethodScopedActionPermission,
-)
+from apps.identity.api import Action, MethodScopedActionPermission
 
 
 class OrganizerScannerCollectionPermission(MethodScopedActionPermission):

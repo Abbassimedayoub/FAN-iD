@@ -1,9 +1,6 @@
 from typing import Any
 
-from drf_spectacular.utils import (
-    OpenApiResponse,
-    extend_schema,
-)
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -13,13 +10,9 @@ from rest_framework.views import APIView
 from apps.core.openapi import ERROR_RESPONSE
 from apps.identity.api import IsApprovedOrganizer
 
-from .scanner_permissions import (
-    OrganizerScannerResourcePermission,
-)
+from .scanner_permissions import OrganizerScannerResourcePermission
 from .scanner_security import ScannerSecurityService
-from .scanner_security_serializers import (
-    ScannerSecurityCodeRequestSerializer,
-)
+from .scanner_security_serializers import ScannerSecurityCodeRequestSerializer
 from .scanner_views import OrganizerScannerMixin
 
 

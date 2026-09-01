@@ -7,18 +7,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.identity.api import (
-    Action,
-    ActionPermission,
-)
-from apps.organizing.api import (
-    get_scanner_portal_context,
-)
+from apps.identity.api import Action, ActionPermission
+from apps.organizing.api import get_scanner_portal_context
 
 from .api import list_scanner_portal_events
-from .scanner_portal_serializers import (
-    ScannerPortalEventSerializer,
-)
+from .scanner_portal_serializers import ScannerPortalEventSerializer
 
 
 class ScannerAssignedEventListView(APIView):

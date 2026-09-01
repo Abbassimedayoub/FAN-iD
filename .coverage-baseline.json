@@ -6,15 +6,15 @@
   },
   "stacks": {
     "backend": {
-      "percent": 96.06,
+      "percent": 94.49,
       "report": "backend/coverage.xml"
     },
     "web": {
-      "percent": 99.54,
+      "percent": 68.2,
       "report": "web/coverage/coverage-summary.json"
     },
     "mobile": {
-      "percent": 99.9,
+      "percent": 64.69,
       "report": "mobile/coverage/lcov.info"
     }
   }

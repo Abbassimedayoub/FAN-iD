@@ -10,40 +10,24 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.adapters.notifications import (
-    InMemorySender,
-)
-from apps.core.outbox.models import (
-    OutboxEvent,
-)
-from apps.identity.api import (
-    USER_PASSWORD_CHANGED,
-)
+from apps.core.adapters.notifications import InMemorySender
+from apps.core.outbox.models import OutboxEvent
+from apps.identity.api import USER_PASSWORD_CHANGED
 from apps.organizing.constants import (
     ORGANIZER_APPROVED,
     SCANNER_ACTIVE,
     SCANNER_DELETED,
     SCANNER_INVITATION_CANCELLED,
 )
-from apps.organizing.events import (
-    SCANNER_REVOKED_EVENT,
-)
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-)
-from apps.organizing.scanner_consumers import (
-    ScannerLifecycleConsumer,
-)
+from apps.organizing.events import SCANNER_REVOKED_EVENT
+from apps.organizing.models import Organizer, Scanner
+from apps.organizing.scanner_consumers import ScannerLifecycleConsumer
 from apps.organizing.scanner_security import (
     SCANNER_SECURITY_ACTION_REVOKE,
     ScannerSecurityService,
     derive_scanner_security_code,
 )
-from apps.organizing.scanner_tasks import (
-    send_scanner_invitation_emails,
-    send_scanner_revocation_emails,
-)
+from apps.organizing.scanner_tasks import send_scanner_invitation_emails, send_scanner_revocation_emails
 
 User = get_user_model()
 

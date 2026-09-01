@@ -384,6 +384,7 @@ MIGRATION_LINTER_OPTIONS = {
     "ignore_name": [
         "0002_role_and_user_identity",
         "0004_user_role",
+        "0009_user_must_change_password_and_more",
     ],
     "include_apps": [
         "core",

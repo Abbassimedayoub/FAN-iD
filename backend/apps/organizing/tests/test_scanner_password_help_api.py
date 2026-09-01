@@ -13,11 +13,7 @@ from apps.organizing.constants import (
     SCANNER_CREDENTIAL_REQUEST_FULFILLED,
     SCANNER_CREDENTIAL_REQUEST_PENDING,
 )
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-    ScannerCredentialRequest,
-)
+from apps.organizing.models import Organizer, Scanner, ScannerCredentialRequest
 
 User = get_user_model()
 

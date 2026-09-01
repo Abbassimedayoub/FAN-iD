@@ -10,18 +10,9 @@ from apps.catalog.events import (
     CATALOG_EVENT_SCANNER_UNASSIGNED,
     CATALOG_EVENT_SUSPENDED,
 )
-from apps.catalog.models import (
-    Event,
-    EventScannerAssignment,
-)
-from apps.catalog.tests.test_event_scanner_assignment_api import (
-    make_event,
-    make_organizer,
-    make_scanner,
-)
-from apps.notifying.event_scanner_consumers import (
-    EventScannerNotificationConsumer,
-)
+from apps.catalog.models import Event, EventScannerAssignment
+from apps.catalog.tests.test_event_scanner_assignment_api import make_event, make_organizer, make_scanner
+from apps.notifying.event_scanner_consumers import EventScannerNotificationConsumer
 from apps.notifying.event_scanner_tasks import (
     send_event_scanner_assignment_emails,
     send_event_scanner_lifecycle_emails,

@@ -10,10 +10,7 @@ from apps.catalog.events import (
 from apps.core.outbox.consumer import BaseConsumer
 from apps.core.outbox.models import OutboxEvent
 
-from .event_scanner_tasks import (
-    send_event_scanner_assignment_emails,
-    send_event_scanner_lifecycle_emails,
-)
+from .event_scanner_tasks import send_event_scanner_assignment_emails, send_event_scanner_lifecycle_emails
 
 
 class EventScannerNotificationConsumer(

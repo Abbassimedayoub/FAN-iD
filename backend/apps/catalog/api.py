@@ -11,10 +11,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from .models import (
-    Event,
-    EventScannerAssignment,
-)
+from .models import Event, EventScannerAssignment
 
 
 @dataclass(

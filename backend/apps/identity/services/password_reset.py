@@ -23,23 +23,15 @@ import uuid
 from typing import Any
 
 from django.conf import settings
-from django.contrib.auth.password_validation import (
-    validate_password,
-)
+from django.contrib.auth.password_validation import validate_password
 from django.core import signing
-from django.core.exceptions import (
-    ValidationError as DjangoValidationError,
-)
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 
-from apps.core.exceptions import (
-    ValidationBusinessError,
-)
-from apps.core.outbox.publisher import (
-    publish_event,
-)
+from apps.core.exceptions import ValidationBusinessError
+from apps.core.outbox.publisher import publish_event
 
 from ..constants import (
     MFA_PURPOSE_PASSWORD_RESET,
@@ -53,14 +45,8 @@ from ..events import (
     password_reset_completed_payload,
     password_reset_requested_payload,
 )
-from ..exceptions import (
-    OtpMaxAttemptsError,
-    PasswordUnchangedError,
-)
-from ..models import (
-    MfaChallenge,
-    User,
-)
+from ..exceptions import OtpMaxAttemptsError, PasswordUnchangedError
+from ..models import MfaChallenge, User
 from .tokens import TokenService
 
 RESET_MAGIC_SALT = "fanid.identity.password-reset.magic.v1"

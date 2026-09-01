@@ -7,11 +7,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    SCANNER_ACTIVE,
-    SCANNER_EMAIL_SENT,
-)
+from apps.organizing.constants import ORGANIZER_APPROVED, SCANNER_ACTIVE, SCANNER_EMAIL_SENT
 from apps.organizing.models import Organizer, Scanner
 
 User = get_user_model()

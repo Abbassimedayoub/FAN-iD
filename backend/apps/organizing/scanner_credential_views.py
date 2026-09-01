@@ -2,33 +2,19 @@ from typing import Any
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.permissions import (
-    AllowAny,
-    IsAuthenticated,
-)
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.exceptions import (
-    NotFoundBusinessError,
-)
+from apps.core.exceptions import NotFoundBusinessError
 from apps.core.openapi import ERROR_RESPONSE
-from apps.identity.api import (
-    IsApprovedOrganizer,
-)
+from apps.identity.api import IsApprovedOrganizer
 
 from .models import Organizer
-from .scanner_permissions import (
-    OrganizerScannerCredentialPermission,
-)
-from .scanner_serializers import (
-    ScannerCredentialRequestSerializer,
-    ScannerPasswordHelpRequestSerializer,
-)
-from .services.scanner_credentials import (
-    ScannerCredentialService,
-)
+from .scanner_permissions import OrganizerScannerCredentialPermission
+from .scanner_serializers import ScannerCredentialRequestSerializer, ScannerPasswordHelpRequestSerializer
+from .services.scanner_credentials import ScannerCredentialService
 from .views import OrganizerScopedMixin
 
 

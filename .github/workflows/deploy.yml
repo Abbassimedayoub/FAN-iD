@@ -35,7 +35,7 @@ jobs:
 
       - name: Démarrage minimal de l'image (smoke test, sans dépendances externes)
         run: |
-          docker run --rm fanid-api:prod-candidate python -c "import django; print('django ok', django.get_version())"
+          docker run --rm --entrypoint python fanid-api:prod-candidate -c "import django; print('django ok', django.get_version())"
 
       # --- Déploiement AWS réel : intentionnellement absent de ce Sprint 0 ---
       # Provisionnement EC2/RDS/ElastiCache/S3/SSM différé au Sprint 5 (§78

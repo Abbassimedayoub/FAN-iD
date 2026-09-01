@@ -7,21 +7,10 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.adapters.notifications import (
-    InMemorySender,
-)
-from apps.identity.api import (
-    derive_scanner_temporary_password,
-)
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    SCANNER_ACTIVE,
-)
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-    ScannerCredentialRequest,
-)
+from apps.core.adapters.notifications import InMemorySender
+from apps.identity.api import derive_scanner_temporary_password
+from apps.organizing.constants import ORGANIZER_APPROVED, SCANNER_ACTIVE
+from apps.organizing.models import Organizer, Scanner, ScannerCredentialRequest
 from apps.organizing.scanner_credential_tasks import (
     send_scanner_password_help_emails,
     send_scanner_password_reissued_emails,

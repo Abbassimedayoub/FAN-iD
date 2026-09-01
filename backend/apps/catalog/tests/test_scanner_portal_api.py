@@ -5,17 +5,9 @@ import datetime
 import pytest
 from django.utils import timezone
 
-from apps.catalog.models import (
-    Event,
-    EventScannerAssignment,
-)
+from apps.catalog.models import Event, EventScannerAssignment
 
-from .test_event_scanner_assignment_api import (
-    client_for,
-    make_event,
-    make_organizer,
-    make_scanner,
-)
+from .test_event_scanner_assignment_api import client_for, make_event, make_organizer, make_scanner
 
 PORTAL_URL = "/api/v1/scanner/events"
 

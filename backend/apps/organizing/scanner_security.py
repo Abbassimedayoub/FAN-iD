@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import hashlib
 import hmac
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -169,9 +169,7 @@ class ScannerSecurityService:
                 ),
             )
 
-        from .scanner_security_tasks import (
-            send_scanner_security_code_email,
-        )
+        from .scanner_security_tasks import send_scanner_security_code_email
 
         transaction.on_commit(
             lambda: send_scanner_security_code_email.delay(

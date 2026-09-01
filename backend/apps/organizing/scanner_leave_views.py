@@ -12,17 +12,14 @@ from apps.core.concurrency import parse_if_match
 from apps.core.openapi import ERROR_RESPONSE
 from apps.identity.api import IsApprovedOrganizer
 
-from .scanner_leave_serializers import (
-    ScannerLeaveAcceptOtpSerializer,
-    ScannerLeaveDecisionSerializer,
-)
+from .scanner_leave_serializers import ScannerLeaveAcceptOtpSerializer, ScannerLeaveDecisionSerializer
+from .scanner_permissions import OrganizerScannerResourcePermission
 from .scanner_security import (
     SCANNER_SECURITY_ACTION_LEAVE_ACCEPT,
     SCANNER_SECURITY_ACTION_LEAVE_REQUEST,
     ScannerSecurityService,
 )
 from .scanner_security_serializers import ScannerSecurityCodeConfirmSerializer
-from .scanner_permissions import OrganizerScannerResourcePermission
 from .scanner_views import OrganizerScannerMixin
 from .services.scanner_leaves import ScannerLeaveService
 

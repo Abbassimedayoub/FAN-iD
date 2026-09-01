@@ -1,15 +1,11 @@
 from django.urls import path
 
-from .scanner_portal_views import (
-    ScannerAssignedEventListView,
-)
-
+from .scanner_portal_views import ScannerAssignedEventListView
 from .views import (
     AdminOrganizerEventListView,
     CategoryDetailView,
     CategoryListView,
     EventArchiveView,
-    EventUnarchiveView,
     EventCancelView,
     EventDetailView,
     EventImageView,
@@ -19,6 +15,7 @@ from .views import (
     EventScannerAssignmentCollectionView,
     EventScannerAssignmentDetailView,
     EventSuspendView,
+    EventUnarchiveView,
     LocalStorageMediaView,
     TicketCategoryDetailView,
     TicketCategoryListCreateView,

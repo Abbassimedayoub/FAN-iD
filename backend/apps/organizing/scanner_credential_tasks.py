@@ -6,18 +6,10 @@ from typing import Any
 from celery import shared_task
 from django.utils import timezone
 
-from apps.core.adapters.notifications import (
-    build_notification_sender,
-)
-from apps.identity.api import (
-    derive_scanner_temporary_password,
-)
+from apps.core.adapters.notifications import build_notification_sender
+from apps.identity.api import derive_scanner_temporary_password
 
-from .constants import (
-    SCANNER_CREDENTIAL_REQUEST_FULFILLED,
-    SCANNER_DELETED,
-    SCANNER_INVITATION_CANCELLED,
-)
+from .constants import SCANNER_CREDENTIAL_REQUEST_FULFILLED, SCANNER_DELETED, SCANNER_INVITATION_CANCELLED
 from .models import ScannerCredentialRequest
 
 

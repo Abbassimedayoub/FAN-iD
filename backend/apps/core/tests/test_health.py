@@ -113,8 +113,8 @@ def test_readiness_reports_outbox_ok_when_queue_is_empty():
 
 @pytest.mark.django_db
 def test_readiness_reports_stuck_outbox_as_degraded(settings):
-    from datetime import timedelta
     import uuid
+    from datetime import timedelta
 
     from django.utils import timezone
 
