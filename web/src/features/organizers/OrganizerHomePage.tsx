@@ -168,12 +168,9 @@ export function OrganizerHomePage() {
   const reactivationMutation = useMutation({
     mutationFn: requestMyOrganizerReactivation,
     onSuccess: (reactivationRequest) => {
-      queryClient.setQueryData(
-        myOrganizerReactivationQueryKey,
-        {
-          request: reactivationRequest,
-        },
-      );
+      queryClient.setQueryData(myOrganizerReactivationQueryKey, {
+        request: reactivationRequest,
+      });
     },
   });
 
@@ -224,19 +221,15 @@ export function OrganizerHomePage() {
   const content = STATUS_CONTENT[organizer.validation_status];
   const approved = organizer.validation_status === "APPROVED";
 
-  const reactivationRequest =
-    reactivationQuery.data?.request ?? null;
+  const reactivationRequest = reactivationQuery.data?.request ?? null;
 
-  const reactivationPending =
-    reactivationRequest?.status === "PENDING";
+  const reactivationPending = reactivationRequest?.status === "PENDING";
 
   const existingOrganizerNotice =
     (
-      location.state as
-        | {
-            existingOrganizerAccount?: boolean;
-          }
-        | null
+      location.state as {
+        existingOrganizerAccount?: boolean;
+      } | null
     )?.existingOrganizerAccount === true;
 
   return (
@@ -258,9 +251,7 @@ export function OrganizerHomePage() {
 
         {existingOrganizerNotice ? (
           <Card className="mb-6 border-primary/20 bg-primary/5 p-5">
-            <p className="text-sm font-semibold text-navy">
-              Ce compte organisateur existe déjà.
-            </p>
+            <p className="text-sm font-semibold text-navy">Ce compte organisateur existe déjà.</p>
 
             <p className="mt-2 text-sm leading-6 text-navy/60">
               {organizer.validation_status === "SUSPENDED"
@@ -290,15 +281,12 @@ export function OrganizerHomePage() {
                   </p>
 
                   <p className="mt-2 text-sm leading-6 text-navy/65">
-                    Votre compte reste suspendu jusqu’à la décision d’un administrateur FANID.
-                    Vous ne pouvez pas le réactiver vous-même.
+                    Votre compte reste suspendu jusqu’à la décision d’un administrateur FANID. Vous
+                    ne pouvez pas le réactiver vous-même.
                   </p>
 
                   {reactivationQuery.isPending ? (
-                    <p
-                      role="status"
-                      className="mt-4 text-sm text-navy/55"
-                    >
+                    <p role="status" className="mt-4 text-sm text-navy/55">
                       Vérification de votre demande de réouverture…
                     </p>
                   ) : null}
@@ -310,8 +298,8 @@ export function OrganizerHomePage() {
                       </p>
 
                       <p className="mt-2 text-sm leading-6 text-amber-800">
-                        Un administrateur doit accepter cette demande avec sa vérification OTP.
-                        Vous recevrez un e-mail lorsque la décision sera prise.
+                        Un administrateur doit accepter cette demande avec sa vérification OTP. Vous
+                        recevrez un e-mail lorsque la décision sera prise.
                       </p>
                     </div>
                   ) : (
@@ -333,10 +321,7 @@ export function OrganizerHomePage() {
                       <Button
                         type="button"
                         className="mt-4"
-                        disabled={
-                          reactivationMutation.isPending ||
-                          reactivationQuery.isPending
-                        }
+                        disabled={reactivationMutation.isPending || reactivationQuery.isPending}
                         onClick={() => {
                           reactivationMutation.mutate();
                         }}
@@ -348,12 +333,8 @@ export function OrganizerHomePage() {
                     </>
                   )}
 
-                  {reactivationMutation.isError ||
-                  reactivationQuery.isError ? (
-                    <p
-                      role="alert"
-                      className="mt-3 text-sm text-red-700"
-                    >
+                  {reactivationMutation.isError || reactivationQuery.isError ? (
+                    <p role="alert" className="mt-3 text-sm text-red-700">
                       Impossible de traiter la demande de réouverture. Réessayez.
                     </p>
                   ) : null}

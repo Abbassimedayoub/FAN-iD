@@ -47,17 +47,12 @@ export async function updateEventDraft(
   return response.data;
 }
 
-export async function deleteEventDraft(
-  event: OrganizerEvent,
-): Promise<void> {
-  await httpClient.delete(
-    `/api/v1/events/${event.id}`,
-    {
-      headers: {
-        "If-Match": `"${event.version}"`,
-      },
+export async function deleteEventDraft(event: OrganizerEvent): Promise<void> {
+  await httpClient.delete(`/api/v1/events/${event.id}`, {
+    headers: {
+      "If-Match": `"${event.version}"`,
     },
-  );
+  });
 }
 
 export async function uploadEventImage(
@@ -244,10 +239,9 @@ export async function cancelEvent(
 export async function fetchEventScannerAssignments(
   eventId: string,
 ): Promise<EventScannerAssignment[]> {
-  const response =
-    await httpClient.get<EventScannerAssignment[]>(
-      `/api/v1/events/${eventId}/scanners`,
-    );
+  const response = await httpClient.get<EventScannerAssignment[]>(
+    `/api/v1/events/${eventId}/scanners`,
+  );
 
   return response.data;
 }
@@ -256,22 +250,16 @@ export async function assignEventScanner(
   eventId: string,
   scannerId: string,
 ): Promise<EventScannerAssignment> {
-  const response =
-    await httpClient.post<EventScannerAssignment>(
-      `/api/v1/events/${eventId}/scanners`,
-      {
-        scanner_id: scannerId,
-      },
-    );
+  const response = await httpClient.post<EventScannerAssignment>(
+    `/api/v1/events/${eventId}/scanners`,
+    {
+      scanner_id: scannerId,
+    },
+  );
 
   return response.data;
 }
 
-export async function unassignEventScanner(
-  eventId: string,
-  scannerId: string,
-): Promise<void> {
-  await httpClient.delete(
-    `/api/v1/events/${eventId}/scanners/${scannerId}`,
-  );
+export async function unassignEventScanner(eventId: string, scannerId: string): Promise<void> {
+  await httpClient.delete(`/api/v1/events/${eventId}/scanners/${scannerId}`);
 }

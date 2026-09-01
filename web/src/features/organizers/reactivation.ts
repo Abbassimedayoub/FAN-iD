@@ -2,14 +2,9 @@ import { httpClient } from "@/lib/httpClient";
 
 import type { Organizer, OrganizerStatus } from "./types";
 
-export const ORGANIZER_REACTIVATION_STATUSES = [
-  "PENDING",
-  "APPROVED",
-  "REJECTED",
-] as const;
+export const ORGANIZER_REACTIVATION_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
 
-export type OrganizerReactivationStatus =
-  (typeof ORGANIZER_REACTIVATION_STATUSES)[number];
+export type OrganizerReactivationStatus = (typeof ORGANIZER_REACTIVATION_STATUSES)[number];
 
 export interface OrganizerReactivationRequest {
   id: string;

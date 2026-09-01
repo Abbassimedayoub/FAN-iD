@@ -160,10 +160,7 @@ export function OrganizerArchivedScannersPage() {
   const archivePageData = archivesQuery.data;
   const scanners = archivePageData?.results ?? [];
   const archiveCount = archivePageData?.count ?? 0;
-  const archiveTotalPages = Math.max(
-    1,
-    Math.ceil(archiveCount / 5),
-  );
+  const archiveTotalPages = Math.max(1, Math.ceil(archiveCount / 5));
 
   return (
     <OrganizerShell activeItem="scanners" breadcrumbs={breadcrumbs}>
@@ -230,31 +227,22 @@ export function OrganizerArchivedScannersPage() {
                 </label>
 
                 <label htmlFor="archive-scanner-status" className="block">
-                  <span className="mb-2 block text-sm font-semibold text-[#40546a]">
-                    État
-                  </span>
+                  <span className="mb-2 block text-sm font-semibold text-[#40546a]">État</span>
 
                   <select
                     id="archive-scanner-status"
                     value={archiveStatus}
                     onChange={(event) => {
                       setArchiveStatus(
-                        event.target.value as
-                          | "INVITATION_CANCELLED"
-                          | "DELETED"
-                          | "",
+                        event.target.value as "INVITATION_CANCELLED" | "DELETED" | "",
                       );
                       setArchivePage(1);
                     }}
                     className="min-h-[44px] w-full rounded-xl border border-[#d7e0e9] bg-white px-4 py-2.5 text-navy shadow-sm outline-none transition hover:border-navy/25 focus:border-cyan focus:ring-4 focus:ring-cyan/10"
                   >
                     <option value="">Tous les états</option>
-                    <option value="INVITATION_CANCELLED">
-                      Invitation annulée
-                    </option>
-                    <option value="DELETED">
-                      Compte retiré
-                    </option>
+                    <option value="INVITATION_CANCELLED">Invitation annulée</option>
+                    <option value="DELETED">Compte retiré</option>
                   </select>
                 </label>
               </div>
@@ -404,9 +392,7 @@ export function OrganizerArchivedScannersPage() {
                         archivesQuery.isFetching
                       }
                       onClick={() => {
-                        setArchivePage((current) =>
-                          Math.max(1, current - 1),
-                        );
+                        setArchivePage((current) => Math.max(1, current - 1));
                       }}
                       className="border border-[#d7e0e9] bg-white font-semibold text-[#40546a] hover:bg-slate-50"
                     >
@@ -421,12 +407,7 @@ export function OrganizerArchivedScannersPage() {
                         archivesQuery.isFetching
                       }
                       onClick={() => {
-                        setArchivePage((current) =>
-                          Math.min(
-                            archiveTotalPages,
-                            current + 1,
-                          ),
-                        );
+                        setArchivePage((current) => Math.min(archiveTotalPages, current + 1));
                       }}
                       className="bg-[#1769d2] font-semibold text-white"
                     >

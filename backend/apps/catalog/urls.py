@@ -108,10 +108,7 @@ urlpatterns = [
         name="event-scanner-assignment-list",
     ),
     path(
-        (
-            "events/<uuid:event_id>/scanners/"
-            "<uuid:scanner_id>"
-        ),
+        ("events/<uuid:event_id>/scanners/" "<uuid:scanner_id>"),
         EventScannerAssignmentDetailView.as_view(),
         name="event-scanner-assignment-detail",
     ),

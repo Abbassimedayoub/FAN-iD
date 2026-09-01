@@ -54,10 +54,7 @@ class ScannerAssignedEventListView(APIView):
         )
 
         if scanner is None:
-            raise PermissionDenied(
-                "Le portail scanner n'est pas "
-                "disponible pour ce compte."
-            )
+            raise PermissionDenied("Le portail scanner n'est pas " "disponible pour ce compte.")
 
         events = list_scanner_portal_events(
             scanner_id=scanner.id,

@@ -420,9 +420,7 @@ def send_scanner_revocation_emails(
         scanner_subject = "[FANID] Accès scanner retiré"
 
         scanner_message = (
-            "Votre accès scanner FANID a été "
-            "retiré. Toutes vos sessions ont été "
-            "révoquées."
+            "Votre accès scanner FANID a été " "retiré. Toutes vos sessions ont été " "révoquées."
         )
 
         organizer_subject = "[FANID] Scanner retiré"

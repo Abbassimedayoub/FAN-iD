@@ -132,10 +132,7 @@ def test_readiness_reports_stuck_outbox_as_degraded(settings):
         status=OutboxEvent.Status.PENDING,
         attempts=0,
         available_at=timezone.now(),
-        occurred_at=(
-            timezone.now()
-            - timedelta(minutes=5)
-        ),
+        occurred_at=(timezone.now() - timedelta(minutes=5)),
     )
 
     result = ReadinessView._check_outbox()

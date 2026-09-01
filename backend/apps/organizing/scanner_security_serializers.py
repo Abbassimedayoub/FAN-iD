@@ -1,9 +1,7 @@
 from rest_framework import serializers
 
 
-class ScannerSecurityCodeRequestSerializer(
-    serializers.Serializer
-):
+class ScannerSecurityCodeRequestSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=(
             "REVOKE",
@@ -12,9 +10,7 @@ class ScannerSecurityCodeRequestSerializer(
     )
 
 
-class ScannerSecurityCodeConfirmSerializer(
-    serializers.Serializer
-):
+class ScannerSecurityCodeConfirmSerializer(serializers.Serializer):
     challenge_id = serializers.UUIDField()
 
     # Volontairement max_length uniquement :

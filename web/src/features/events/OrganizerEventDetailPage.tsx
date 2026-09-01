@@ -92,7 +92,11 @@ export function OrganizerEventDetailPage() {
             <div className="space-y-5">
               <Card className="overflow-hidden p-0">
                 {event.image_url ? (
-                  <img src={eventImageUrl(event.image_url) ?? undefined} alt="" className="aspect-[2/1] w-full object-cover" />
+                  <img
+                    src={eventImageUrl(event.image_url) ?? undefined}
+                    alt=""
+                    className="aspect-[2/1] w-full object-cover"
+                  />
                 ) : null}
 
                 <div className="p-6 sm:p-8">

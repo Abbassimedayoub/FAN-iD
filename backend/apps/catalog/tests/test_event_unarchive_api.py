@@ -13,7 +13,6 @@ from apps.catalog.models import (
     Event,
 )
 
-
 User = get_user_model()
 APPROVED = "APPROVED"
 
@@ -36,9 +35,7 @@ def make_organizer(
     suffix: str,
 ):
     user = User.objects.create_user(
-        email=(
-            f"unarchive-{suffix}@example.test"
-        ),
+        email=(f"unarchive-{suffix}@example.test"),
         password="Chataigne-Orageuse-2026",
         first_name="Ines",
         last_name="Bouzid",
@@ -59,9 +56,7 @@ def make_organizer(
     organizer = Organizer.objects.create(
         user=user,
         org_name=f"Unarchive {suffix}",
-        contact_email=(
-            f"contact-{suffix}@example.test"
-        ),
+        contact_email=(f"contact-{suffix}@example.test"),
         validation_status=APPROVED,
     )
 
@@ -74,20 +69,14 @@ def archived_event(
     category: Category,
     suffix: str,
 ) -> Event:
-    start = (
-        timezone.now()
-        + datetime.timedelta(days=20)
-    )
+    start = timezone.now() + datetime.timedelta(days=20)
 
     return Event.objects.create(
         organizer=organizer,
         category=category,
         name=f"Archived {suffix}",
         starts_at=start,
-        ends_at=(
-            start
-            + datetime.timedelta(hours=3)
-        ),
+        ends_at=(start + datetime.timedelta(hours=3)),
         venue="Stade FANID",
         capacity_total=1000,
         status=Event.ARCHIVED,
@@ -112,9 +101,7 @@ def test_owner_can_unarchive_event(
         suffix="owner",
     )
 
-    client.force_authenticate(
-        user=user
-    )
+    client.force_authenticate(user=user)
 
     response = client.post(
         f"/api/v1/events/{event.pk}/unarchive",
@@ -125,9 +112,7 @@ def test_owner_can_unarchive_event(
 
     assert response.status_code == 200
     assert response["ETag"] == '"2"'
-    assert response.data["status"] == (
-        Event.PUBLISHED
-    )
+    assert response.data["status"] == (Event.PUBLISHED)
     assert response.data["version"] == 2
 
     event.refresh_from_db()
@@ -153,9 +138,7 @@ def test_unarchive_requires_if_match(
         suffix="match",
     )
 
-    client.force_authenticate(
-        user=user
-    )
+    client.force_authenticate(user=user)
 
     response = client.post(
         f"/api/v1/events/{event.pk}/unarchive",
@@ -190,9 +173,7 @@ def test_unarchive_rejects_stale_version(
         ]
     )
 
-    client.force_authenticate(
-        user=user
-    )
+    client.force_authenticate(user=user)
 
     response = client.post(
         f"/api/v1/events/{event.pk}/unarchive",
@@ -202,9 +183,7 @@ def test_unarchive_rejects_stale_version(
     )
 
     assert response.status_code == 409
-    assert response.data["error"]["code"] == (
-        "STALE_RESOURCE"
-    )
+    assert response.data["error"]["code"] == ("STALE_RESOURCE")
 
 
 @pytest.mark.django_db
@@ -231,9 +210,7 @@ def test_published_event_cannot_be_unarchived(
         ]
     )
 
-    client.force_authenticate(
-        user=user
-    )
+    client.force_authenticate(user=user)
 
     response = client.post(
         f"/api/v1/events/{event.pk}/unarchive",
@@ -243,9 +220,7 @@ def test_published_event_cannot_be_unarchived(
     )
 
     assert response.status_code == 409
-    assert response.data["error"]["code"] == (
-        "INVALID_STATE_TRANSITION"
-    )
+    assert response.data["error"]["code"] == ("INVALID_STATE_TRANSITION")
 
 
 @pytest.mark.django_db
@@ -270,9 +245,7 @@ def test_foreign_archived_event_is_hidden(
         suffix="foreign",
     )
 
-    client.force_authenticate(
-        user=other_user
-    )
+    client.force_authenticate(user=other_user)
 
     response = client.post(
         f"/api/v1/events/{event.pk}/unarchive",

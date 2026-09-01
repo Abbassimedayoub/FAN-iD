@@ -1,9 +1,6 @@
 import { useState } from "react";
 
-import {
-  Button,
-  Modal,
-} from "@/components/primitives";
+import { Button, Modal } from "@/components/primitives";
 import { toAppError } from "@/lib/errors";
 
 import { deleteEventDraft } from "./api";
@@ -62,20 +59,13 @@ export function OrganizerEventDeleteButton({
         title="Supprimer définitivement"
       >
         <p className="text-sm leading-6 text-[#66788b]">
-          Voulez-vous vraiment supprimer définitivement
-          l’événement{" "}
-          <strong>{event.name}</strong> ?
+          Voulez-vous vraiment supprimer définitivement l’événement <strong>{event.name}</strong> ?
         </p>
 
-        <p className="mt-3 text-sm font-medium text-red-600">
-          Cette action est irréversible.
-        </p>
+        <p className="mt-3 text-sm font-medium text-red-600">Cette action est irréversible.</p>
 
         {error ? (
-          <p
-            role="alert"
-            className="mt-4 text-sm font-medium text-red-600"
-          >
+          <p role="alert" className="mt-4 text-sm font-medium text-red-600">
             {error}
           </p>
         ) : null}
@@ -98,9 +88,7 @@ export function OrganizerEventDeleteButton({
             }}
             className="bg-red-600 text-white hover:bg-red-700"
           >
-            {pending
-              ? "Suppression…"
-              : "Supprimer définitivement"}
+            {pending ? "Suppression…" : "Supprimer définitivement"}
           </Button>
         </div>
       </Modal>

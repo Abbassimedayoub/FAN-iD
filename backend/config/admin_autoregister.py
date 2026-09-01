@@ -9,6 +9,7 @@ for app_label in APP_LABELS:
 
     for model in app_config.get_models():
         try:
+
             class AutoAdmin(admin.ModelAdmin):
                 list_per_page = 50
 

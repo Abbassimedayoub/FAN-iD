@@ -14,8 +14,6 @@ class NotifyingConfig(AppConfig):
         )
 
         register_consumer(OrganizerDecisionEmailConsumer())
-        register_consumer(
-            EventScannerNotificationConsumer()
-        )
+        register_consumer(EventScannerNotificationConsumer())
 
     label = "notifying"

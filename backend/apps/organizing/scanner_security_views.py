@@ -34,20 +34,12 @@ class OrganizerScannerSecurityCodeView(
     ]
 
     @extend_schema(
-        operation_id=(
-            "organizer_scanner_security_code_request"
-        ),
-        summary=(
-            "Demander le code OTP avant une action "
-            "destructive sur un scanner"
-        ),
+        operation_id=("organizer_scanner_security_code_request"),
+        summary=("Demander le code OTP avant une action " "destructive sur un scanner"),
         request=ScannerSecurityCodeRequestSerializer,
         responses={
             200: OpenApiResponse(
-                description=(
-                    "Code envoyé. Retourne challenge_id "
-                    "et expires_in_seconds."
-                )
+                description=("Code envoyé. Retourne challenge_id " "et expires_in_seconds.")
             ),
             400: ERROR_RESPONSE,
             401: ERROR_RESPONSE,
@@ -66,10 +58,8 @@ class OrganizerScannerSecurityCodeView(
             request,
         )
 
-        serializer = (
-            ScannerSecurityCodeRequestSerializer(
-                data=request.data,
-            )
+        serializer = ScannerSecurityCodeRequestSerializer(
+            data=request.data,
         )
         serializer.is_valid(
             raise_exception=True,
@@ -79,9 +69,7 @@ class OrganizerScannerSecurityCodeView(
             organizer=organizer,
             scanner_id=scanner_id,
             requested_by_id=request.user.pk,
-            action=serializer.validated_data[
-                "action"
-            ],
+            action=serializer.validated_data["action"],
         )
 
         return Response(
@@ -89,9 +77,7 @@ class OrganizerScannerSecurityCodeView(
                 "challenge_id": str(
                     result.challenge_id,
                 ),
-                "expires_in_seconds": (
-                    result.expires_in_seconds
-                ),
+                "expires_in_seconds": (result.expires_in_seconds),
             },
             status=status.HTTP_200_OK,
         )

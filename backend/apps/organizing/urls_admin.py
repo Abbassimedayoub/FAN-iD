@@ -62,5 +62,4 @@ urlpatterns = [
         AdminOrganizerReactivationRejectView.as_view(),
         name="reactivation-request-reject",
     ),
-
 ]

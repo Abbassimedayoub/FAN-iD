@@ -39,27 +39,18 @@ class EventScannerNotificationConsumer(
         self,
         event: OutboxEvent,
     ) -> None:
-        event_id = str(
-            event.aggregate_id
-        )
+        event_id = str(event.aggregate_id)
 
         if event.event_type in {
             CATALOG_EVENT_SCANNER_ASSIGNED,
             CATALOG_EVENT_SCANNER_UNASSIGNED,
         }:
-            scanner_id = event.payload.get(
-                "scanner_id"
-            )
+            scanner_id = event.payload.get("scanner_id")
 
             if not scanner_id:
                 return
 
-            change = (
-                "ASSIGNED"
-                if event.event_type
-                == CATALOG_EVENT_SCANNER_ASSIGNED
-                else "UNASSIGNED"
-            )
+            change = "ASSIGNED" if event.event_type == CATALOG_EVENT_SCANNER_ASSIGNED else "UNASSIGNED"
 
             self.defer(
                 lambda: (

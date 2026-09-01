@@ -3,9 +3,7 @@ from rest_framework import serializers
 from .models import OrganizerReactivationRequest
 
 
-class OrganizerReactivationRequestSerializer(
-    serializers.ModelSerializer
-):
+class OrganizerReactivationRequestSerializer(serializers.ModelSerializer):
     organizer_id = serializers.UUIDField(
         read_only=True,
     )
@@ -34,9 +32,7 @@ class OrganizerReactivationRequestSerializer(
         read_only_fields = fields
 
 
-class OrganizerReactivationRejectSerializer(
-    serializers.Serializer
-):
+class OrganizerReactivationRejectSerializer(serializers.Serializer):
     reason = serializers.CharField(
         min_length=1,
         max_length=2000,

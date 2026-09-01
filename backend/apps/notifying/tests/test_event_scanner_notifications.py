@@ -75,59 +75,46 @@ def test_assignment_and_unassignment_email_scanner_and_organizer(
     sender = FakeSender()
 
     monkeypatch.setattr(
-        "apps.notifying.event_scanner_tasks."
-        "build_notification_sender",
+        "apps.notifying.event_scanner_tasks." "build_notification_sender",
         lambda: sender,
     )
 
-    assigned = (
-        send_event_scanner_assignment_emails.run(
-            event_id=str(event.pk),
-            scanner_id=str(scanner.pk),
-            change="ASSIGNED",
-        )
+    assigned = send_event_scanner_assignment_emails.run(
+        event_id=str(event.pk),
+        scanner_id=str(scanner.pk),
+        change="ASSIGNED",
     )
 
     assert assigned["sent"] is True
 
-    recipients = {
-        item["to"]
-        for item in sender.emails_sent
-    }
+    recipients = {item["to"] for item in sender.emails_sent}
 
     assert scanner.invited_email in recipients
     assert organizer.contact_email in recipients
 
     assert any(
-        "Nouvel événement affecté"
-        in item["subject"]
+        "Nouvel événement affecté" in item["subject"]
         for item in sender.emails_sent
         if item["to"] == scanner.invited_email
     )
 
     sender.emails_sent.clear()
 
-    unassigned = (
-        send_event_scanner_assignment_emails.run(
-            event_id=str(event.pk),
-            scanner_id=str(scanner.pk),
-            change="UNASSIGNED",
-        )
+    unassigned = send_event_scanner_assignment_emails.run(
+        event_id=str(event.pk),
+        scanner_id=str(scanner.pk),
+        change="UNASSIGNED",
     )
 
     assert unassigned["sent"] is True
 
-    recipients = {
-        item["to"]
-        for item in sender.emails_sent
-    }
+    recipients = {item["to"] for item in sender.emails_sent}
 
     assert scanner.invited_email in recipients
     assert organizer.contact_email in recipients
 
     assert any(
-        "Retrait d’une affectation"
-        in item["subject"]
+        "Retrait d’une affectation" in item["subject"]
         for item in sender.emails_sent
         if item["to"] == scanner.invited_email
     )
@@ -196,34 +183,24 @@ def test_lifecycle_email_scanner_and_organizer(
     sender = FakeSender()
 
     monkeypatch.setattr(
-        "apps.notifying.event_scanner_tasks."
-        "build_notification_sender",
+        "apps.notifying.event_scanner_tasks." "build_notification_sender",
         lambda: sender,
     )
 
-    result = (
-        send_event_scanner_lifecycle_emails.run(
-            event_id=str(event.pk),
-            change=event_type,
-        )
+    result = send_event_scanner_lifecycle_emails.run(
+        event_id=str(event.pk),
+        change=event_type,
     )
 
     assert result["sent"] is True
     assert result["scanner_recipients"] == 1
 
-    recipients = {
-        item["to"]
-        for item in sender.emails_sent
-    }
+    recipients = {item["to"] for item in sender.emails_sent}
 
     assert scanner.invited_email in recipients
     assert organizer.contact_email in recipients
 
-    scanner_email = next(
-        item
-        for item in sender.emails_sent
-        if item["to"] == scanner.invited_email
-    )
+    scanner_email = next(item for item in sender.emails_sent if item["to"] == scanner.invited_email)
 
     assert event.name in scanner_email["body"]
     assert "Changement test" in scanner_email["body"]
@@ -275,37 +252,26 @@ def test_removed_scanner_no_longer_receives_lifecycle_email(
     sender = FakeSender()
 
     monkeypatch.setattr(
-        "apps.notifying.event_scanner_tasks."
-        "build_notification_sender",
+        "apps.notifying.event_scanner_tasks." "build_notification_sender",
         lambda: sender,
     )
 
-    result = (
-        send_event_scanner_lifecycle_emails.run(
-            event_id=str(event.pk),
-            change=CATALOG_EVENT_CANCELLED,
-        )
+    result = send_event_scanner_lifecycle_emails.run(
+        event_id=str(event.pk),
+        change=CATALOG_EVENT_CANCELLED,
     )
 
     assert result["sent"] is True
     assert result["scanner_recipients"] == 0
 
-    recipients = [
-        item["to"]
-        for item in sender.emails_sent
-    ]
+    recipients = [item["to"] for item in sender.emails_sent]
 
     assert scanner.invited_email not in recipients
-    assert recipients == [
-        organizer.contact_email
-    ]
+    assert recipients == [organizer.contact_email]
 
 
 def test_consumer_handles_all_required_event_changes():
-    assert (
-        EventScannerNotificationConsumer
-        .handled_event_types
-    ) == {
+    assert (EventScannerNotificationConsumer.handled_event_types) == {
         CATALOG_EVENT_SCANNER_ASSIGNED,
         CATALOG_EVENT_SCANNER_UNASSIGNED,
         CATALOG_EVENT_POSTPONED,

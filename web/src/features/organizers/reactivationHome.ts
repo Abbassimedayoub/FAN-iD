@@ -4,10 +4,6 @@ import {
   requestMyOrganizerReactivation,
 } from "./reactivation";
 
-export const myOrganizerReactivationQueryKey =
-  organizerReactivationQueryKeys.my;
+export const myOrganizerReactivationQueryKey = organizerReactivationQueryKeys.my;
 
-export {
-  fetchMyOrganizerReactivationRequest,
-  requestMyOrganizerReactivation,
-};
+export { fetchMyOrganizerReactivationRequest, requestMyOrganizerReactivation };

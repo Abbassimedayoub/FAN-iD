@@ -45,14 +45,11 @@ describe("organizer scanners api", () => {
 
     const scanners = await fetchOrganizerScanners();
 
-    expect(httpClient.get).toHaveBeenCalledWith(
-      "/api/v1/organizers/me/scanners",
-      {
-        params: {
-          page: 1,
-        },
+    expect(httpClient.get).toHaveBeenCalledWith("/api/v1/organizers/me/scanners", {
+      params: {
+        page: 1,
       },
-    );
+    });
 
     expect(scanners).toHaveLength(1);
     expect(scanners[0]?.status).toBe("EMAIL_SENT");
@@ -74,16 +71,13 @@ describe("organizer scanners api", () => {
       status: "ACTIVE",
     });
 
-    expect(httpClient.get).toHaveBeenCalledWith(
-      "/api/v1/organizers/me/scanners",
-      {
-        params: {
-          page: 2,
-          search: "Nadia",
-          status: "ACTIVE",
-        },
+    expect(httpClient.get).toHaveBeenCalledWith("/api/v1/organizers/me/scanners", {
+      params: {
+        page: 2,
+        search: "Nadia",
+        status: "ACTIVE",
       },
-    );
+    });
   });
 
   it("sends page, search and terminal status for archived scanners", async () => {
@@ -102,16 +96,13 @@ describe("organizer scanners api", () => {
       status: "DELETED",
     });
 
-    expect(httpClient.get).toHaveBeenCalledWith(
-      "/api/v1/organizers/me/scanners/archived",
-      {
-        params: {
-          page: 3,
-          search: "Leila",
-          status: "DELETED",
-        },
+    expect(httpClient.get).toHaveBeenCalledWith("/api/v1/organizers/me/scanners/archived", {
+      params: {
+        page: 3,
+        search: "Leila",
+        status: "DELETED",
       },
-    );
+    });
   });
 
   it("trims invitation fields before sending them", async () => {

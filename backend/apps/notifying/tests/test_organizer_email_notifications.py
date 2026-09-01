@@ -76,13 +76,9 @@ def test_approved_decision_sends_email_to_account(
         lambda: sender,
     )
 
-    result = (
-        tasks
-        .send_organizer_decision_email
-        .run(
-            organizer_id=str(organizer.pk),
-            decision=ORGANIZER_APPROVED,
-        )
+    result = tasks.send_organizer_decision_email.run(
+        organizer_id=str(organizer.pk),
+        decision=ORGANIZER_APPROVED,
     )
 
     assert result["sent"] is True
@@ -113,13 +109,9 @@ def test_rejected_decision_includes_reason(
         lambda: sender,
     )
 
-    result = (
-        tasks
-        .send_organizer_decision_email
-        .run(
-            organizer_id=str(organizer.pk),
-            decision=ORGANIZER_REJECTED,
-        )
+    result = tasks.send_organizer_decision_email.run(
+        organizer_id=str(organizer.pk),
+        decision=ORGANIZER_REJECTED,
     )
 
     assert result["sent"] is True
@@ -129,10 +121,7 @@ def test_rejected_decision_includes_reason(
 
     assert email["to"] == organizer.user.email
     assert "Décision" in email["subject"]
-    assert (
-        "Justificatif légal manquant"
-        in email["body"]
-    )
+    assert "Justificatif légal manquant" in email["body"]
 
 
 def test_suspended_decision_sends_email_to_account(
@@ -152,13 +141,9 @@ def test_suspended_decision_sends_email_to_account(
         lambda: sender,
     )
 
-    result = (
-        tasks
-        .send_organizer_decision_email
-        .run(
-            organizer_id=str(organizer.pk),
-            decision=ORGANIZER_SUSPENDED,
-        )
+    result = tasks.send_organizer_decision_email.run(
+        organizer_id=str(organizer.pk),
+        decision=ORGANIZER_SUSPENDED,
     )
 
     assert result["sent"] is True
@@ -172,10 +157,7 @@ def test_suspended_decision_sends_email_to_account(
 
 
 def test_consumer_handles_suspension_event():
-    assert (
-        "organizing.organizer.suspended"
-        in OrganizerDecisionEmailConsumer.handled_event_types
-    )
+    assert "organizing.organizer.suspended" in OrganizerDecisionEmailConsumer.handled_event_types
 
 
 def test_outbox_consumer_defers_celery_task(
@@ -215,9 +197,7 @@ def test_outbox_consumer_defers_celery_task(
 
     assert calls == [
         {
-            "organizer_id": str(
-                organizer_id
-            ),
+            "organizer_id": str(organizer_id),
             "decision": ORGANIZER_APPROVED,
         }
     ]

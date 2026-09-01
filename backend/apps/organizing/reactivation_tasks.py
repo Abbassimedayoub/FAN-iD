@@ -42,8 +42,7 @@ def _admin_emails() -> list[str]:
     User = get_user_model()
 
     users = (
-        User.objects
-        .filter(
+        User.objects.filter(
             role__name="ADMIN",
             is_active=True,
             anonymized_at__isnull=True,
@@ -52,10 +51,7 @@ def _admin_emails() -> list[str]:
         .order_by("email")
     )
 
-    return _unique_emails(
-        user.email
-        for user in users
-    )
+    return _unique_emails(user.email for user in users)
 
 
 def _load_request(
@@ -67,8 +63,7 @@ def _load_request(
         return None
 
     return (
-        OrganizerReactivationRequest.objects
-        .select_related(
+        OrganizerReactivationRequest.objects.select_related(
             "organizer",
             "organizer__user",
             "requested_by",
@@ -101,10 +96,7 @@ def send_reactivation_requested_emails(
 
     organizer = reactivation_request.organizer
 
-    if (
-        reactivation_request.status
-        != OrganizerReactivationRequest.STATUS_PENDING
-    ):
+    if reactivation_request.status != OrganizerReactivationRequest.STATUS_PENDING:
         return {
             "sent": False,
             "reason": "request_not_pending",
@@ -130,17 +122,11 @@ def send_reactivation_requested_emails(
     ).rstrip("/")
 
     try:
-        if (
-            reactivation_request
-            .request_organizer_email_sent_at
-            is None
-        ):
+        if reactivation_request.request_organizer_email_sent_at is None:
             for email in organizer_recipients:
                 sender.send_email(
                     to=email,
-                    subject=(
-                        "[FANID] Demande de réouverture reçue"
-                    ),
+                    subject=("[FANID] Demande de réouverture reçue"),
                     body=(
                         "Bonjour,\n\n"
                         "Votre demande de réouverture pour "
@@ -158,30 +144,21 @@ def send_reactivation_requested_emails(
                 )
 
             (
-                OrganizerReactivationRequest.objects
-                .filter(
+                OrganizerReactivationRequest.objects.filter(
                     pk=reactivation_request.pk,
                     request_organizer_email_sent_at__isnull=True,
-                )
-                .update(
+                ).update(
                     request_organizer_email_sent_at=timezone.now(),
                 )
             )
 
         reactivation_request.refresh_from_db()
 
-        if (
-            reactivation_request
-            .request_admin_email_sent_at
-            is None
-        ):
+        if reactivation_request.request_admin_email_sent_at is None:
             for email in admin_recipients:
                 sender.send_email(
                     to=email,
-                    subject=(
-                        "[FANID] Nouvelle demande de "
-                        "réouverture organisateur"
-                    ),
+                    subject=("[FANID] Nouvelle demande de " "réouverture organisateur"),
                     body=(
                         "Bonjour,\n\n"
                         "Une nouvelle demande de réouverture "
@@ -201,12 +178,10 @@ def send_reactivation_requested_emails(
 
             if admin_recipients:
                 (
-                    OrganizerReactivationRequest.objects
-                    .filter(
+                    OrganizerReactivationRequest.objects.filter(
                         pk=reactivation_request.pk,
                         request_admin_email_sent_at__isnull=True,
-                    )
-                    .update(
+                    ).update(
                         request_admin_email_sent_at=timezone.now(),
                     )
                 )
@@ -230,12 +205,8 @@ def send_reactivation_requested_emails(
 
     return {
         "sent": True,
-        "organizer_recipients": len(
-            organizer_recipients
-        ),
-        "admin_recipients": len(
-            admin_recipients
-        ),
+        "organizer_recipients": len(organizer_recipients),
+        "admin_recipients": len(admin_recipients),
     }
 
 
@@ -269,10 +240,7 @@ def send_reactivation_decision_emails(
         }
 
     organizer = reactivation_request.organizer
-    approved = (
-        reactivation_request.status
-        == OrganizerReactivationRequest.STATUS_APPROVED
-    )
+    approved = reactivation_request.status == OrganizerReactivationRequest.STATUS_APPROVED
 
     sender = build_notification_sender()
 
@@ -286,9 +254,7 @@ def send_reactivation_decision_emails(
     admin_recipients = _admin_emails()
 
     if approved:
-        organizer_subject = (
-            "[FANID] Réouverture de votre compte approuvée"
-        )
+        organizer_subject = "[FANID] Réouverture de votre compte approuvée"
         organizer_body = (
             "Bonjour,\n\n"
             f"La demande de réouverture de "
@@ -299,14 +265,9 @@ def send_reactivation_decision_emails(
         )
         decision_text = "APPROUVÉE"
     else:
-        organizer_subject = (
-            "[FANID] Demande de réouverture refusée"
-        )
+        organizer_subject = "[FANID] Demande de réouverture refusée"
 
-        reason = (
-            reactivation_request.rejection_reason
-            or "Aucun motif communiqué."
-        )
+        reason = reactivation_request.rejection_reason or "Aucun motif communiqué."
 
         organizer_body = (
             "Bonjour,\n\n"
@@ -320,11 +281,7 @@ def send_reactivation_decision_emails(
         decision_text = "REFUSÉE"
 
     try:
-        if (
-            reactivation_request
-            .decision_organizer_email_sent_at
-            is None
-        ):
+        if reactivation_request.decision_organizer_email_sent_at is None:
             for email in organizer_recipients:
                 sender.send_email(
                     to=email,
@@ -333,30 +290,21 @@ def send_reactivation_decision_emails(
                 )
 
             (
-                OrganizerReactivationRequest.objects
-                .filter(
+                OrganizerReactivationRequest.objects.filter(
                     pk=reactivation_request.pk,
                     decision_organizer_email_sent_at__isnull=True,
-                )
-                .update(
+                ).update(
                     decision_organizer_email_sent_at=timezone.now(),
                 )
             )
 
         reactivation_request.refresh_from_db()
 
-        if (
-            reactivation_request
-            .decision_admin_email_sent_at
-            is None
-        ):
+        if reactivation_request.decision_admin_email_sent_at is None:
             for email in admin_recipients:
                 sender.send_email(
                     to=email,
-                    subject=(
-                        "[FANID] Décision de réouverture "
-                        f"{decision_text.lower()}"
-                    ),
+                    subject=("[FANID] Décision de réouverture " f"{decision_text.lower()}"),
                     body=(
                         "Bonjour,\n\n"
                         "Une demande de réouverture "
@@ -372,12 +320,10 @@ def send_reactivation_decision_emails(
 
             if admin_recipients:
                 (
-                    OrganizerReactivationRequest.objects
-                    .filter(
+                    OrganizerReactivationRequest.objects.filter(
                         pk=reactivation_request.pk,
                         decision_admin_email_sent_at__isnull=True,
-                    )
-                    .update(
+                    ).update(
                         decision_admin_email_sent_at=timezone.now(),
                     )
                 )
@@ -402,10 +348,6 @@ def send_reactivation_decision_emails(
     return {
         "sent": True,
         "decision": reactivation_request.status,
-        "organizer_recipients": len(
-            organizer_recipients
-        ),
-        "admin_recipients": len(
-            admin_recipients
-        ),
+        "organizer_recipients": len(organizer_recipients),
+        "admin_recipients": len(admin_recipients),
     }

@@ -11,11 +11,7 @@ from apps.core.adapters.storage import (
     resolve_local_presigned_key,
 )
 
-
-PNG = (
-    b"\x89PNG\r\n\x1a\n"
-    + b"fanid-image"
-)
+PNG = b"\x89PNG\r\n\x1a\n" + b"fanid-image"
 
 
 def test_local_storage_round_trip_and_signed_url(
@@ -31,10 +27,7 @@ def test_local_storage_round_trip_and_signed_url(
     )
 
     assert result == f"local://{key}"
-    assert (
-        storage.path_for_key(key).read_bytes()
-        == PNG
-    )
+    assert storage.path_for_key(key).read_bytes() == PNG
 
     url = storage.presigned_url(
         key,
@@ -43,16 +36,11 @@ def test_local_storage_round_trip_and_signed_url(
 
     token = url.rsplit("/", 1)[-1]
 
-    assert (
-        resolve_local_presigned_key(token)
-        == key
-    )
+    assert resolve_local_presigned_key(token) == key
 
     storage.delete(key)
 
-    assert not storage.path_for_key(
-        key
-    ).exists()
+    assert not storage.path_for_key(key).exists()
 
 
 def test_local_storage_rejects_path_traversal(
@@ -80,9 +68,7 @@ def test_local_signed_url_rejects_tampering(
     token = url.rsplit("/", 1)[-1]
 
     with pytest.raises(signing.BadSignature):
-        resolve_local_presigned_key(
-            token + "tampered"
-        )
+        resolve_local_presigned_key(token + "tampered")
 
 
 class FakeS3Client:
@@ -126,11 +112,7 @@ class FakeS3Client:
         Params,
         ExpiresIn,
     ):
-        return (
-            "https://signed.example.test/"
-            f"{Params['Key']}"
-            f"?ttl={ExpiresIn}"
-        )
+        return "https://signed.example.test/" f"{Params['Key']}" f"?ttl={ExpiresIn}"
 
 
 def test_s3_storage_uses_private_object_key():
@@ -149,14 +131,9 @@ def test_s3_storage_uses_private_object_key():
         key,
     )
 
-    assert uploaded == (
-        "s3://fanid-private/"
-        f"{key}"
-    )
+    assert uploaded == ("s3://fanid-private/" f"{key}")
 
-    assert client.uploads[0][1] == (
-        "fanid-private"
-    )
+    assert client.uploads[0][1] == ("fanid-private")
     assert client.uploads[0][2] == key
 
     url = storage.presigned_url(
@@ -164,9 +141,7 @@ def test_s3_storage_uses_private_object_key():
         300,
     )
 
-    assert url.startswith(
-        "https://signed.example.test/"
-    )
+    assert url.startswith("https://signed.example.test/")
 
     storage.delete(key)
 

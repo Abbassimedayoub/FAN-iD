@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.catalog.models import Category, Event
+
 User = get_user_model()
 
 # Valeurs du contrat HTTP utilisées par ces tests d intégration.
@@ -65,9 +66,7 @@ def make_organizer(
     organizer = Organizer.objects.create(
         user=user,
         org_name=f"Organisation {suffix}",
-        contact_email=(
-            f"contact-{suffix}@example.test"
-        ),
+        contact_email=(f"contact-{suffix}@example.test"),
         validation_status=validation_status,
     )
 
@@ -79,20 +78,14 @@ def event_payload(
     *,
     name: str = "Match FANID",
 ) -> dict:
-    starts_at = (
-        timezone.now()
-        + datetime.timedelta(days=5)
-    )
+    starts_at = timezone.now() + datetime.timedelta(days=5)
 
     return {
         "category_id": str(category.pk),
         "name": name,
         "description": "Premier événement",
         "starts_at": starts_at.isoformat(),
-        "ends_at": (
-            starts_at
-            + datetime.timedelta(hours=2)
-        ).isoformat(),
+        "ends_at": (starts_at + datetime.timedelta(hours=2)).isoformat(),
     }
 
 
@@ -123,12 +116,7 @@ def test_approved_organizer_can_list_categories(
 
     assert response.status_code == 200
 
-    assert [
-        item["id"]
-        for item in response.data
-    ] == [
-        str(category.pk)
-    ]
+    assert [item["id"] for item in response.data] == [str(category.pk)]
 
 
 @pytest.mark.django_db
@@ -147,9 +135,7 @@ def test_approved_organizer_creates_owned_draft(
 
     # Ces champs ne font pas partie du contrat d écriture.
     body["status"] = "PUBLISHED"
-    body["organizer_id"] = (
-        "00000000-0000-4000-8000-000000000999"
-    )
+    body["organizer_id"] = "00000000-0000-4000-8000-000000000999"
 
     response = authenticate(
         client,
@@ -163,16 +149,12 @@ def test_approved_organizer_creates_owned_draft(
     assert response.status_code == 201
     assert response["ETag"] == '"1"'
 
-    event = Event.objects.get(
-        pk=response.data["id"]
-    )
+    event = Event.objects.get(pk=response.data["id"])
 
     assert event.organizer_id == organizer.pk
     assert event.status == Event.DRAFT
 
-    assert response.data["organizer_id"] == str(
-        organizer.pk
-    )
+    assert response.data["organizer_id"] == str(organizer.pk)
     assert response.data["status"] == Event.DRAFT
 
 
@@ -207,10 +189,7 @@ def test_non_approved_organizer_cannot_create(
     )
 
     assert response.status_code == 403
-    assert (
-        response.data["error"]["code"]
-        == "ORGANIZER_NOT_APPROVED"
-    )
+    assert response.data["error"]["code"] == "ORGANIZER_NOT_APPROVED"
 
     assert Event.objects.count() == 0
 
@@ -238,10 +217,7 @@ def test_list_contains_only_current_organizer_events(
         category=category,
         name="Mon match",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     Event.objects.create(
@@ -249,10 +225,7 @@ def test_list_contains_only_current_organizer_events(
         category=category,
         name="Match tiers",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     # Legacy : aucune propriété, donc invisible.
@@ -261,10 +234,7 @@ def test_list_contains_only_current_organizer_events(
         category=category,
         name="Legacy",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     response = authenticate(
@@ -275,10 +245,7 @@ def test_list_contains_only_current_organizer_events(
     assert response.status_code == 200
     assert response.data["count"] == 1
     assert len(response.data["results"]) == 1
-    assert (
-        response.data["results"][0]["id"]
-        == str(own.pk)
-    )
+    assert response.data["results"][0]["id"] == str(own.pk)
 
 
 @pytest.mark.django_db
@@ -304,18 +271,13 @@ def test_foreign_event_is_hidden_as_not_found(
         category=category,
         name="Événement privé",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     response = authenticate(
         client,
         user,
-    ).get(
-        f"{EVENTS_URL}/{foreign.pk}"
-    )
+    ).get(f"{EVENTS_URL}/{foreign.pk}")
 
     assert response.status_code == 404
 
@@ -337,18 +299,13 @@ def test_owner_can_retrieve_event_and_receives_etag(
         category=category,
         name="Détail",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     response = authenticate(
         client,
         user,
-    ).get(
-        f"{EVENTS_URL}/{event.pk}"
-    )
+    ).get(f"{EVENTS_URL}/{event.pk}")
 
     assert response.status_code == 200
     assert response["ETag"] == '"1"'
@@ -372,10 +329,7 @@ def test_owner_can_update_event_with_if_match(
         category=category,
         name="Ancien nom",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     response = authenticate(
@@ -413,10 +367,7 @@ def test_update_requires_if_match(
         category=category,
         name="Version",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
     response = authenticate(
@@ -431,10 +382,7 @@ def test_update_requires_if_match(
     )
 
     assert response.status_code == 428
-    assert (
-        response.data["error"]["code"]
-        == "PRECONDITION_REQUIRED"
-    )
+    assert response.data["error"]["code"] == "PRECONDITION_REQUIRED"
 
 
 @pytest.mark.django_db
@@ -454,17 +402,10 @@ def test_stale_event_update_is_rejected(
         category=category,
         name="Versionné",
         starts_at=timezone.now(),
-        ends_at=(
-            timezone.now()
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
-    Event.objects.filter(
-        pk=event.pk
-    ).update(
-        version=2
-    )
+    Event.objects.filter(pk=event.pk).update(version=2)
 
     response = authenticate(
         client,
@@ -479,10 +420,7 @@ def test_stale_event_update_is_rejected(
     )
 
     assert response.status_code == 409
-    assert (
-        response.data["error"]["code"]
-        == "STALE_RESOURCE"
-    )
+    assert response.data["error"]["code"] == "STALE_RESOURCE"
 
 
 @pytest.mark.django_db
@@ -501,10 +439,7 @@ def test_create_rejects_incoherent_dates(
 
     body = event_payload(category)
     body["starts_at"] = start.isoformat()
-    body["ends_at"] = (
-        start
-        - datetime.timedelta(hours=1)
-    ).isoformat()
+    body["ends_at"] = (start - datetime.timedelta(hours=1)).isoformat()
 
     response = authenticate(
         client,
@@ -567,10 +502,16 @@ def test_same_name_is_allowed_for_different_organizers(
     assert response_a.status_code == 201
     assert response_b.status_code == 201
 
-    assert Event.objects.filter(
-        organizer=organizer_a,
-    ).count() == 1
+    assert (
+        Event.objects.filter(
+            organizer=organizer_a,
+        ).count()
+        == 1
+    )
 
-    assert Event.objects.filter(
-        organizer=organizer_b,
-    ).count() == 1
+    assert (
+        Event.objects.filter(
+            organizer=organizer_b,
+        ).count()
+        == 1
+    )

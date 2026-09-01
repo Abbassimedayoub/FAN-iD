@@ -193,6 +193,7 @@ class EventImagePermission(OrganizerResourcePermission):
 
         return None
 
+
 class EventScannerAssignmentPermission(
     OrganizerResourcePermission,
 ):

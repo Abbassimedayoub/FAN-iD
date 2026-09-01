@@ -68,8 +68,7 @@ class OrganizerReactivationService:
         requested_by_id: Any,
     ) -> tuple[OrganizerReactivationRequest, bool]:
         organizer = (
-            Organizer.objects
-            .select_for_update()
+            Organizer.objects.select_for_update()
             .filter(
                 pk=organizer_id,
                 user_id=requested_by_id,
@@ -84,19 +83,15 @@ class OrganizerReactivationService:
             raise ConflictError(
                 code="ORGANIZER_REACTIVATION_NOT_ALLOWED",
                 message=(
-                    "Une demande de réouverture est possible "
-                    "uniquement pour un organisateur suspendu."
+                    "Une demande de réouverture est possible " "uniquement pour un organisateur suspendu."
                 ),
             )
 
         existing = (
-            OrganizerReactivationRequest.objects
-            .select_for_update()
+            OrganizerReactivationRequest.objects.select_for_update()
             .filter(
                 organizer=organizer,
-                status=(
-                    OrganizerReactivationRequest.STATUS_PENDING
-                ),
+                status=(OrganizerReactivationRequest.STATUS_PENDING),
             )
             .order_by("-created_at")
             .first()
@@ -105,15 +100,11 @@ class OrganizerReactivationService:
         if existing is not None:
             return existing, False
 
-        reactivation_request = (
-            OrganizerReactivationRequest.objects.create(
-                organizer=organizer,
-                requested_by_id=requested_by_id,
-                organizer_version=organizer.version,
-                status=(
-                    OrganizerReactivationRequest.STATUS_PENDING
-                ),
-            )
+        reactivation_request = OrganizerReactivationRequest.objects.create(
+            organizer=organizer,
+            requested_by_id=requested_by_id,
+            organizer_version=organizer.version,
+            status=(OrganizerReactivationRequest.STATUS_PENDING),
         )
 
         _schedule_requested_email(
@@ -133,24 +124,16 @@ class OrganizerReactivationService:
         OrganizerReactivationRequest,
         Organizer,
     ]:
-        organizer = (
-            Organizer.objects
-            .select_for_update()
-            .filter(pk=organizer_id)
-            .first()
-        )
+        organizer = Organizer.objects.select_for_update().filter(pk=organizer_id).first()
 
         if organizer is None:
             raise NotFoundBusinessError()
 
         reactivation_request = (
-            OrganizerReactivationRequest.objects
-            .select_for_update()
+            OrganizerReactivationRequest.objects.select_for_update()
             .filter(
                 organizer=organizer,
-                status=(
-                    OrganizerReactivationRequest.STATUS_PENDING
-                ),
+                status=(OrganizerReactivationRequest.STATUS_PENDING),
             )
             .order_by("-created_at")
             .first()
@@ -159,18 +142,13 @@ class OrganizerReactivationService:
         if reactivation_request is None:
             raise ConflictError(
                 code="ORGANIZER_REACTIVATION_REQUEST_NOT_PENDING",
-                message=(
-                    "Aucune demande de réouverture "
-                    "n'est actuellement en attente."
-                ),
+                message=("Aucune demande de réouverture " "n'est actuellement en attente."),
             )
 
         if organizer.validation_status != ORGANIZER_SUSPENDED:
             raise ConflictError(
                 code="ORGANIZER_REACTIVATION_NOT_ALLOWED",
-                message=(
-                    "Cet organisateur n'est plus suspendu."
-                ),
+                message=("Cet organisateur n'est plus suspendu."),
             )
 
         reopened = OrganizerOnboardingService.reopen(
@@ -181,9 +159,7 @@ class OrganizerReactivationService:
 
         now = timezone.now()
 
-        reactivation_request.status = (
-            OrganizerReactivationRequest.STATUS_APPROVED
-        )
+        reactivation_request.status = OrganizerReactivationRequest.STATUS_APPROVED
         reactivation_request.reviewed_by_id = reviewed_by_id
         reactivation_request.reviewed_at = now
         reactivation_request.rejection_reason = None
@@ -213,12 +189,7 @@ class OrganizerReactivationService:
         expected_version: int,
         reason: str,
     ) -> OrganizerReactivationRequest:
-        organizer = (
-            Organizer.objects
-            .select_for_update()
-            .filter(pk=organizer_id)
-            .first()
-        )
+        organizer = Organizer.objects.select_for_update().filter(pk=organizer_id).first()
 
         if organizer is None:
             raise NotFoundBusinessError()
@@ -226,20 +197,14 @@ class OrganizerReactivationService:
         if organizer.version != expected_version:
             raise ConflictError(
                 code="STALE_RESOURCE",
-                message=(
-                    "Le dossier a été modifié. "
-                    "Rechargez-le avant de réessayer."
-                ),
+                message=("Le dossier a été modifié. " "Rechargez-le avant de réessayer."),
             )
 
         reactivation_request = (
-            OrganizerReactivationRequest.objects
-            .select_for_update()
+            OrganizerReactivationRequest.objects.select_for_update()
             .filter(
                 organizer=organizer,
-                status=(
-                    OrganizerReactivationRequest.STATUS_PENDING
-                ),
+                status=(OrganizerReactivationRequest.STATUS_PENDING),
             )
             .order_by("-created_at")
             .first()
@@ -248,25 +213,18 @@ class OrganizerReactivationService:
         if reactivation_request is None:
             raise ConflictError(
                 code="ORGANIZER_REACTIVATION_REQUEST_NOT_PENDING",
-                message=(
-                    "Aucune demande de réouverture "
-                    "n'est actuellement en attente."
-                ),
+                message=("Aucune demande de réouverture " "n'est actuellement en attente."),
             )
 
         if organizer.validation_status != ORGANIZER_SUSPENDED:
             raise ConflictError(
                 code="ORGANIZER_REACTIVATION_NOT_ALLOWED",
-                message=(
-                    "Cet organisateur n'est plus suspendu."
-                ),
+                message=("Cet organisateur n'est plus suspendu."),
             )
 
         now = timezone.now()
 
-        reactivation_request.status = (
-            OrganizerReactivationRequest.STATUS_REJECTED
-        )
+        reactivation_request.status = OrganizerReactivationRequest.STATUS_REJECTED
         reactivation_request.reviewed_by_id = reviewed_by_id
         reactivation_request.reviewed_at = now
         reactivation_request.rejection_reason = reason.strip()

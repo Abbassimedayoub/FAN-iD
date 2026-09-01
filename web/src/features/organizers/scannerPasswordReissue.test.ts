@@ -35,7 +35,7 @@ describe("scanner password reissue", () => {
       password_help_pending: true,
       password_help_requested_at: "2026-08-29T22:00:00Z",
       archived_at: null,
-    created_at: "2026-08-29T20:00:00Z",
+      created_at: "2026-08-29T20:00:00Z",
       updated_at: "2026-08-29T22:00:00Z",
       version: 4,
     };

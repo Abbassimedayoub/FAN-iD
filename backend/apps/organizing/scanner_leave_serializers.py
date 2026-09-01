@@ -10,9 +10,7 @@ class ScannerLeaveDecisionSerializer(serializers.Serializer):
     )
 
 
-class ScannerLeaveAcceptOtpSerializer(
-    serializers.Serializer
-):
+class ScannerLeaveAcceptOtpSerializer(serializers.Serializer):
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(
         max_length=16,

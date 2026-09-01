@@ -60,10 +60,7 @@ def derive_scanner_temporary_password(
         symbols[digest[3] % len(symbols)],
     ]
 
-    characters.extend(
-        alphabet[value % len(alphabet)]
-        for value in digest[4:24]
-    )
+    characters.extend(alphabet[value % len(alphabet)] for value in digest[4:24])
 
     # Mélange déterministe basé sur le HMAC :
     # le secret reste reconstructible sans stockage en clair,

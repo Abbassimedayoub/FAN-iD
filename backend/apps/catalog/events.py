@@ -8,17 +8,12 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-
 CATALOG_EVENT_PUBLISHED: Final = "catalog.event.published"
 CATALOG_EVENT_POSTPONED: Final = "catalog.event.postponed"
 CATALOG_EVENT_SUSPENDED: Final = "catalog.event.suspended"
 CATALOG_EVENT_CANCELLED: Final = "catalog.event.cancelled"
-CATALOG_EVENT_SCANNER_ASSIGNED: Final = (
-    "catalog.event.scanner_assigned"
-)
-CATALOG_EVENT_SCANNER_UNASSIGNED: Final = (
-    "catalog.event.scanner_unassigned"
-)
+CATALOG_EVENT_SCANNER_ASSIGNED: Final = "catalog.event.scanner_assigned"
+CATALOG_EVENT_SCANNER_UNASSIGNED: Final = "catalog.event.scanner_unassigned"
 
 AGGREGATE_EVENT: Final = "event"
 
@@ -78,13 +73,9 @@ def event_lifecycle_payload(
         payload["ends_at"] = ends_at.isoformat()
 
     if previous_starts_at is not None:
-        payload["previous_starts_at"] = (
-            previous_starts_at.isoformat()
-        )
+        payload["previous_starts_at"] = previous_starts_at.isoformat()
 
     if previous_ends_at is not None:
-        payload["previous_ends_at"] = (
-            previous_ends_at.isoformat()
-        )
+        payload["previous_ends_at"] = previous_ends_at.isoformat()
 
     return payload

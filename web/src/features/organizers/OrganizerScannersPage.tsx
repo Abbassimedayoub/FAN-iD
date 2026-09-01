@@ -702,10 +702,7 @@ export function OrganizerScannersPage() {
   const scannerPageData = scannersQuery.data;
   const scanners = scannerPageData?.results ?? [];
   const scannerCount = scannerPageData?.count ?? 0;
-  const scannerTotalPages = Math.max(
-    1,
-    Math.ceil(scannerCount / 5),
-  );
+  const scannerTotalPages = Math.max(1, Math.ceil(scannerCount / 5));
 
   const archivedCandidates = scanners.filter(
     (scanner) => scanner.status === "INVITATION_CANCELLED" || scanner.status === "DELETED",
@@ -877,17 +874,13 @@ export function OrganizerScannersPage() {
                   </label>
 
                   <label htmlFor="scanner-status-filter" className="block">
-                    <span className="mb-2 block text-sm font-semibold text-[#40546a]">
-                      État
-                    </span>
+                    <span className="mb-2 block text-sm font-semibold text-[#40546a]">État</span>
 
                     <select
                       id="scanner-status-filter"
                       value={scannerStatus}
                       onChange={(event) => {
-                        setScannerStatus(
-                          event.target.value as ScannerStatus | "",
-                        );
+                        setScannerStatus(event.target.value as ScannerStatus | "");
                         setScannerPage(1);
                         setArchiveSelection([]);
                       }}
@@ -1022,9 +1015,7 @@ export function OrganizerScannersPage() {
                           scannersQuery.isFetching
                         }
                         onClick={() => {
-                          setScannerPage((current) =>
-                            Math.max(1, current - 1),
-                          );
+                          setScannerPage((current) => Math.max(1, current - 1));
                           setArchiveSelection([]);
                         }}
                         className="border border-[#d7e0e9] bg-white font-semibold text-[#40546a] hover:bg-slate-50"
@@ -1040,12 +1031,7 @@ export function OrganizerScannersPage() {
                           scannersQuery.isFetching
                         }
                         onClick={() => {
-                          setScannerPage((current) =>
-                            Math.min(
-                              scannerTotalPages,
-                              current + 1,
-                            ),
-                          );
+                          setScannerPage((current) => Math.min(scannerTotalPages, current + 1));
                           setArchiveSelection([]);
                         }}
                         className="bg-[#1769d2] font-semibold text-white"

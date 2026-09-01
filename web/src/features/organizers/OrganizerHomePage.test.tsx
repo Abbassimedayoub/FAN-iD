@@ -170,31 +170,17 @@ it("permet à un organisateur suspendu de demander la réouverture sans se réac
   let requestCalls = 0;
 
   httpClient.defaults.adapter = async (config) => {
-    if (
-      config.method === "get" &&
-      config.url === "/api/v1/organizers/me"
-    ) {
-      return response(
-        config,
-        organizer("SUSPENDED"),
-      );
+    if (config.method === "get" && config.url === "/api/v1/organizers/me") {
+      return response(config, organizer("SUSPENDED"));
     }
 
-    if (
-      config.method === "get" &&
-      config.url ===
-        "/api/v1/organizers/me/reactivation-request"
-    ) {
+    if (config.method === "get" && config.url === "/api/v1/organizers/me/reactivation-request") {
       return response(config, {
         request: null,
       });
     }
 
-    if (
-      config.method === "post" &&
-      config.url ===
-        "/api/v1/organizers/me/reactivation-request"
-    ) {
+    if (config.method === "post" && config.url === "/api/v1/organizers/me/reactivation-request") {
       requestCalls += 1;
 
       return response(
@@ -215,9 +201,7 @@ it("permet à un organisateur suspendu de demander la réouverture sans se réac
       );
     }
 
-    throw new Error(
-      `Requête inattendue : ${config.method} ${config.url}`,
-    );
+    throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
   };
 
   const { queryClient } = renderPage();
@@ -241,9 +225,7 @@ it("permet à un organisateur suspendu de demander la réouverture sans se réac
   );
 
   expect(
-    await screen.findByText(
-      "Demande de réouverture en attente de validation administrateur.",
-    ),
+    await screen.findByText("Demande de réouverture en attente de validation administrateur."),
   ).toBeInTheDocument();
 
   expect(

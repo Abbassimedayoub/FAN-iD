@@ -1,43 +1,20 @@
-import {
-  useState,
-} from "react";
-import {
-  useQuery,
-} from "@tanstack/react-query";
-import {
-  Link,
-} from "react-router-dom";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 
-import {
-  Button,
-  Card,
-  Spinner,
-} from "@/components/primitives";
+import { Button, Card, Spinner } from "@/components/primitives";
 
-import {
-  fetchTicketCategories,
-  publishEvent,
-} from "./api";
-import type {
-  OrganizerEvent,
-} from "./types";
+import { fetchTicketCategories, publishEvent } from "./api";
+import type { OrganizerEvent } from "./types";
 
 interface OrganizerEventPublicationStepProps {
   event: OrganizerEvent;
   onBack: () => void;
-  onPublished: (
-    event: OrganizerEvent,
-  ) => void;
+  onPublished: (event: OrganizerEvent) => void;
 }
 
-function publicationErrorMessage(
-  error: unknown,
-): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error
-  ) {
+function publicationErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error) {
     const code = (
       error as {
         code?: unknown;
@@ -61,26 +38,17 @@ function publicationErrorMessage(
   return "Impossible de publier l’événement. Réessayez.";
 }
 
-function formatEventDate(
-  value: string,
-): string {
+function formatEventDate(value: string): string {
   const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return new Intl.DateTimeFormat(
-    "fr-FR",
-    {
-      dateStyle: "long",
-      timeStyle: "short",
-    },
-  ).format(date);
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function ReadinessItem({
@@ -98,22 +66,16 @@ function ReadinessItem({
         aria-hidden="true"
         className={[
           "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-          ready
-            ? "bg-emerald-100 text-emerald-700"
-            : "bg-amber-100 text-amber-700",
+          ready ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
         ].join(" ")}
       >
         {ready ? "✓" : "!"}
       </span>
 
       <div>
-        <p className="text-sm font-semibold text-[#34485e]">
-          {label}
-        </p>
+        <p className="text-sm font-semibold text-[#34485e]">{label}</p>
 
-        <p className="mt-1 text-xs leading-5 text-[#82909f]">
-          {description}
-        </p>
+        <p className="mt-1 text-xs leading-5 text-[#82909f]">{description}</p>
       </div>
     </div>
   );
@@ -124,63 +86,29 @@ export function OrganizerEventPublicationStep({
   onBack,
   onPublished,
 }: OrganizerEventPublicationStepProps) {
-  const [
-    pending,
-    setPending,
-  ] = useState(false);
+  const [pending, setPending] = useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null,
-  );
+  const [error, setError] = useState<string | null>(null);
 
   const categoriesQuery = useQuery({
-    queryKey: [
-      "catalog",
-      "event",
-      event.id,
-      "ticket-categories",
-    ],
-    queryFn: () =>
-      fetchTicketCategories(
-        event.id,
-      ),
+    queryKey: ["catalog", "event", event.id, "ticket-categories"],
+    queryFn: () => fetchTicketCategories(event.id),
   });
 
-  const categories =
-    categoriesQuery.data ?? [];
+  const categories = categoriesQuery.data ?? [];
 
-  const allocatedQuota =
-    categories.reduce(
-      (
-        total,
-        category,
-      ) =>
-        total +
-        category.quota,
-      0,
-    );
+  const allocatedQuota = categories.reduce((total, category) => total + category.quota, 0);
 
-  const venueReady =
-    event.venue.trim().length > 0;
+  const venueReady = event.venue.trim().length > 0;
 
-  const capacityTotal =
-    event.capacity_total;
+  const capacityTotal = event.capacity_total;
 
-  const capacityReady =
-    capacityTotal !== null &&
-    capacityTotal > 0;
+  const capacityReady = capacityTotal !== null && capacityTotal > 0;
 
-  const categoriesReady =
-    categories.length > 0;
+  const categoriesReady = categories.length > 0;
 
   const quotasReady =
-    capacityTotal !== null &&
-    capacityTotal > 0 &&
-    allocatedQuota <=
-      capacityTotal;
+    capacityTotal !== null && capacityTotal > 0 && allocatedQuota <= capacityTotal;
 
   const publicationReady =
     !categoriesQuery.isPending &&
@@ -199,28 +127,17 @@ export function OrganizerEventPublicationStep({
     setError(null);
 
     try {
-      const published =
-        await publishEvent(
-          event,
-        );
+      const published = await publishEvent(event);
 
-      onPublished(
-        published,
-      );
+      onPublished(published);
     } catch (caught) {
-      setError(
-        publicationErrorMessage(
-          caught,
-        ),
-      );
+      setError(publicationErrorMessage(caught));
 
       setPending(false);
     }
   }
 
-  if (
-    event.status === "PUBLISHED"
-  ) {
+  if (event.status === "PUBLISHED") {
     return (
       <Card className="overflow-hidden border-[#d8e8dc] p-0 shadow-[0_10px_28px_rgba(23,45,74,0.05)]">
         <div className="bg-emerald-50 px-6 py-8 text-center sm:px-8 sm:py-10">
@@ -231,12 +148,11 @@ export function OrganizerEventPublicationStep({
             ✓
           </span>
 
-          <h2 className="mt-5 font-sora text-2xl font-bold text-[#26384f]">
-            Événement publié
-          </h2>
+          <h2 className="mt-5 font-sora text-2xl font-bold text-[#26384f]">Événement publié</h2>
 
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#64778a]">
-            Votre événement est maintenant publié. Les informations structurelles et les catégories de billets sont verrouillées.
+            Votre événement est maintenant publié. Les informations structurelles et les catégories
+            de billets sont verrouillées.
           </p>
         </div>
 
@@ -246,9 +162,7 @@ export function OrganizerEventPublicationStep({
               Événement
             </p>
 
-            <p className="mt-2 font-semibold text-[#30445b]">
-              {event.name}
-            </p>
+            <p className="mt-2 font-semibold text-[#30445b]">{event.name}</p>
           </div>
 
           <div>
@@ -256,31 +170,21 @@ export function OrganizerEventPublicationStep({
               Statut
             </p>
 
-            <p className="mt-2 font-semibold text-emerald-700">
-              Publié
+            <p className="mt-2 font-semibold text-emerald-700">Publié</p>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#929daa]">Début</p>
+
+            <p className="mt-2 text-sm font-semibold text-[#30445b]">
+              {formatEventDate(event.starts_at)}
             </p>
           </div>
 
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#929daa]">
-              Début
-            </p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#929daa]">Lieu</p>
 
-            <p className="mt-2 text-sm font-semibold text-[#30445b]">
-              {formatEventDate(
-                event.starts_at,
-              )}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#929daa]">
-              Lieu
-            </p>
-
-            <p className="mt-2 text-sm font-semibold text-[#30445b]">
-              {event.venue}
-            </p>
+            <p className="mt-2 text-sm font-semibold text-[#30445b]">{event.venue}</p>
           </div>
         </div>
 
@@ -302,9 +206,7 @@ export function OrganizerEventPublicationStep({
         <div className="border-b border-[#edf0f3] px-6 py-5 sm:px-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="font-sora text-lg font-bold text-[#26384f]">
-                Vérifier et publier
-              </h2>
+              <h2 className="font-sora text-lg font-bold text-[#26384f]">Vérifier et publier</h2>
 
               <p className="mt-1 text-sm text-[#8591a0]">
                 Contrôlez les informations avant de rendre l’événement disponible.
@@ -337,14 +239,10 @@ export function OrganizerEventPublicationStep({
           </div>
 
           <div>
-            <h3 className="font-sora text-xl font-bold text-[#30445b]">
-              {event.name}
-            </h3>
+            <h3 className="font-sora text-xl font-bold text-[#30445b]">{event.name}</h3>
 
             {event.description ? (
-              <p className="mt-2 text-sm leading-6 text-[#6e7f90]">
-                {event.description}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-[#6e7f90]">{event.description}</p>
             ) : null}
 
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -354,9 +252,7 @@ export function OrganizerEventPublicationStep({
                 </dt>
 
                 <dd className="mt-1.5 text-sm font-semibold text-[#40556b]">
-                  {formatEventDate(
-                    event.starts_at,
-                  )}
+                  {formatEventDate(event.starts_at)}
                 </dd>
               </div>
 
@@ -366,9 +262,7 @@ export function OrganizerEventPublicationStep({
                 </dt>
 
                 <dd className="mt-1.5 text-sm font-semibold text-[#40556b]">
-                  {formatEventDate(
-                    event.ends_at,
-                  )}
+                  {formatEventDate(event.ends_at)}
                 </dd>
               </div>
 
@@ -378,8 +272,7 @@ export function OrganizerEventPublicationStep({
                 </dt>
 
                 <dd className="mt-1.5 text-sm font-semibold text-[#40556b]">
-                  {event.venue ||
-                    "Non renseigné"}
+                  {event.venue || "Non renseigné"}
                 </dd>
               </div>
 
@@ -389,8 +282,7 @@ export function OrganizerEventPublicationStep({
                 </dt>
 
                 <dd className="mt-1.5 text-sm font-semibold text-[#40556b]">
-                  {event.capacity_total ??
-                    "Non renseignée"}
+                  {event.capacity_total ?? "Non renseignée"}
                 </dd>
               </div>
             </dl>
@@ -477,12 +369,11 @@ export function OrganizerEventPublicationStep({
         )}
 
         <div className="mt-5 rounded-xl border border-[#cfe2fb] bg-[#f3f8ff] px-4 py-4">
-          <p className="text-sm font-semibold text-[#29455f]">
-            Après publication
-          </p>
+          <p className="text-sm font-semibold text-[#29455f]">Après publication</p>
 
           <p className="mt-1 text-xs leading-5 text-[#678097]">
-            Les informations structurelles de l’événement et ses catégories de billets ne pourront plus être modifiées. Vérifiez-les soigneusement avant de continuer.
+            Les informations structurelles de l’événement et ses catégories de billets ne pourront
+            plus être modifiées. Vérifiez-les soigneusement avant de continuer.
           </p>
         </div>
 
@@ -508,18 +399,13 @@ export function OrganizerEventPublicationStep({
 
         <Button
           type="button"
-          disabled={
-            pending ||
-            !publicationReady
-          }
+          disabled={pending || !publicationReady}
           onClick={() => {
             void handlePublish();
           }}
           className="min-w-[210px] bg-[#1769d2] px-6 font-semibold shadow-[0_8px_20px_rgba(23,105,210,0.18)] hover:bg-[#125bb9]"
         >
-          {pending
-            ? "Publication…"
-            : "Publier l’événement"}
+          {pending ? "Publication…" : "Publier l’événement"}
         </Button>
       </div>
     </div>

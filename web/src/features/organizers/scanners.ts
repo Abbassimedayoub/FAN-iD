@@ -86,11 +86,12 @@ export async function fetchOrganizerScannersPage(
     queryParams.status = params.status;
   }
 
-  const response = await httpClient.get<
-    OrganizerScannerPage | OrganizerScanner[]
-  >("/api/v1/organizers/me/scanners", {
-    params: queryParams,
-  });
+  const response = await httpClient.get<OrganizerScannerPage | OrganizerScanner[]>(
+    "/api/v1/organizers/me/scanners",
+    {
+      params: queryParams,
+    },
+  );
 
   return normalizeScannerPage(response.data);
 }
@@ -228,10 +229,7 @@ export const organizerArchivedScannersQueryKey = [
 export interface OrganizerArchivedScannerListParams {
   page?: number;
   search?: string;
-  status?: Extract<
-    ScannerStatus,
-    "INVITATION_CANCELLED" | "DELETED"
-  >;
+  status?: Extract<ScannerStatus, "INVITATION_CANCELLED" | "DELETED">;
 }
 
 export async function fetchOrganizerArchivedScannersPage(
@@ -251,9 +249,7 @@ export async function fetchOrganizerArchivedScannersPage(
     queryParams.status = params.status;
   }
 
-  const response = await httpClient.get<
-    OrganizerScannerPage | OrganizerScanner[]
-  >(
+  const response = await httpClient.get<OrganizerScannerPage | OrganizerScanner[]>(
     "/api/v1/organizers/me/scanners/archived",
     {
       params: queryParams,
@@ -263,9 +259,7 @@ export async function fetchOrganizerArchivedScannersPage(
   return normalizeScannerPage(response.data);
 }
 
-export async function fetchOrganizerArchivedScanners(): Promise<
-  OrganizerScanner[]
-> {
+export async function fetchOrganizerArchivedScanners(): Promise<OrganizerScanner[]> {
   const firstPage = await fetchOrganizerArchivedScannersPage({
     page: 1,
   });
@@ -278,15 +272,10 @@ export async function fetchOrganizerArchivedScanners(): Promise<
 
   const totalPages = Math.ceil(firstPage.count / 5);
 
-  for (
-    let page = 2;
-    page <= totalPages;
-    page += 1
-  ) {
-    const nextPage =
-      await fetchOrganizerArchivedScannersPage({
-        page,
-      });
+  for (let page = 2; page <= totalPages; page += 1) {
+    const nextPage = await fetchOrganizerArchivedScannersPage({
+      page,
+    });
 
     scanners.push(...nextPage.results);
   }

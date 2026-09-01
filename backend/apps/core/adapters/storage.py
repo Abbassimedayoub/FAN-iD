@@ -15,7 +15,6 @@ from django.core.exceptions import ImproperlyConfigured
 
 from apps.core.interfaces import ObjectStorage
 
-
 LOCAL_STORAGE_SIGNING_SALT = "fanid.local-object-storage"
 
 
@@ -46,15 +45,9 @@ class InMemoryStorage(ObjectStorage):
         ttl_seconds: int,
     ) -> str:
         if key not in self._objects:
-            raise KeyError(
-                f"Objet '{key}' introuvable "
-                "(InMemoryStorage)."
-            )
+            raise KeyError(f"Objet '{key}' introuvable " "(InMemoryStorage).")
 
-        return (
-            f"memory://{key}"
-            f"?ttl={int(ttl_seconds)}"
-        )
+        return f"memory://{key}" f"?ttl={int(ttl_seconds)}"
 
 
 class LocalStorage(ObjectStorage):
@@ -81,28 +74,13 @@ class LocalStorage(ObjectStorage):
     ) -> Path:
         relative = PurePosixPath(key)
 
-        if (
-            not key
-            or relative.is_absolute()
-            or ".." in relative.parts
-        ):
-            raise ValueError(
-                "Clé de stockage invalide."
-            )
+        if not key or relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("Clé de stockage invalide.")
 
-        path = (
-            self.root
-            .joinpath(*relative.parts)
-            .resolve()
-        )
+        path = self.root.joinpath(*relative.parts).resolve()
 
-        if (
-            path != self.root
-            and self.root not in path.parents
-        ):
-            raise ValueError(
-                "Clé de stockage hors racine."
-            )
+        if path != self.root and self.root not in path.parents:
+            raise ValueError("Clé de stockage hors racine.")
 
         return path
 
@@ -118,12 +96,7 @@ class LocalStorage(ObjectStorage):
             exist_ok=True,
         )
 
-        temporary = destination.with_name(
-            (
-                f".{destination.name}."
-                f"{uuid.uuid4().hex}.tmp"
-            )
-        )
+        temporary = destination.with_name((f".{destination.name}." f"{uuid.uuid4().hex}.tmp"))
 
         file.seek(0)
 
@@ -161,16 +134,11 @@ class LocalStorage(ObjectStorage):
         ttl_seconds: int,
     ) -> str:
         if ttl_seconds <= 0:
-            raise ValueError(
-                "Le TTL doit être positif."
-            )
+            raise ValueError("Le TTL doit être positif.")
 
         payload = {
             "key": key,
-            "exp": (
-                int(time.time())
-                + int(ttl_seconds)
-            ),
+            "exp": (int(time.time()) + int(ttl_seconds)),
         }
 
         token = signing.dumps(
@@ -179,10 +147,7 @@ class LocalStorage(ObjectStorage):
             compress=True,
         )
 
-        return (
-            "/api/v1/storage/local/"
-            f"{token}"
-        )
+        return "/api/v1/storage/local/" f"{token}"
 
 
 class S3Storage(ObjectStorage):
@@ -196,14 +161,10 @@ class S3Storage(ObjectStorage):
         client=None,
     ) -> None:
         if not bucket:
-            raise ImproperlyConfigured(
-                "AWS_S3_BUCKET est requis."
-            )
+            raise ImproperlyConfigured("AWS_S3_BUCKET est requis.")
 
         if not region:
-            raise ImproperlyConfigured(
-                "AWS_REGION est requis."
-            )
+            raise ImproperlyConfigured("AWS_REGION est requis.")
 
         self.bucket = bucket
         self.region = region
@@ -223,16 +184,12 @@ class S3Storage(ObjectStorage):
     ) -> str:
         file.seek(0)
 
-        content_type, _ = (
-            mimetypes.guess_type(key)
-        )
+        content_type, _ = mimetypes.guess_type(key)
 
         extra_args = {}
 
         if content_type:
-            extra_args["ContentType"] = (
-                content_type
-            )
+            extra_args["ContentType"] = content_type
 
         kwargs = {}
 
@@ -246,9 +203,7 @@ class S3Storage(ObjectStorage):
             **kwargs,
         )
 
-        return (
-            f"s3://{self.bucket}/{key}"
-        )
+        return f"s3://{self.bucket}/{key}"
 
     def delete(
         self,
@@ -265,9 +220,7 @@ class S3Storage(ObjectStorage):
         ttl_seconds: int,
     ) -> str:
         if ttl_seconds <= 0:
-            raise ValueError(
-                "Le TTL doit être positif."
-            )
+            raise ValueError("Le TTL doit être positif.")
 
         return self.client.generate_presigned_url(
             "get_object",
@@ -288,26 +241,16 @@ def resolve_local_presigned_key(
     )
 
     if not isinstance(payload, dict):
-        raise signing.BadSignature(
-            "Payload local invalide."
-        )
+        raise signing.BadSignature("Payload local invalide.")
 
     key = payload.get("key")
     expires_at = payload.get("exp")
 
-    if (
-        not isinstance(key, str)
-        or not key
-        or not isinstance(expires_at, int)
-    ):
-        raise signing.BadSignature(
-            "Payload local incomplet."
-        )
+    if not isinstance(key, str) or not key or not isinstance(expires_at, int):
+        raise signing.BadSignature("Payload local incomplet.")
 
     if int(time.time()) >= expires_at:
-        raise signing.SignatureExpired(
-            "URL locale expirée."
-        )
+        raise signing.SignatureExpired("URL locale expirée.")
 
     return key
 
@@ -321,24 +264,24 @@ def build_object_storage() -> ObjectStorage:
     - OBJECT_STORAGE_BACKEND permet un choix explicite.
     """
 
-    configured = (
-        os.environ
-        .get("OBJECT_STORAGE_BACKEND", "")
+    configured = os.environ.get("OBJECT_STORAGE_BACKEND", "").strip().lower()
+
+    environment = (
+        str(
+            getattr(
+                settings,
+                "ENVIRONMENT",
+                "dev",
+            )
+        )
         .strip()
         .lower()
     )
 
-    environment = str(
-        getattr(
-            settings,
-            "ENVIRONMENT",
-            "dev",
-        )
-    ).strip().lower()
-
     backend = configured or (
         "s3"
-        if environment in {
+        if environment
+        in {
             "prod",
             "production",
         }
@@ -346,47 +289,23 @@ def build_object_storage() -> ObjectStorage:
     )
 
     if backend == "local":
-        configured_root = (
-            os.environ
-            .get(
-                "OBJECT_STORAGE_LOCAL_ROOT",
-                "",
-            )
-            .strip()
-        )
+        configured_root = os.environ.get(
+            "OBJECT_STORAGE_LOCAL_ROOT",
+            "",
+        ).strip()
 
-        root = (
-            Path(configured_root)
-            if configured_root
-            else (
-                Path(settings.BASE_DIR)
-                / "mediafiles"
-            )
-        )
+        root = Path(configured_root) if configured_root else (Path(settings.BASE_DIR) / "mediafiles")
 
         return LocalStorage(root=root)
 
     if backend == "s3":
-        bucket = (
-            os.environ
-            .get("AWS_S3_BUCKET", "")
-            .strip()
-        )
+        bucket = os.environ.get("AWS_S3_BUCKET", "").strip()
 
-        region = (
-            os.environ
-            .get("AWS_REGION", "")
-            .strip()
-        )
+        region = os.environ.get("AWS_REGION", "").strip()
 
         return S3Storage(
             bucket=bucket,
             region=region,
         )
 
-    raise ImproperlyConfigured(
-        (
-            "OBJECT_STORAGE_BACKEND doit "
-            "valoir 'local' ou 's3'."
-        )
-    )
+    raise ImproperlyConfigured(("OBJECT_STORAGE_BACKEND doit " "valoir 'local' ou 's3'."))

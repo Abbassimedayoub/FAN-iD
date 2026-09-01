@@ -167,7 +167,6 @@ class ReadinessView(View):
             logger.warning("readiness_redis_check_failed", exc_info=True)
             return {"status": "degraded", "detail": _GENERIC_UNAVAILABLE_DETAIL}
 
-
     @staticmethod
     def _check_outbox() -> dict:
         """
@@ -195,11 +194,8 @@ class ReadinessView(View):
                     "dead": dead_count,
                 }
 
-            cutoff = (
-                timezone.now()
-                - timedelta(
-                    seconds=settings.OUTBOX_STUCK_AFTER_SECONDS,
-                )
+            cutoff = timezone.now() - timedelta(
+                seconds=settings.OUTBOX_STUCK_AFTER_SECONDS,
             )
 
             stuck_count = OutboxEvent.objects.filter(

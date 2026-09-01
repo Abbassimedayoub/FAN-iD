@@ -1,19 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  OrganizerScanner,
-  ScannerStatus,
-} from "@/features/organizers/scanners";
+import type { OrganizerScanner, ScannerStatus } from "@/features/organizers/scanners";
 
-import {
-  isAssignableScanner,
-  isCurrentAssignment,
-} from "./OrganizerEventScannerAssignments";
+import { isAssignableScanner, isCurrentAssignment } from "./OrganizerEventScannerAssignments";
 
-function scanner(
-  status: ScannerStatus,
-  archivedAt: string | null = null,
-): OrganizerScanner {
+function scanner(status: ScannerStatus, archivedAt: string | null = null): OrganizerScanner {
   return {
     status,
     archived_at: archivedAt,
@@ -21,55 +12,25 @@ function scanner(
 }
 
 describe("scanner assignment eligibility", () => {
-  it.each<ScannerStatus>([
-    "INVITED",
-    "EMAIL_SENT",
-    "OPENED",
-    "ACTIVE",
-  ])(
+  it.each<ScannerStatus>(["INVITED", "EMAIL_SENT", "OPENED", "ACTIVE"])(
     "accepte le statut %s",
     (status) => {
-      expect(
-        isAssignableScanner(
-          scanner(status),
-        ),
-      ).toBe(true);
+      expect(isAssignableScanner(scanner(status))).toBe(true);
     },
   );
 
-  it.each<ScannerStatus>([
-    "LEAVE_REQUESTED",
-    "INVITATION_CANCELLED",
-    "DELETED",
-  ])(
+  it.each<ScannerStatus>(["LEAVE_REQUESTED", "INVITATION_CANCELLED", "DELETED"])(
     "masque le statut %s",
     (status) => {
-      expect(
-        isAssignableScanner(
-          scanner(status),
-        ),
-      ).toBe(false);
+      expect(isAssignableScanner(scanner(status))).toBe(false);
     },
   );
 
-  it(
-    "masque un scanner actif archivé",
-    () => {
-      expect(
-        isAssignableScanner(
-          scanner(
-            "ACTIVE",
-            "2026-09-01T16:00:00Z",
-          ),
-        ),
-      ).toBe(false);
-    },
-  );
+  it("masque un scanner actif archivé", () => {
+    expect(isAssignableScanner(scanner("ACTIVE", "2026-09-01T16:00:00Z"))).toBe(false);
+  });
 
-  it.each<ScannerStatus>([
-    "INVITATION_CANCELLED",
-    "DELETED",
-  ])(
+  it.each<ScannerStatus>(["INVITATION_CANCELLED", "DELETED"])(
     "masque une affectation terminale de la liste courante: %s",
     (status) => {
       expect(
@@ -80,13 +41,7 @@ describe("scanner assignment eligibility", () => {
     },
   );
 
-  it.each<ScannerStatus>([
-    "INVITED",
-    "EMAIL_SENT",
-    "OPENED",
-    "ACTIVE",
-    "LEAVE_REQUESTED",
-  ])(
+  it.each<ScannerStatus>(["INVITED", "EMAIL_SENT", "OPENED", "ACTIVE", "LEAVE_REQUESTED"])(
     "conserve une affectation non terminale dans la liste courante: %s",
     (status) => {
       expect(
@@ -96,5 +51,4 @@ describe("scanner assignment eligibility", () => {
       ).toBe(true);
     },
   );
-
 });

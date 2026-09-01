@@ -53,9 +53,7 @@ def make_owner(
     organizer = Organizer.objects.create(
         user=owner,
         org_name=f"Reactivation Org {suffix}",
-        contact_email=(
-            f"reactivation-contact-{suffix}@example.test"
-        ),
+        contact_email=(f"reactivation-contact-{suffix}@example.test"),
         validation_status=ORGANIZER_SUSPENDED,
     )
 
@@ -118,15 +116,10 @@ def test_suspended_organizer_requests_reactivation_but_stays_suspended(
 
     organizer.refresh_from_db()
 
-    assert (
-        organizer.validation_status
-        == ORGANIZER_SUSPENDED
-    )
+    assert organizer.validation_status == ORGANIZER_SUSPENDED
 
-    request = (
-        OrganizerReactivationRequest.objects.get(
-            organizer=organizer,
-        )
+    request = OrganizerReactivationRequest.objects.get(
+        organizer=organizer,
     )
 
     assert request.requested_by_id == owner.pk
@@ -182,12 +175,10 @@ def test_duplicate_pending_request_is_idempotent(
     assert first.data["id"] == second.data["id"]
 
     assert (
-        OrganizerReactivationRequest.objects
-        .filter(
+        OrganizerReactivationRequest.objects.filter(
             organizer=organizer,
             status="PENDING",
-        )
-        .count()
+        ).count()
         == 1
     )
 
@@ -220,10 +211,7 @@ def test_non_suspended_organizer_cannot_request_reactivation(
     )
 
     assert response.status_code == 409
-    assert (
-        response.data["error"]["code"]
-        == "ORGANIZER_REACTIVATION_NOT_ALLOWED"
-    )
+    assert response.data["error"]["code"] == "ORGANIZER_REACTIVATION_NOT_ALLOWED"
 
 
 @pytest.mark.django_db
@@ -249,10 +237,7 @@ def test_old_self_reopen_endpoint_no_longer_exists(
 
     organizer.refresh_from_db()
 
-    assert (
-        organizer.validation_status
-        == ORGANIZER_SUSPENDED
-    )
+    assert organizer.validation_status == ORGANIZER_SUSPENDED
 
 
 @pytest.mark.django_db
@@ -284,10 +269,7 @@ def test_admin_approval_requires_step_up_otp(
     client.force_authenticate(user=admin)
 
     response = client.post(
-        (
-            f"/api/v1/admin/organizers/"
-            f"{organizer.pk}/reactivation-request/approve"
-        ),
+        (f"/api/v1/admin/organizers/" f"{organizer.pk}/reactivation-request/approve"),
         {},
         format="json",
         HTTP_IF_MATCH=f'"{organizer.version}"',
@@ -295,17 +277,11 @@ def test_admin_approval_requires_step_up_otp(
 
     assert response.status_code == 403
 
-    assert (
-        response.data["error"]["code"]
-        == "STEP_UP_REQUIRED"
-    )
+    assert response.data["error"]["code"] == "STEP_UP_REQUIRED"
 
     organizer.refresh_from_db()
 
-    assert (
-        organizer.validation_status
-        == ORGANIZER_SUSPENDED
-    )
+    assert organizer.validation_status == ORGANIZER_SUSPENDED
 
 
 @pytest.mark.django_db
@@ -333,30 +309,23 @@ def test_only_admin_service_decision_reopens_after_pending_request(
         lambda **kwargs: None,
     )
 
-    request, created = (
-        OrganizerReactivationService.request(
-            organizer_id=organizer.pk,
-            requested_by_id=owner.pk,
-        )
+    request, created = OrganizerReactivationService.request(
+        organizer_id=organizer.pk,
+        requested_by_id=owner.pk,
     )
 
     assert created is True
 
-    request, reopened = (
-        OrganizerReactivationService.approve(
-            organizer_id=organizer.pk,
-            reviewed_by_id=admin.pk,
-            expected_version=organizer.version,
-        )
+    request, reopened = OrganizerReactivationService.approve(
+        organizer_id=organizer.pk,
+        reviewed_by_id=admin.pk,
+        expected_version=organizer.version,
     )
 
     reopened.refresh_from_db()
     request.refresh_from_db()
 
-    assert (
-        reopened.validation_status
-        == ORGANIZER_APPROVED
-    )
+    assert reopened.validation_status == ORGANIZER_APPROVED
     assert request.status == "APPROVED"
     assert request.reviewed_by_id == admin.pk
     assert request.reviewed_at is not None
@@ -387,35 +356,25 @@ def test_admin_rejection_keeps_organizer_suspended(
         lambda **kwargs: None,
     )
 
-    request, _ = (
-        OrganizerReactivationService.request(
-            organizer_id=organizer.pk,
-            requested_by_id=owner.pk,
-        )
+    request, _ = OrganizerReactivationService.request(
+        organizer_id=organizer.pk,
+        requested_by_id=owner.pk,
     )
 
-    request = (
-        OrganizerReactivationService.reject(
-            organizer_id=organizer.pk,
-            reviewed_by_id=admin.pk,
-            expected_version=organizer.version,
-            reason="Vérification complémentaire requise.",
-        )
+    request = OrganizerReactivationService.reject(
+        organizer_id=organizer.pk,
+        reviewed_by_id=admin.pk,
+        expected_version=organizer.version,
+        reason="Vérification complémentaire requise.",
     )
 
     organizer.refresh_from_db()
     request.refresh_from_db()
 
-    assert (
-        organizer.validation_status
-        == ORGANIZER_SUSPENDED
-    )
+    assert organizer.validation_status == ORGANIZER_SUSPENDED
     assert request.status == "REJECTED"
     assert request.reviewed_by_id == admin.pk
-    assert (
-        request.rejection_reason
-        == "Vérification complémentaire requise."
-    )
+    assert request.rejection_reason == "Vérification complémentaire requise."
 
 
 @pytest.mark.django_db
@@ -432,36 +391,26 @@ def test_request_and_decision_emails_are_traceable(
         suffix="emails",
     )
 
-    request = (
-        OrganizerReactivationRequest.objects.create(
-            organizer=organizer,
-            requested_by=owner,
-            organizer_version=organizer.version,
-        )
+    request = OrganizerReactivationRequest.objects.create(
+        organizer=organizer,
+        requested_by=owner,
+        organizer_version=organizer.version,
     )
 
     sender = InMemorySender()
 
     monkeypatch.setattr(
-        (
-            "apps.organizing.reactivation_tasks."
-            "build_notification_sender"
-        ),
+        ("apps.organizing.reactivation_tasks." "build_notification_sender"),
         lambda: sender,
     )
 
-    result = (
-        send_reactivation_requested_emails.run(
-            request_id=str(request.pk),
-        )
+    result = send_reactivation_requested_emails.run(
+        request_id=str(request.pk),
     )
 
     assert result["sent"] is True
 
-    recipients = {
-        item["to"]
-        for item in sender.emails_sent
-    }
+    recipients = {item["to"] for item in sender.emails_sent}
 
     assert owner.email in recipients
     assert organizer.contact_email in recipients
@@ -469,14 +418,8 @@ def test_request_and_decision_emails_are_traceable(
 
     request.refresh_from_db()
 
-    assert (
-        request.request_organizer_email_sent_at
-        is not None
-    )
-    assert (
-        request.request_admin_email_sent_at
-        is not None
-    )
+    assert request.request_organizer_email_sent_at is not None
+    assert request.request_admin_email_sent_at is not None
 
     sender.emails_sent.clear()
 
@@ -492,30 +435,19 @@ def test_request_and_decision_emails_are_traceable(
         ]
     )
 
-    result = (
-        send_reactivation_decision_emails.run(
-            request_id=str(request.pk),
-        )
+    result = send_reactivation_decision_emails.run(
+        request_id=str(request.pk),
     )
 
     assert result["sent"] is True
     assert result["decision"] == "APPROVED"
 
-    recipients = {
-        item["to"]
-        for item in sender.emails_sent
-    }
+    recipients = {item["to"] for item in sender.emails_sent}
 
     assert owner.email in recipients
     assert admin.email in recipients
 
     request.refresh_from_db()
 
-    assert (
-        request.decision_organizer_email_sent_at
-        is not None
-    )
-    assert (
-        request.decision_admin_email_sent_at
-        is not None
-    )
+    assert request.decision_organizer_email_sent_at is not None
+    assert request.decision_admin_email_sent_at is not None

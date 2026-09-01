@@ -24,7 +24,6 @@ from apps.organizing.api import (
     list_scanner_assignment_summaries,
 )
 
-
 LIFECYCLE_LABELS = {
     CATALOG_EVENT_POSTPONED: "reporté",
     CATALOG_EVENT_SUSPENDED: "suspendu",
@@ -41,20 +40,13 @@ def _event_details(
 
     lines = [
         f"Événement : {event.name}",
-        (
-            "Date : "
-            + starts_at.strftime(
-                "%d/%m/%Y à %H:%M"
-            )
-        ),
+        ("Date : " + starts_at.strftime("%d/%m/%Y à %H:%M")),
         f"Lieu : {event.venue or 'Non renseigné'}",
         f"Statut : {event.status}",
     ]
 
     if event.lifecycle_reason:
-        lines.append(
-            f"Motif : {event.lifecycle_reason}"
-        )
+        lines.append(f"Motif : {event.lifecycle_reason}")
 
     return "\n".join(lines)
 
@@ -82,10 +74,7 @@ def _retry(
 
 @shared_task(
     bind=True,
-    name=(
-        "notifying.event_scanner."
-        "assignment_emails"
-    ),
+    name=("notifying.event_scanner." "assignment_emails"),
     max_retries=5,
 )
 def send_event_scanner_assignment_emails(
@@ -136,47 +125,20 @@ def send_event_scanner_assignment_emails(
             "reason": "organizer_missing",
         }
 
-    scanner_name = (
-        f"{scanner.first_name} "
-        f"{scanner.last_name}"
-    ).strip()
+    scanner_name = (f"{scanner.first_name} " f"{scanner.last_name}").strip()
 
     details = _event_details(event)
 
     if change == "ASSIGNED":
-        scanner_subject = (
-            "[FANID] Nouvel événement affecté : "
-            f"{event.name}"
-        )
-        scanner_action = (
-            "Vous venez d’être affecté à cet "
-            "événement."
-        )
-        organizer_subject = (
-            "[FANID] Trace affectation scanner : "
-            f"{event.name}"
-        )
-        organizer_action = (
-            f"{scanner_name} ({scanner.email}) "
-            "a été affecté à cet événement."
-        )
+        scanner_subject = "[FANID] Nouvel événement affecté : " f"{event.name}"
+        scanner_action = "Vous venez d’être affecté à cet " "événement."
+        organizer_subject = "[FANID] Trace affectation scanner : " f"{event.name}"
+        organizer_action = f"{scanner_name} ({scanner.email}) " "a été affecté à cet événement."
     elif change == "UNASSIGNED":
-        scanner_subject = (
-            "[FANID] Retrait d’une affectation : "
-            f"{event.name}"
-        )
-        scanner_action = (
-            "Vous avez été retiré de "
-            "l’affectation à cet événement."
-        )
-        organizer_subject = (
-            "[FANID] Trace retrait scanner : "
-            f"{event.name}"
-        )
-        organizer_action = (
-            f"{scanner_name} ({scanner.email}) "
-            "a été retiré de cet événement."
-        )
+        scanner_subject = "[FANID] Retrait d’une affectation : " f"{event.name}"
+        scanner_action = "Vous avez été retiré de " "l’affectation à cet événement."
+        organizer_subject = "[FANID] Trace retrait scanner : " f"{event.name}"
+        organizer_action = f"{scanner_name} ({scanner.email}) " "a été retiré de cet événement."
     else:
         return {
             "sent": False,
@@ -230,10 +192,7 @@ def send_event_scanner_assignment_emails(
 
 @shared_task(
     bind=True,
-    name=(
-        "notifying.event_scanner."
-        "lifecycle_emails"
-    ),
+    name=("notifying.event_scanner." "lifecycle_emails"),
     max_retries=5,
 )
 def send_event_scanner_lifecycle_emails(
@@ -297,10 +256,7 @@ def send_event_scanner_lifecycle_emails(
         for scanner in scanners:
             sender.send_email(
                 to=scanner.email,
-                subject=(
-                    f"[FANID] Événement {label} : "
-                    f"{event.name}"
-                ),
+                subject=(f"[FANID] Événement {label} : " f"{event.name}"),
                 body=(
                     f"Bonjour {scanner.first_name},\n\n"
                     "Un événement qui vous est affecté "
@@ -316,10 +272,7 @@ def send_event_scanner_lifecycle_emails(
 
         sender.send_email(
             to=organizer.contact_email,
-            subject=(
-                f"[FANID] Trace événement {label} : "
-                f"{event.name}"
-            ),
+            subject=(f"[FANID] Trace événement {label} : " f"{event.name}"),
             body=(
                 "Bonjour,\n\n"
                 "Voici votre trace de changement "

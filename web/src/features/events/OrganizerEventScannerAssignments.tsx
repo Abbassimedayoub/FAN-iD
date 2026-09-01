@@ -106,9 +106,7 @@ export function OrganizerEventScannerAssignments({ event }: OrganizerEventScanne
     );
   }
 
-  const assignments = (assignmentsQuery.data ?? []).filter(
-    isCurrentAssignment,
-  );
+  const assignments = (assignmentsQuery.data ?? []).filter(isCurrentAssignment);
 
   const assignedScannerIds = new Set(assignments.map((assignment) => assignment.scanner_id));
 
@@ -124,7 +122,6 @@ export function OrganizerEventScannerAssignments({ event }: OrganizerEventScanne
     scannersQuery.isSuccess &&
     assignableScanners.length === 0 &&
     (assignmentsQuery.isError || (assignmentsQuery.isSuccess && assignments.length === 0));
-
 
   const mutationError = assignMutation.isError || unassignMutation.isError;
 
@@ -237,7 +234,8 @@ export function OrganizerEventScannerAssignments({ event }: OrganizerEventScanne
                 </p>
 
                 <p className="mt-2 text-sm leading-6 text-[#7d8c9c]">
-                  Invitez un scanner depuis la page Scanners pour pouvoir l’affecter à cet événement.
+                  Invitez un scanner depuis la page Scanners pour pouvoir l’affecter à cet
+                  événement.
                 </p>
               </div>
             ) : availableScanners.length > 0 ? (

@@ -31,7 +31,7 @@ describe("scanner invitation resend", () => {
       password_help_pending: false,
       password_help_requested_at: null,
       archived_at: null,
-    created_at: "2026-08-29T20:00:00Z",
+      created_at: "2026-08-29T20:00:00Z",
       updated_at: "2026-08-29T21:00:00Z",
       version: 1,
     };

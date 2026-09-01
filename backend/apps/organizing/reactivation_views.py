@@ -26,11 +26,7 @@ from .reactivation_service import (
 def _my_organizer(
     request: Request,
 ) -> Organizer:
-    organizer = (
-        Organizer.objects
-        .filter(user=request.user)
-        .first()
-    )
+    organizer = Organizer.objects.filter(user=request.user).first()
 
     if organizer is None:
         raise NotFoundBusinessError()
@@ -41,11 +37,7 @@ def _my_organizer(
 def _organizer(
     organizer_id: Any,
 ) -> Organizer:
-    organizer = (
-        Organizer.objects
-        .filter(pk=organizer_id)
-        .first()
-    )
+    organizer = Organizer.objects.filter(pk=organizer_id).first()
 
     if organizer is None:
         raise NotFoundBusinessError()
@@ -56,12 +48,7 @@ def _organizer(
 def _latest_request(
     organizer: Organizer,
 ) -> OrganizerReactivationRequest | None:
-    return (
-        OrganizerReactivationRequest.objects
-        .filter(organizer=organizer)
-        .order_by("-created_at")
-        .first()
-    )
+    return OrganizerReactivationRequest.objects.filter(organizer=organizer).order_by("-created_at").first()
 
 
 class OrganizerReactivationRequestView(APIView):
@@ -84,15 +71,7 @@ class OrganizerReactivationRequestView(APIView):
         item = _latest_request(organizer)
 
         return Response(
-            {
-                "request": (
-                    OrganizerReactivationRequestSerializer(
-                        item
-                    ).data
-                    if item is not None
-                    else None
-                )
-            },
+            {"request": (OrganizerReactivationRequestSerializer(item).data if item is not None else None)},
             status=status.HTTP_200_OK,
         )
 
@@ -102,28 +81,18 @@ class OrganizerReactivationRequestView(APIView):
     ) -> Response:
         organizer = _my_organizer(request)
 
-        item, created = (
-            OrganizerReactivationService.request(
-                organizer_id=organizer.pk,
-                requested_by_id=request.user.pk,
-            )
+        item, created = OrganizerReactivationService.request(
+            organizer_id=organizer.pk,
+            requested_by_id=request.user.pk,
         )
 
         return Response(
-            OrganizerReactivationRequestSerializer(
-                item
-            ).data,
-            status=(
-                status.HTTP_201_CREATED
-                if created
-                else status.HTTP_200_OK
-            ),
+            OrganizerReactivationRequestSerializer(item).data,
+            status=(status.HTTP_201_CREATED if created else status.HTTP_200_OK),
         )
 
 
-class AdminOrganizerReactivationRequestView(
-    APIView
-):
+class AdminOrganizerReactivationRequestView(APIView):
     permission_classes = [
         IsAuthenticated,
         ActionPermission,
@@ -149,22 +118,12 @@ class AdminOrganizerReactivationRequestView(
         )
 
         return Response(
-            {
-                "request": (
-                    OrganizerReactivationRequestSerializer(
-                        item
-                    ).data
-                    if item is not None
-                    else None
-                )
-            },
+            {"request": (OrganizerReactivationRequestSerializer(item).data if item is not None else None)},
             status=status.HTTP_200_OK,
         )
 
 
-class AdminOrganizerReactivationApproveView(
-    APIView
-):
+class AdminOrganizerReactivationApproveView(APIView):
     """
     Seul ADMIN peut approuver.
 
@@ -194,32 +153,20 @@ class AdminOrganizerReactivationApproveView(
             organizer,
         )
 
-        expected_version = parse_if_match(
-            request.headers.get(
-                "If-Match"
-            )
-        )
+        expected_version = parse_if_match(request.headers.get("If-Match"))
 
-        item, reopened = (
-            OrganizerReactivationService.approve(
-                organizer_id=organizer.pk,
-                reviewed_by_id=request.user.pk,
-                expected_version=expected_version,
-            )
+        item, reopened = OrganizerReactivationService.approve(
+            organizer_id=organizer.pk,
+            reviewed_by_id=request.user.pk,
+            expected_version=expected_version,
         )
 
         return Response(
             {
-                "request": (
-                    OrganizerReactivationRequestSerializer(
-                        item
-                    ).data
-                ),
+                "request": (OrganizerReactivationRequestSerializer(item).data),
                 "organizer": {
                     "id": str(reopened.pk),
-                    "validation_status": (
-                        reopened.validation_status
-                    ),
+                    "validation_status": (reopened.validation_status),
                     "version": reopened.version,
                 },
             },
@@ -227,9 +174,7 @@ class AdminOrganizerReactivationApproveView(
         )
 
 
-class AdminOrganizerReactivationRejectView(
-    APIView
-):
+class AdminOrganizerReactivationRejectView(APIView):
     permission_classes = [
         IsAuthenticated,
         ActionPermission,
@@ -250,46 +195,28 @@ class AdminOrganizerReactivationRejectView(
             organizer,
         )
 
-        serializer = (
-            OrganizerReactivationRejectSerializer(
-                data=request.data,
-            )
+        serializer = OrganizerReactivationRejectSerializer(
+            data=request.data,
         )
         serializer.is_valid(
             raise_exception=True,
         )
 
-        expected_version = parse_if_match(
-            request.headers.get(
-                "If-Match"
-            )
-        )
+        expected_version = parse_if_match(request.headers.get("If-Match"))
 
-        item = (
-            OrganizerReactivationService.reject(
-                organizer_id=organizer.pk,
-                reviewed_by_id=request.user.pk,
-                expected_version=expected_version,
-                reason=(
-                    serializer.validated_data[
-                        "reason"
-                    ]
-                ),
-            )
+        item = OrganizerReactivationService.reject(
+            organizer_id=organizer.pk,
+            reviewed_by_id=request.user.pk,
+            expected_version=expected_version,
+            reason=(serializer.validated_data["reason"]),
         )
 
         return Response(
             {
-                "request": (
-                    OrganizerReactivationRequestSerializer(
-                        item
-                    ).data
-                ),
+                "request": (OrganizerReactivationRequestSerializer(item).data),
                 "organizer": {
                     "id": str(organizer.pk),
-                    "validation_status": (
-                        organizer.validation_status
-                    ),
+                    "validation_status": (organizer.validation_status),
                     "version": organizer.version,
                 },
             },

@@ -25,10 +25,7 @@ User = get_user_model()
 
 APPROVED = "APPROVED"
 
-PNG = (
-    b"\x89PNG\r\n\x1a\n"
-    + b"fanid-event-image"
-)
+PNG = b"\x89PNG\r\n\x1a\n" + b"fanid-event-image"
 
 
 @pytest.fixture
@@ -50,14 +47,12 @@ def storage(
     value = InMemoryStorage()
 
     monkeypatch.setattr(
-        "apps.catalog.views."
-        "build_object_storage",
+        "apps.catalog.views." "build_object_storage",
         lambda: value,
     )
 
     monkeypatch.setattr(
-        "apps.catalog.serializers."
-        "build_object_storage",
+        "apps.catalog.serializers." "build_object_storage",
         lambda: value,
     )
 
@@ -70,10 +65,7 @@ def make_organizer(
     suffix: str,
 ):
     user = User.objects.create_user(
-        email=(
-            f"image-{suffix}"
-            "@example.test"
-        ),
+        email=(f"image-{suffix}" "@example.test"),
         password="Chataigne-Orageuse-2026",
         first_name="Ines",
         last_name="Bouzid",
@@ -94,10 +86,7 @@ def make_organizer(
     organizer = Organizer.objects.create(
         user=user,
         org_name=f"Organisation {suffix}",
-        contact_email=(
-            f"contact-{suffix}"
-            "@example.test"
-        ),
+        contact_email=(f"contact-{suffix}" "@example.test"),
         validation_status=APPROVED,
     )
 
@@ -110,10 +99,7 @@ def make_event(
     category,
     suffix: str,
 ) -> Event:
-    start = (
-        timezone.now()
-        + datetime.timedelta(days=10)
-    )
+    start = timezone.now() + datetime.timedelta(days=10)
 
     return Event.objects.create(
         organizer=organizer,
@@ -121,10 +107,7 @@ def make_event(
         name=f"Image Event {suffix}",
         description="Image phase 2C",
         starts_at=start,
-        ends_at=(
-            start
-            + datetime.timedelta(hours=2)
-        ),
+        ends_at=(start + datetime.timedelta(hours=2)),
         venue="Stade FANID",
         capacity_total=1000,
     )
@@ -184,18 +167,12 @@ def test_owner_can_upload_event_image(
     assert response["ETag"] == '"2"'
     assert response.data["version"] == 2
 
-    assert response.data[
-        "image_url"
-    ].startswith("memory://events/")
+    assert response.data["image_url"].startswith("memory://events/")
 
     event.refresh_from_db()
 
-    assert event.image_key.endswith(
-        ".png"
-    )
-    assert event.image_key in (
-        storage._objects
-    )
+    assert event.image_key.endswith(".png")
+    assert event.image_key in (storage._objects)
 
 
 @pytest.mark.django_db
@@ -285,12 +262,7 @@ def test_upload_rejects_more_than_five_megabytes(
         suffix="too-large",
     )
 
-    content = (
-        b"\x89PNG\r\n\x1a\n"
-        + b"x" * (
-            5 * 1024 * 1024
-        )
-    )
+    content = b"\x89PNG\r\n\x1a\n" + b"x" * (5 * 1024 * 1024)
 
     response = auth(
         client,
@@ -411,11 +383,7 @@ def test_stale_upload_cleans_new_object(
         suffix="stale",
     )
 
-    Event.objects.filter(
-        pk=event.pk
-    ).update(
-        version=2
-    )
+    Event.objects.filter(pk=event.pk).update(version=2)
 
     response = auth(
         client,
@@ -452,10 +420,7 @@ def test_replacing_image_deletes_old_after_commit(
         suffix="replace",
     )
 
-    old_key = (
-        f"events/{organizer.pk}/"
-        f"{event.pk}/old.png"
-    )
+    old_key = f"events/{organizer.pk}/" f"{event.pk}/old.png"
 
     storage.upload(
         io.BytesIO(PNG),
@@ -470,9 +435,7 @@ def test_replacing_image_deletes_old_after_commit(
         ]
     )
 
-    with django_capture_on_commit_callbacks(
-        execute=True
-    ):
+    with django_capture_on_commit_callbacks(execute=True):
         response = auth(
             client,
             user,
@@ -513,10 +476,7 @@ def test_owner_can_delete_event_image(
         suffix="delete",
     )
 
-    key = (
-        f"events/{organizer.pk}/"
-        f"{event.pk}/poster.png"
-    )
+    key = f"events/{organizer.pk}/" f"{event.pk}/poster.png"
 
     storage.upload(
         io.BytesIO(PNG),
@@ -531,9 +491,7 @@ def test_owner_can_delete_event_image(
         ]
     )
 
-    with django_capture_on_commit_callbacks(
-        execute=True
-    ):
+    with django_capture_on_commit_callbacks(execute=True):
         response = auth(
             client,
             user,
@@ -569,10 +527,7 @@ def test_owner_can_get_signed_event_image_url(
         suffix="get-url",
     )
 
-    key = (
-        f"events/{organizer.pk}/"
-        f"{event.pk}/poster.png"
-    )
+    key = f"events/{organizer.pk}/" f"{event.pk}/poster.png"
 
     storage.upload(
         io.BytesIO(PNG),
@@ -590,16 +545,12 @@ def test_owner_can_get_signed_event_image_url(
     response = auth(
         client,
         user,
-    ).get(
-        f"/api/v1/events/{event.pk}/image"
-    )
+    ).get(f"/api/v1/events/{event.pk}/image")
 
     assert response.status_code == 200
     assert response["ETag"] == '"1"'
     assert response.data["expires_in"] == 300
-    assert response.data["url"].startswith(
-        "memory://"
-    )
+    assert response.data["url"].startswith("memory://")
 
 
 @pytest.mark.django_db
@@ -618,8 +569,7 @@ def test_signed_local_media_url_serves_file(
     )
 
     monkeypatch.setattr(
-        "apps.catalog.views."
-        "build_object_storage",
+        "apps.catalog.views." "build_object_storage",
         lambda: local,
     )
 
@@ -632,11 +582,7 @@ def test_signed_local_media_url_serves_file(
 
     assert response.status_code == 200
 
-    body = b"".join(
-        response.streaming_content
-    )
+    body = b"".join(response.streaming_content)
 
     assert body == PNG
-    assert response["Content-Type"] == (
-        "image/png"
-    )
+    assert response["Content-Type"] == ("image/png")

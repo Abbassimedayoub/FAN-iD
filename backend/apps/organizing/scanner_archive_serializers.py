@@ -14,15 +14,11 @@ class ScannerBulkArchiveSerializer(serializers.Serializer):
 
     def validate_scanners(self, value):
         if len(value) > 100:
-            raise serializers.ValidationError(
-                "Vous ne pouvez pas archiver plus de 100 scanners à la fois."
-            )
+            raise serializers.ValidationError("Vous ne pouvez pas archiver plus de 100 scanners à la fois.")
 
         ids = [item["id"] for item in value]
 
         if len(ids) != len(set(ids)):
-            raise serializers.ValidationError(
-                "Un même scanner ne peut pas être sélectionné plusieurs fois."
-            )
+            raise serializers.ValidationError("Un même scanner ne peut pas être sélectionné plusieurs fois.")
 
         return value

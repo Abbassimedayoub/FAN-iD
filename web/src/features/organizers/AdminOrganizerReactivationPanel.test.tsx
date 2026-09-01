@@ -1,12 +1,5 @@
-import {
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
-import {
-  fireEvent,
-  render,
-  screen,
-} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
   AxiosError,
   AxiosHeaders,
@@ -14,11 +7,7 @@ import {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from "axios";
-import {
-  afterEach,
-  expect,
-  it,
-} from "vitest";
+import { afterEach, expect, it } from "vitest";
 
 import { httpClient } from "@/lib/httpClient";
 
@@ -27,8 +16,7 @@ import type { Organizer } from "./types";
 
 const originalAdapter = httpClient.defaults.adapter;
 
-const ORGANIZER_ID =
-  "00000000-0000-4000-8000-000000000001";
+const ORGANIZER_ID = "00000000-0000-4000-8000-000000000001";
 
 const organizer: Organizer = {
   id: ORGANIZER_ID,
@@ -79,24 +67,15 @@ function apiError(
   );
 }
 
-function reactivationRequest(
-  status: "PENDING" | "APPROVED" | "REJECTED",
-) {
+function reactivationRequest(status: "PENDING" | "APPROVED" | "REJECTED") {
   return {
     id: "00000000-0000-4000-8000-000000000050",
     organizer_id: ORGANIZER_ID,
-    requested_by_id:
-      "00000000-0000-4000-8000-000000000051",
+    requested_by_id: "00000000-0000-4000-8000-000000000051",
     organizer_version: 5,
     status,
-    reviewed_by_id:
-      status === "PENDING"
-        ? null
-        : "00000000-0000-4000-8000-000000000052",
-    reviewed_at:
-      status === "PENDING"
-        ? null
-        : "2026-08-30T16:30:00Z",
+    reviewed_by_id: status === "PENDING" ? null : "00000000-0000-4000-8000-000000000052",
+    reviewed_at: status === "PENDING" ? null : "2026-08-30T16:30:00Z",
     rejection_reason: null,
     created_at: "2026-08-30T16:00:00Z",
     updated_at: "2026-08-30T16:00:00Z",
@@ -108,15 +87,11 @@ afterEach(() => {
 });
 
 it("fait approuver une réouverture uniquement après le step-up OTP administrateur", async () => {
-  const challengeId =
-    "00000000-0000-4000-8000-000000000099";
+  const challengeId = "00000000-0000-4000-8000-000000000099";
 
   const calls: string[] = [];
   let approveCalls = 0;
-  let currentStatus:
-    | "PENDING"
-    | "APPROVED"
-    | "REJECTED" = "PENDING";
+  let currentStatus: "PENDING" | "APPROVED" | "REJECTED" = "PENDING";
 
   const adapter: AxiosAdapter = async (config) => {
     const call = `${String(config.method).toUpperCase()} ${config.url ?? ""}`;
@@ -124,8 +99,7 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
 
     if (
       config.method === "get" &&
-      config.url ===
-        `/api/v1/admin/organizers/${ORGANIZER_ID}/reactivation-request`
+      config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/reactivation-request`
     ) {
       return response(config, 200, {
         request: reactivationRequest(currentStatus),
@@ -134,22 +108,14 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
 
     if (
       config.method === "post" &&
-      config.url ===
-        `/api/v1/admin/organizers/${ORGANIZER_ID}/reactivation-request/approve`
+      config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/reactivation-request/approve`
     ) {
       approveCalls += 1;
 
-      expect(
-        config.headers.get("If-Match"),
-      ).toBe('"5"');
+      expect(config.headers.get("If-Match")).toBe('"5"');
 
       if (approveCalls === 1) {
-        throw apiError(
-          config,
-          403,
-          "STEP_UP_REQUIRED",
-          "Une vérification renforcée est requise",
-        );
+        throw apiError(config, 403, "STEP_UP_REQUIRED", "Une vérification renforcée est requise");
       }
 
       currentStatus = "APPROVED";
@@ -164,20 +130,14 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
       });
     }
 
-    if (
-      config.method === "post" &&
-      config.url === "/api/v1/auth/step-up/request"
-    ) {
+    if (config.method === "post" && config.url === "/api/v1/auth/step-up/request") {
       return response(config, 200, {
         challenge_id: challengeId,
         expires_in_seconds: 300,
       });
     }
 
-    if (
-      config.method === "post" &&
-      config.url === "/api/v1/auth/step-up/confirm"
-    ) {
+    if (config.method === "post" && config.url === "/api/v1/auth/step-up/confirm") {
       expect(config.data).toBe(
         JSON.stringify({
           challenge_id: challengeId,
@@ -188,9 +148,7 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
       return response(config, 204, undefined);
     }
 
-    throw new Error(
-      `Requête inattendue : ${config.method} ${config.url}`,
-    );
+    throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
   };
 
   httpClient.defaults.adapter = adapter;
@@ -208,17 +166,11 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
 
   render(
     <QueryClientProvider client={queryClient}>
-      <AdminOrganizerReactivationPanel
-        organizer={organizer}
-      />
+      <AdminOrganizerReactivationPanel organizer={organizer} />
     </QueryClientProvider>,
   );
 
-  expect(
-    await screen.findByText(
-      "Statut de la demande : En attente",
-    ),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("Statut de la demande : En attente")).toBeInTheDocument();
 
   fireEvent.click(
     screen.getByRole("button", {
@@ -232,11 +184,7 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
     }),
   ).toBeInTheDocument();
 
-  expect(
-    screen.getByText(
-      /Le code expire après 5 minutes/,
-    ),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/Le code expire après 5 minutes/)).toBeInTheDocument();
 
   fireEvent.click(
     screen.getByRole("button", {
@@ -250,20 +198,13 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
     }),
   ).toBeInTheDocument();
 
-  expect(
-    screen.getByText(
-      "Le code expire dans 300 secondes.",
-    ),
-  ).toBeInTheDocument();
+  expect(screen.getByText("Le code expire dans 300 secondes.")).toBeInTheDocument();
 
-  fireEvent.change(
-    screen.getByLabelText("Code de vérification"),
-    {
-      target: {
-        value: "123456",
-      },
+  fireEvent.change(screen.getByLabelText("Code de vérification"), {
+    target: {
+      value: "123456",
     },
-  );
+  });
 
   fireEvent.click(
     screen.getByRole("button", {
@@ -271,23 +212,15 @@ it("fait approuver une réouverture uniquement après le step-up OTP administrat
     }),
   );
 
-  expect(
-    await screen.findByText(
-      "Réouverture approuvée.",
-    ),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("Réouverture approuvée.")).toBeInTheDocument();
 
   expect(approveCalls).toBe(2);
 
   expect(calls).toContain(
     `POST /api/v1/admin/organizers/${ORGANIZER_ID}/reactivation-request/approve`,
   );
-  expect(calls).toContain(
-    "POST /api/v1/auth/step-up/request",
-  );
-  expect(calls).toContain(
-    "POST /api/v1/auth/step-up/confirm",
-  );
+  expect(calls).toContain("POST /api/v1/auth/step-up/request");
+  expect(calls).toContain("POST /api/v1/auth/step-up/confirm");
 
   queryClient.clear();
 });

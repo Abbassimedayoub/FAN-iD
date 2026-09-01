@@ -64,9 +64,7 @@ def make_organizer(
     organizer = Organizer.objects.create(
         user=user,
         org_name=f"Organisation {suffix}",
-        contact_email=(
-            f"contact-{suffix}@example.test"
-        ),
+        contact_email=(f"contact-{suffix}@example.test"),
         validation_status=APPROVED,
     )
 
@@ -89,10 +87,7 @@ def make_event(
     venue: str = "Stade FANID",
     capacity: int | None = 1000,
 ) -> Event:
-    start = (
-        timezone.now()
-        + datetime.timedelta(days=10)
-    )
+    start = timezone.now() + datetime.timedelta(days=10)
 
     return Event.objects.create(
         organizer=organizer,
@@ -100,10 +95,7 @@ def make_event(
         name=f"Event {suffix}",
         description="Phase 2B",
         starts_at=start,
-        ends_at=(
-            start
-            + datetime.timedelta(hours=3)
-        ),
+        ends_at=(start + datetime.timedelta(hours=3)),
         venue=venue,
         capacity_total=capacity,
     )
@@ -120,10 +112,7 @@ def test_event_api_accepts_venue_and_capacity(
         suffix="create-event",
     )
 
-    start = (
-        timezone.now()
-        + datetime.timedelta(days=10)
-    )
+    start = timezone.now() + datetime.timedelta(days=10)
 
     response = authenticate(
         client,
@@ -135,10 +124,7 @@ def test_event_api_accepts_venue_and_capacity(
             "name": "Match complet",
             "description": "Description",
             "starts_at": start.isoformat(),
-            "ends_at": (
-                start
-                + datetime.timedelta(hours=2)
-            ).isoformat(),
+            "ends_at": (start + datetime.timedelta(hours=2)).isoformat(),
             "venue": "Stade Vélodrome",
             "capacity_total": 65000,
         },
@@ -146,14 +132,10 @@ def test_event_api_accepts_venue_and_capacity(
     )
 
     assert response.status_code == 201
-    assert response.data["venue"] == (
-        "Stade Vélodrome"
-    )
+    assert response.data["venue"] == ("Stade Vélodrome")
     assert response.data["capacity_total"] == 65000
 
-    event = Event.objects.get(
-        pk=response.data["id"]
-    )
+    event = Event.objects.get(pk=response.data["id"])
 
     assert event.organizer_id == organizer.pk
     assert event.status == Event.DRAFT
@@ -176,10 +158,7 @@ def test_ticket_category_can_be_created_and_listed(
         suffix="ticket-create",
     )
 
-    url = (
-        f"/api/v1/events/{event.pk}/"
-        "ticket-categories"
-    )
+    url = f"/api/v1/events/{event.pk}/" "ticket-categories"
 
     response = authenticate(
         client,
@@ -203,9 +182,7 @@ def test_ticket_category_can_be_created_and_listed(
 
     assert listed.status_code == 200
     assert len(listed.data) == 1
-    assert listed.data[0]["name"] == (
-        "Tribune Honneur"
-    )
+    assert listed.data[0]["name"] == ("Tribune Honneur")
 
 
 @pytest.mark.django_db
@@ -237,10 +214,7 @@ def test_ticket_quota_cannot_exceed_event_capacity(
         client,
         user,
     ).post(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories"),
         {
             "name": "B",
             "quota": 101,
@@ -251,12 +225,7 @@ def test_ticket_quota_cannot_exceed_event_capacity(
 
     assert response.status_code == 400
 
-    assert (
-        TicketCategory.objects
-        .filter(event=event)
-        .count()
-        == 1
-    )
+    assert TicketCategory.objects.filter(event=event).count() == 1
 
 
 @pytest.mark.django_db
@@ -321,19 +290,14 @@ def test_ticket_category_update_uses_if_match(
         suffix="ticket-update",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="Virage",
-            quota=300,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Virage",
+        quota=300,
+        unit_price_cents=2500,
     )
 
-    url = (
-        f"/api/v1/events/{event.pk}/"
-        f"ticket-categories/{ticket_category.pk}"
-    )
+    url = f"/api/v1/events/{event.pk}/" f"ticket-categories/{ticket_category.pk}"
 
     response = authenticate(
         client,
@@ -370,24 +334,18 @@ def test_ticket_category_update_requires_if_match(
         suffix="ticket-if-match",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="Virage",
-            quota=300,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Virage",
+        quota=300,
+        unit_price_cents=2500,
     )
 
     response = authenticate(
         client,
         user,
     ).patch(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories/"
-            f"{ticket_category.pk}"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories/" f"{ticket_category.pk}"),
         {
             "quota": 350,
         },
@@ -422,12 +380,7 @@ def test_foreign_ticket_categories_are_hidden(
     response = authenticate(
         client,
         user,
-    ).get(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories"
-        )
-    )
+    ).get((f"/api/v1/events/{event.pk}/" "ticket-categories"))
 
     assert response.status_code == 404
 
@@ -514,9 +467,7 @@ def test_owner_can_publish_complete_event(
 
     assert response.status_code == 200
     assert response["ETag"] == '"2"'
-    assert response.data["status"] == (
-        Event.PUBLISHED
-    )
+    assert response.data["status"] == (Event.PUBLISHED)
     assert response.data["published_at"] is not None
     assert response.data["version"] == 2
 
@@ -562,11 +513,7 @@ def test_publish_rejects_stale_version(
         unit_price_cents=5000,
     )
 
-    Event.objects.filter(
-        pk=event.pk
-    ).update(
-        version=2
-    )
+    Event.objects.filter(pk=event.pk).update(version=2)
 
     response = authenticate(
         client,
@@ -666,10 +613,7 @@ def test_published_event_cannot_add_ticket_category(
         client,
         user,
     ).post(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories"),
         {
             "name": "Nouvelle catégorie",
             "quota": 100,
@@ -679,12 +623,7 @@ def test_published_event_cannot_add_ticket_category(
     )
 
     assert response.status_code == 409
-    assert (
-        TicketCategory.objects
-        .filter(event=event)
-        .count()
-        == 0
-    )
+    assert TicketCategory.objects.filter(event=event).count() == 0
 
 
 @pytest.mark.django_db
@@ -704,32 +643,24 @@ def test_ticket_category_can_be_deleted_in_draft(
         suffix="ticket-delete",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="A supprimer",
-            quota=200,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="A supprimer",
+        quota=200,
+        unit_price_cents=2500,
     )
 
     response = authenticate(
         client,
         user,
     ).delete(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories/"
-            f"{ticket_category.pk}"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories/" f"{ticket_category.pk}"),
         HTTP_IF_MATCH='"1"',
     )
 
     assert response.status_code == 204
 
-    assert not TicketCategory.objects.filter(
-        pk=ticket_category.pk
-    ).exists()
+    assert not TicketCategory.objects.filter(pk=ticket_category.pk).exists()
 
 
 @pytest.mark.django_db
@@ -749,31 +680,21 @@ def test_ticket_category_delete_requires_if_match(
         suffix="ticket-delete-match",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="Sans match",
-            quota=200,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Sans match",
+        quota=200,
+        unit_price_cents=2500,
     )
 
     response = authenticate(
         client,
         user,
-    ).delete(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories/"
-            f"{ticket_category.pk}"
-        )
-    )
+    ).delete((f"/api/v1/events/{event.pk}/" "ticket-categories/" f"{ticket_category.pk}"))
 
     assert response.status_code == 428
 
-    assert TicketCategory.objects.filter(
-        pk=ticket_category.pk
-    ).exists()
+    assert TicketCategory.objects.filter(pk=ticket_category.pk).exists()
 
 
 @pytest.mark.django_db
@@ -793,38 +714,26 @@ def test_ticket_category_delete_rejects_stale_version(
         suffix="ticket-delete-stale",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="Stale",
-            quota=200,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Stale",
+        quota=200,
+        unit_price_cents=2500,
     )
 
-    TicketCategory.objects.filter(
-        pk=ticket_category.pk
-    ).update(
-        version=2
-    )
+    TicketCategory.objects.filter(pk=ticket_category.pk).update(version=2)
 
     response = authenticate(
         client,
         user,
     ).delete(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories/"
-            f"{ticket_category.pk}"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories/" f"{ticket_category.pk}"),
         HTTP_IF_MATCH='"1"',
     )
 
     assert response.status_code == 409
 
-    assert TicketCategory.objects.filter(
-        pk=ticket_category.pk
-    ).exists()
+    assert TicketCategory.objects.filter(pk=ticket_category.pk).exists()
 
 
 @pytest.mark.django_db
@@ -844,33 +753,25 @@ def test_ticket_category_with_sales_cannot_be_deleted(
         suffix="ticket-delete-sales",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="Avec vente",
-            quota=200,
-            sold_count=1,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Avec vente",
+        quota=200,
+        sold_count=1,
+        unit_price_cents=2500,
     )
 
     response = authenticate(
         client,
         user,
     ).delete(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories/"
-            f"{ticket_category.pk}"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories/" f"{ticket_category.pk}"),
         HTTP_IF_MATCH='"1"',
     )
 
     assert response.status_code == 409
 
-    assert TicketCategory.objects.filter(
-        pk=ticket_category.pk
-    ).exists()
+    assert TicketCategory.objects.filter(pk=ticket_category.pk).exists()
 
 
 @pytest.mark.django_db
@@ -890,13 +791,11 @@ def test_published_event_ticket_category_cannot_be_deleted(
         suffix="published-ticket-delete",
     )
 
-    ticket_category = (
-        TicketCategory.objects.create(
-            event=event,
-            name="Publiee",
-            quota=200,
-            unit_price_cents=2500,
-        )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Publiee",
+        quota=200,
+        unit_price_cents=2500,
     )
 
     event.status = Event.PUBLISHED
@@ -913,19 +812,13 @@ def test_published_event_ticket_category_cannot_be_deleted(
         client,
         user,
     ).delete(
-        (
-            f"/api/v1/events/{event.pk}/"
-            "ticket-categories/"
-            f"{ticket_category.pk}"
-        ),
+        (f"/api/v1/events/{event.pk}/" "ticket-categories/" f"{ticket_category.pk}"),
         HTTP_IF_MATCH='"1"',
     )
 
     assert response.status_code == 409
 
-    assert TicketCategory.objects.filter(
-        pk=ticket_category.pk
-    ).exists()
+    assert TicketCategory.objects.filter(pk=ticket_category.pk).exists()
 
 
 @pytest.mark.django_db
@@ -967,9 +860,7 @@ def test_owner_can_archive_published_event(
 
     assert response.status_code == 200
     assert response["ETag"] == '"2"'
-    assert response.data["status"] == (
-        Event.ARCHIVED
-    )
+    assert response.data["status"] == (Event.ARCHIVED)
     assert response.data["version"] == 2
 
     event.refresh_from_db()
@@ -1074,9 +965,7 @@ def test_archive_rejects_stale_version(
         suffix="archive-stale",
     )
 
-    Event.objects.filter(
-        pk=event.pk
-    ).update(
+    Event.objects.filter(pk=event.pk).update(
         status=Event.PUBLISHED,
         published_at=timezone.now(),
         version=2,

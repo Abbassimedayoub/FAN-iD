@@ -3,11 +3,7 @@ import { useState } from "react";
 
 import { Button, Card, Modal } from "@/components/primitives";
 import { StepUpDialog } from "@/features/auth/StepUpDialog";
-import {
-  confirmStepUp,
-  requestStepUp,
-  type StepUpChallenge,
-} from "@/features/auth/stepUp";
+import { confirmStepUp, requestStepUp, type StepUpChallenge } from "@/features/auth/stepUp";
 import type { AppError } from "@/lib/errors";
 
 import {
@@ -40,10 +36,7 @@ interface PendingStepUp {
 function errorMessage(error: unknown): string {
   const appError = error as AppError;
 
-  return (
-    appError.message ||
-    "Impossible de traiter la demande de réouverture. Réessayez."
-  );
+  return appError.message || "Impossible de traiter la demande de réouverture. Réessayez.";
 }
 
 export function AdminOrganizerReactivationPanel({
@@ -89,19 +82,12 @@ export function AdminOrganizerReactivationPanel({
 
   async function executeDecision(decision: Decision): Promise<void> {
     if (decision.kind === "approve") {
-      await approveAdminOrganizerReactivation(
-        organizer.id,
-        organizer.version,
-      );
+      await approveAdminOrganizerReactivation(organizer.id, organizer.version);
 
       return;
     }
 
-    await rejectAdminOrganizerReactivation(
-      organizer.id,
-      organizer.version,
-      decision.reason,
-    );
+    await rejectAdminOrganizerReactivation(organizer.id, organizer.version, decision.reason);
   }
 
   async function completeDecision(decision: Decision): Promise<void> {
@@ -110,9 +96,7 @@ export function AdminOrganizerReactivationPanel({
     setActionError(null);
 
     setFeedback(
-      decision.kind === "approve"
-        ? "Réouverture approuvée."
-        : "Demande de réouverture refusée.",
+      decision.kind === "approve" ? "Réouverture approuvée." : "Demande de réouverture refusée.",
     );
 
     await refreshAfterDecision();
@@ -158,10 +142,7 @@ export function AdminOrganizerReactivationPanel({
     setStepUpError(null);
 
     try {
-      await confirmStepUp(
-        stepUp.challenge.challenge_id,
-        code,
-      );
+      await confirmStepUp(stepUp.challenge.challenge_id, code);
     } catch (error) {
       setStepUpError(errorMessage(error));
       return false;
@@ -194,9 +175,7 @@ export function AdminOrganizerReactivationPanel({
       className="mx-auto w-full max-w-4xl px-6 pb-8 md:px-8"
     >
       <Card className="border-primary/15 p-6">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-          Réactivation
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Réactivation</p>
 
         <h2
           id="organizer-reactivation-admin-title"
@@ -206,8 +185,7 @@ export function AdminOrganizerReactivationPanel({
         </h2>
 
         <p className="mt-3 text-sm leading-6 text-navy/65">
-          Le compte reste suspendu tant qu’un administrateur n’a pas validé
-          sa réouverture.
+          Le compte reste suspendu tant qu’un administrateur n’a pas validé sa réouverture.
         </p>
 
         {query.isPending ? (
@@ -237,8 +215,7 @@ export function AdminOrganizerReactivationPanel({
         {!query.isPending && !query.isError && !reactivationRequest ? (
           <div className="mt-4 rounded-xl border border-navy/10 bg-navy/[0.03] p-4">
             <p className="text-sm text-navy/60">
-              Aucune demande de réouverture n’a encore été envoyée par cet
-              organisateur.
+              Aucune demande de réouverture n’a encore été envoyée par cet organisateur.
             </p>
           </div>
         ) : null}
@@ -258,8 +235,7 @@ export function AdminOrganizerReactivationPanel({
               Identifiant de traçabilité : {reactivationRequest.id}
             </p>
 
-            {reactivationRequest.status === "REJECTED" &&
-            reactivationRequest.rejection_reason ? (
+            {reactivationRequest.status === "REJECTED" && reactivationRequest.rejection_reason ? (
               <p className="mt-3 text-sm text-red-700">
                 Motif : {reactivationRequest.rejection_reason}
               </p>
@@ -270,13 +246,11 @@ export function AdminOrganizerReactivationPanel({
         {pending ? (
           <>
             <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
-              <p className="text-sm font-semibold text-navy">
-                Décision administrative requise
-              </p>
+              <p className="text-sm font-semibold text-navy">Décision administrative requise</p>
 
               <p className="mt-2 text-sm leading-6 text-navy/60">
-                L’acceptation déclenche une vérification OTP administrateur.
-                Le code de vérification est valable 5 minutes.
+                L’acceptation déclenche une vérification OTP administrateur. Le code de vérification
+                est valable 5 minutes.
               </p>
             </div>
 
@@ -331,13 +305,12 @@ export function AdminOrganizerReactivationPanel({
         title="Approuver la réouverture"
       >
         <p className="text-sm leading-6 text-navy/70">
-          Vous allez autoriser la réactivation de « {organizer.org_name} ».
-          Seul un administrateur peut effectuer cette action.
+          Vous allez autoriser la réactivation de « {organizer.org_name} ». Seul un administrateur
+          peut effectuer cette action.
         </p>
 
         <p className="mt-3 text-sm leading-6 text-navy/60">
-          Une vérification OTP administrateur sera exigée. Le code expire
-          après 5 minutes.
+          Une vérification OTP administrateur sera exigée. Le code expire après 5 minutes.
         </p>
 
         <div className="mt-6 flex flex-wrap justify-end gap-3">
@@ -359,9 +332,7 @@ export function AdminOrganizerReactivationPanel({
               });
             }}
           >
-            {isSubmitting
-              ? "Validation…"
-              : "Confirmer la réouverture"}
+            {isSubmitting ? "Validation…" : "Confirmer la réouverture"}
           </Button>
         </div>
       </Modal>
@@ -373,10 +344,7 @@ export function AdminOrganizerReactivationPanel({
         }}
         title="Refuser la réouverture"
       >
-        <label
-          htmlFor="reactivation-reject-reason"
-          className="block text-sm font-medium text-navy"
-        >
+        <label htmlFor="reactivation-reject-reason" className="block text-sm font-medium text-navy">
           Motif du refus
         </label>
 
@@ -404,10 +372,7 @@ export function AdminOrganizerReactivationPanel({
 
           <Button
             type="button"
-            disabled={
-              isSubmitting ||
-              rejectReason.trim().length === 0
-            }
+            disabled={isSubmitting || rejectReason.trim().length === 0}
             onClick={() => {
               const reason = rejectReason.trim();
 
@@ -419,18 +384,14 @@ export function AdminOrganizerReactivationPanel({
               });
             }}
           >
-            {isSubmitting
-              ? "Refus…"
-              : "Confirmer le refus"}
+            {isSubmitting ? "Refus…" : "Confirmer le refus"}
           </Button>
         </div>
       </Modal>
 
       <StepUpDialog
         open={stepUp !== null}
-        expiresInSeconds={
-          stepUp?.challenge.expires_in_seconds ?? 300
-        }
+        expiresInSeconds={stepUp?.challenge.expires_in_seconds ?? 300}
         error={stepUpError}
         onClose={closeStepUp}
         onConfirm={confirmPendingStepUp}
