@@ -1,0 +1,134 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 6 * * 1"  # scan hebdomadaire (dépendances) — cohérent avec Dependabot §5.1 Source B
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # scan de l'HISTORIQUE complet, pas seulement le diff (§60 master prompt)
+
+      - name: detect-secrets (historique complet, bloquant)
+        run: |
+          pip install detect-secrets
+          cp .secrets.baseline /tmp/secrets-baseline-before.json
+          detect-secrets scan --baseline .secrets.baseline
+
+          python3 - <<'PY_CHECK'
+          import json
+
+          def load(path):
+              with open(path, encoding="utf-8") as f:
+                  return json.load(f)
+
+          before = load("/tmp/secrets-baseline-before.json")
+          after = load(".secrets.baseline")
+
+          # La baseline versionnee doit etre entierement auditee AVANT le scan.
+          real = []
+          unaudited = []
+
+          for filename, entries in before.get("results", {}).items():
+              for entry in entries:
+                  item = (
+                      filename,
+                      entry.get("line_number"),
+                      entry.get("type"),
+                  )
+                  if entry.get("is_secret") is True:
+                      real.append(item)
+                  elif entry.get("is_secret") is not False:
+                      unaudited.append(item)
+
+          # Une nouvelle detection apparait dans `after` mais pas dans la
+          # baseline auditée `before`. `generated_at` est volontairement ignore.
+          def fingerprints(data):
+              return {
+                  (
+                      filename,
+                      entry.get("type"),
+                      entry.get("hashed_secret"),
+                  )
+                  for filename, entries in data.get("results", {}).items()
+                  for entry in entries
+              }
+
+          approved = fingerprints(before)
+          detected = fingerprints(after)
+
+          new_findings = sorted(
+              detected - approved,
+              key=lambda item: tuple(str(x) for x in item),
+          )
+
+          if real:
+              print("ERROR: secrets reels marques dans la baseline:")
+              for item in real:
+                  print(item)
+
+          if unaudited:
+              print("ERROR: detections de baseline non auditees:")
+              for item in unaudited:
+                  print(item)
+
+          if new_findings:
+              print("ERROR: nouvelles detections:")
+              for filename, secret_type, _hashed_secret in new_findings:
+                  print(f"{filename} [{secret_type}]")
+
+          if real or unaudited or new_findings:
+              raise SystemExit(1)
+
+          print(
+              "Secret gate OK: baseline auditée et aucune nouvelle detection."
+          )
+          PY_CHECK
+
+          # Le scan modifie seulement les metadonnees comme `generated_at`
+          # quand aucune nouvelle detection n'existe.
+          cp /tmp/secrets-baseline-before.json .secrets.baseline
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r backend/requirements/prod.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci + npm audit (bloquant — pas de skip silencieux)
+        working-directory: web
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "::error::web/package-lock.json absent — voir docs/implementation/SPRINT_TEST_REPORT.md (section lockfile)."
+            exit 1
+          fi
+          npm ci
+          npm audit --audit-level=high
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - run: bandit -r backend/apps backend/config -ll

@@ -1,0 +1,120 @@
+from django.urls import path
+
+from .scanner_portal_views import (
+    ScannerAssignedEventListView,
+)
+
+from .views import (
+    AdminOrganizerEventListView,
+    CategoryDetailView,
+    CategoryListView,
+    EventArchiveView,
+    EventUnarchiveView,
+    EventCancelView,
+    EventDetailView,
+    EventImageView,
+    EventListCreateView,
+    EventPostponeView,
+    EventPublishView,
+    EventScannerAssignmentCollectionView,
+    EventScannerAssignmentDetailView,
+    EventSuspendView,
+    LocalStorageMediaView,
+    TicketCategoryDetailView,
+    TicketCategoryListCreateView,
+)
+
+app_name = "catalog"
+
+urlpatterns = [
+    path(
+        "admin/organizers/<uuid:organizer_id>/events",
+        AdminOrganizerEventListView.as_view(),
+        name="admin-organizer-event-list",
+    ),
+    path(
+        "scanner/events",
+        ScannerAssignedEventListView.as_view(),
+        name="scanner-assigned-event-list",
+    ),
+    path(
+        "storage/local/<str:token>",
+        LocalStorageMediaView.as_view(),
+        name="local-storage-media",
+    ),
+    path(
+        "categories",
+        CategoryListView.as_view(),
+        name="category-list",
+    ),
+    path(
+        "categories/<uuid:category_id>",
+        CategoryDetailView.as_view(),
+        name="category-detail",
+    ),
+    path(
+        "events",
+        EventListCreateView.as_view(),
+        name="event-list-create",
+    ),
+    path(
+        "events/<uuid:event_id>/archive",
+        EventArchiveView.as_view(),
+        name="event-archive",
+    ),
+    path(
+        "events/<uuid:event_id>/unarchive",
+        EventUnarchiveView.as_view(),
+        name="event-unarchive",
+    ),
+    path(
+        "events/<uuid:event_id>/postpone",
+        EventPostponeView.as_view(),
+        name="event-postpone",
+    ),
+    path(
+        "events/<uuid:event_id>/suspend",
+        EventSuspendView.as_view(),
+        name="event-suspend",
+    ),
+    path(
+        "events/<uuid:event_id>/cancel",
+        EventCancelView.as_view(),
+        name="event-cancel",
+    ),
+    path(
+        "events/<uuid:event_id>/image",
+        EventImageView.as_view(),
+        name="event-image",
+    ),
+    path(
+        "events/<uuid:event_id>/publish",
+        EventPublishView.as_view(),
+        name="event-publish",
+    ),
+    path(
+        ("events/<uuid:event_id>/" "ticket-categories"),
+        TicketCategoryListCreateView.as_view(),
+        name="ticket-category-list-create",
+    ),
+    path(
+        ("events/<uuid:event_id>/" "ticket-categories/" "<uuid:ticket_category_id>"),
+        TicketCategoryDetailView.as_view(),
+        name="ticket-category-detail",
+    ),
+    path(
+        "events/<uuid:event_id>/scanners",
+        EventScannerAssignmentCollectionView.as_view(),
+        name="event-scanner-assignment-list",
+    ),
+    path(
+        ("events/<uuid:event_id>/scanners/" "<uuid:scanner_id>"),
+        EventScannerAssignmentDetailView.as_view(),
+        name="event-scanner-assignment-detail",
+    ),
+    path(
+        "events/<uuid:event_id>",
+        EventDetailView.as_view(),
+        name="event-detail",
+    ),
+]

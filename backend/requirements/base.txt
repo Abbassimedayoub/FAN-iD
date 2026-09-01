@@ -1,0 +1,61 @@
+# --- Framework ---
+
+Django==5.2.17
+djangorestframework==3.15.2
+channels==4.1.0
+channels-redis==4.2.1
+daphne==4.2.3
+uvicorn==0.32.0
+
+# --- Async worker ---
+
+celery==5.4.0
+redis==5.1.1
+django-celery-beat==2.9.0
+
+# --- Base de données ---
+
+psycopg[binary]==3.2.3
+
+# --- Observabilité (OTel + Prometheus) ---
+
+opentelemetry-distro==0.65b0
+opentelemetry-exporter-otlp==1.44.0
+opentelemetry-instrumentation-django==0.65b0
+opentelemetry-instrumentation-psycopg==0.65b0
+opentelemetry-instrumentation-redis==0.65b0
+opentelemetry-instrumentation-requests==0.65b0
+opentelemetry-instrumentation-celery==0.65b0
+django-prometheus==2.3.1
+prometheus-client==0.21.0
+
+# --- API docs ---
+
+drf-spectacular==0.27.2
+
+# --- Config & sécurité ---
+
+# argon2-cffi : liaison C requise par django.contrib.auth.hashers.Argon2PasswordHasher.
+# Sans elle, Django lève ImproperlyConfigured au premier hachage. Aucune alternative
+# dans la bibliothèque standard ; PBKDF2 (intégré) est explicitement écarté par le
+# plan S1 §5.1 au titre d'OWASP A02. Impact sécurité : positif. Impact lockfile :
+# argon2-cffi + cffi (déjà présent, transitif de cryptography).
+argon2-cffi==23.1.0
+
+django-environ==0.11.2
+django-cors-headers==4.4.0
+boto3==1.35.36
+
+# --- Utilitaires ---
+
+setuptools==83.0.0
+python-ulid==2.7.0
+
+# PyJWT : signature et verification des jetons d'acces et de rafraichissement.
+# Retenu contre djangorestframework-simplejwt (fiche de dependance S1-A.4) : le
+# plan v2 remplace la liste de revocation de simplejwt par la table `session`,
+# et installer les deux ferait cohabiter DEUX registres de revocation. simplejwt
+# depend lui-meme de PyJWT — on retire une couche, pas une protection.
+# Pas d'extra [crypto] : inutile en HS256. `cryptography` est deja present par
+# ailleurs, donc un passage ulterieur a RS256 ne coutera pas de dependance neuve.
+PyJWT==2.13.0

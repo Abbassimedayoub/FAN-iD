@@ -1,0 +1,34 @@
+name: fanid_mobile
+description: "FAN id — application Flutter (Fan + mode Scanner)."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  dio: ^5.7.0
+  retrofit: ^4.4.1
+  json_annotation: ^4.9.0
+  flutter_secure_storage: ^9.2.2
+  go_router: ^14.6.1
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  mobile_scanner: ^7.4.0
+  intl_phone_field: ^3.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  retrofit_generator: ^9.1.5
+  json_serializable: ^6.9.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

@@ -1,0 +1,14 @@
+[tool.black]
+line-length = 110
+target-version = ["py312"]
+extend-exclude = "migrations/"
+
+[tool.isort]
+profile = "black"
+line_length = 110
+skip_glob = ["*/migrations/*"]
+known_first_party = ["apps", "config"]
+
+[tool.bandit]
+exclude_dirs = [".venv", "migrations", "tests"]
+skips = ["B101"]

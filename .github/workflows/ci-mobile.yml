@@ -1,0 +1,55 @@
+name: ci-mobile
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/ci-mobile.yml"
+      - ".coverage-baseline.json"
+      - "scripts/coverage_gate.py"
+  push:
+    branches: [main, develop]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/ci-mobile.yml"
+      - ".coverage-baseline.json"
+      - "scripts/coverage_gate.py"
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.7"
+          channel: "stable"
+
+      - run: flutter pub get
+
+      - name: dart format (vérification)
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: dart analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Tests
+        run: flutter test --coverage
+
+      - name: Couverture — protéger la référence versionnée
+        working-directory: .
+        env:
+          COVERAGE_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: python3 scripts/coverage_gate.py guard-baseline --stack mobile --base "$COVERAGE_BASE_SHA"
+
+      - name: Couverture — non-régression mobile
+        working-directory: .
+        run: python3 scripts/coverage_gate.py check --stack mobile
