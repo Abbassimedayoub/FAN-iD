@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .fan_catalog_views import FanCatalogCategoryListView, FanCatalogEventListView
 from .scanner_portal_views import ScannerAssignedEventListView
 from .views import (
     AdminOrganizerEventListView,
@@ -24,6 +25,16 @@ from .views import (
 app_name = "catalog"
 
 urlpatterns = [
+    path(
+        "catalog/categories",
+        FanCatalogCategoryListView.as_view(),
+        name="fan-catalog-category-list",
+    ),
+    path(
+        "catalog/events",
+        FanCatalogEventListView.as_view(),
+        name="fan-catalog-event-list",
+    ),
     path(
         "admin/organizers/<uuid:organizer_id>/events",
         AdminOrganizerEventListView.as_view(),
