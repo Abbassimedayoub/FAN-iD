@@ -1,6 +1,7 @@
 import '../../../../core/errors/failure.dart';
 import '../../domain/entities/device_reset_challenge.dart';
 import '../../domain/entities/login_session.dart';
+import '../../domain/entities/phone_change_challenge.dart';
 import '../../domain/entities/scanner_leave_challenge.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/password_reset_repository.dart';
@@ -106,6 +107,26 @@ class AuthRepositoryImpl implements AuthRepository, PasswordResetRepository {
   }) {
     return remoteDataSource.confirmScannerLeave(
       challengeId: challengeId,
+      code: code,
+    );
+  }
+
+  Future<PhoneChangeChallenge> requestPhoneChange({
+    required String phone,
+  }) {
+    return remoteDataSource.requestPhoneChange(
+      phone: phone,
+    );
+  }
+
+  Future<AuthUser> confirmPhoneChange({
+    required String challengeId,
+    required String phone,
+    required String code,
+  }) {
+    return remoteDataSource.confirmPhoneChange(
+      challengeId: challengeId,
+      phone: phone,
       code: code,
     );
   }

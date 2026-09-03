@@ -4,6 +4,7 @@ import '../../../../core/errors/failure.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../domain/entities/device_reset_challenge.dart';
 import '../../domain/entities/login_session.dart';
+import '../../domain/entities/phone_change_challenge.dart';
 import '../../domain/entities/scanner_leave_challenge.dart';
 
 class AuthRemoteDataSource {
@@ -245,6 +246,82 @@ class AuthRemoteDataSource {
       throw mapDioExceptionToFailure(
         error,
       );
+    } on Failure {
+      rethrow;
+    } catch (_) {
+      throw const ServerFailure();
+    }
+  }
+
+  Future<PhoneChangeChallenge> requestPhoneChange({
+    required String phone,
+  }) async {
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/phone/change/request',
+        data: <String, dynamic>{
+          'phone': phone.trim(),
+        },
+      );
+
+      final body = response.data;
+      final challengeId = body?['challenge_id'];
+      final expiresInSeconds = body?['expires_in_seconds'];
+
+      if (challengeId is! String ||
+          challengeId.trim().isEmpty ||
+          expiresInSeconds is! int) {
+        throw const ServerFailure();
+      }
+
+      return PhoneChangeChallenge(
+        challengeId: challengeId,
+        expiresInSeconds: expiresInSeconds,
+      );
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
+    } on Failure {
+      rethrow;
+    } catch (_) {
+      throw const ServerFailure();
+    }
+  }
+
+  Future<AuthUser> confirmPhoneChange({
+    required String challengeId,
+    required String phone,
+    required String code,
+  }) async {
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/phone/change/confirm',
+        data: <String, dynamic>{
+          'challenge_id': challengeId,
+          'phone': phone.trim(),
+          'code': code.trim(),
+        },
+      );
+
+      final body = response.data;
+
+      if (body == null) {
+        throw const ServerFailure();
+      }
+
+      return AuthUser(
+        id: body['id'] as String,
+        email: body['email'] as String,
+        firstName: body['first_name'] as String,
+        lastName: body['last_name'] as String,
+        role: body['role'] as String,
+        createdAt: DateTime.parse(
+          body['created_at'] as String,
+        ),
+        mustChangePassword: (body['must_change_password'] as bool?) ?? false,
+        phone: body['phone'] as String?,
+      );
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
     } on Failure {
       rethrow;
     } catch (_) {

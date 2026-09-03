@@ -2,8 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../domain/entities/login_session.dart';
-import '../providers/auth_providers.dart';
+import '../../domain/entities/phone_change_challenge.dart';
 import '../../domain/entities/scanner_leave_challenge.dart';
+import '../providers/auth_providers.dart';
 
 final authControllerProvider =
     AsyncNotifierProvider<AuthController, LoginSession?>(AuthController.new);
@@ -43,6 +44,14 @@ class AuthController extends AsyncNotifier<LoginSession?> {
   Future<void> updateScannerPhone({
     required String phone,
   }) async {
+    await registerFirstPhone(
+      phone: phone,
+    );
+  }
+
+  Future<AuthUser> registerFirstPhone({
+    required String phone,
+  }) async {
     final currentSession = state.valueOrNull;
 
     if (currentSession == null) {
@@ -54,6 +63,58 @@ class AuthController extends AsyncNotifier<LoginSession?> {
               phone: phone,
             );
 
+    _replaceSessionUser(
+      currentSession,
+      updatedUser,
+    );
+
+    return updatedUser;
+  }
+
+  Future<PhoneChangeChallenge> requestPhoneChange({
+    required String phone,
+  }) async {
+    final currentSession = state.valueOrNull;
+
+    if (currentSession == null) {
+      throw const AuthFailure();
+    }
+
+    return ref.read(authRuntimeProvider).repository.requestPhoneChange(
+          phone: phone,
+        );
+  }
+
+  Future<AuthUser> confirmPhoneChange({
+    required String challengeId,
+    required String phone,
+    required String code,
+  }) async {
+    final currentSession = state.valueOrNull;
+
+    if (currentSession == null) {
+      throw const AuthFailure();
+    }
+
+    final updatedUser =
+        await ref.read(authRuntimeProvider).repository.confirmPhoneChange(
+              challengeId: challengeId,
+              phone: phone,
+              code: code,
+            );
+
+    _replaceSessionUser(
+      currentSession,
+      updatedUser,
+    );
+
+    return updatedUser;
+  }
+
+  void _replaceSessionUser(
+    LoginSession currentSession,
+    AuthUser updatedUser,
+  ) {
     state = AsyncData(
       LoginSession(
         access: currentSession.access,

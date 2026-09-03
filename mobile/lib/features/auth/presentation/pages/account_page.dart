@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/login_session.dart';
 import '../controllers/auth_controller.dart';
 import 'change_password_page.dart';
+import 'phone_change_page.dart';
 import 'scanner_leave_request_page.dart';
 
 class AccountPage extends ConsumerWidget {
@@ -37,6 +38,10 @@ class AccountPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final liveUser = ref.watch(authControllerProvider).valueOrNull?.user;
+    final displayedUser =
+        liveUser != null && liveUser.id == user.id ? liveUser : user;
+
     final fullName = '${user.firstName.trim()} ${user.lastName.trim()}'.trim();
 
     return Scaffold(
@@ -111,18 +116,38 @@ class AccountPage extends ConsumerWidget {
                     title: const Text('Rôle'),
                     subtitle: Text(_roleLabel),
                   ),
-                  if (user.role.toUpperCase() == 'SCANNER') ...[
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.phone_outlined),
-                      title: const Text('Numéro de téléphone'),
-                      subtitle: Text(
-                        (user.phone?.trim().isEmpty ?? true)
-                            ? 'Non renseigné'
-                            : user.phone!.trim(),
-                      ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.phone_outlined),
+                    title: const Text('Numéro de téléphone'),
+                    subtitle: Text(
+                      (displayedUser.phone?.trim().isEmpty ?? true)
+                          ? 'Non renseigné'
+                          : displayedUser.phone!.trim(),
                     ),
-                  ],
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      final changed = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute<bool>(
+                          builder: (_) => PhoneChangePage(
+                            user: displayedUser,
+                          ),
+                        ),
+                      );
+
+                      if (changed == true && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              (displayedUser.phone?.trim().isEmpty ?? true)
+                                  ? 'Téléphone enregistré.'
+                                  : 'Téléphone modifié après validation.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
