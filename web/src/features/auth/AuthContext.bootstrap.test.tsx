@@ -336,7 +336,7 @@ describe("AuthProvider session security", () => {
     created_at: "2026-08-20T12:00:00Z",
   };
 
-  it("expires an authenticated web session after 15 minutes of inactivity", async () => {
+  it("expires an authenticated web session after 5 minutes of inactivity", async () => {
     let logoutCalls = 0;
 
     const adapter: AxiosAdapter = async (config) => {

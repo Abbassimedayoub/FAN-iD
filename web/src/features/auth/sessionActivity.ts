@@ -1,4 +1,4 @@
-export const WEB_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+export const WEB_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 
 export const BROWSER_ACTIVITY_STORAGE_KEY = "fanid_web_last_activity";
 export const BROWSER_SESSION_BLOCKED_STORAGE_KEY = "fanid_web_session_blocked";
