@@ -7,7 +7,13 @@ import {
 } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { clearAccessToken, getAccessToken, httpClient, setAccessToken } from "./httpClient";
+import {
+  AUTH_SESSION_INVALIDATED_EVENT,
+  clearAccessToken,
+  getAccessToken,
+  httpClient,
+  setAccessToken,
+} from "./httpClient";
 
 const originalAdapter = httpClient.defaults.adapter;
 
@@ -202,6 +208,71 @@ describe("httpClient malformed refresh response", () => {
 
     expect(refreshCalls).toBe(1);
     expect(protectedCalls).toBe(1);
+    expect(getAccessToken()).toBeNull();
+  });
+});
+
+
+describe("httpClient invalid session notification", () => {
+  it("emits a global invalid-session event when refresh is rejected", async () => {
+    let invalidationEvents = 0;
+
+    const listener = (): void => {
+      invalidationEvents += 1;
+    };
+
+    window.addEventListener(AUTH_SESSION_INVALIDATED_EVENT, listener);
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.url === "/api/v1/auth/token/refresh") {
+        const unauthorized = response(config, 401, {
+          error: {
+            code: "TOKEN_INVALID",
+            message: "Refresh invalide",
+          },
+        });
+
+        throw new AxiosError(
+          "Request failed with status code 401",
+          "ERR_BAD_REQUEST",
+          config,
+          undefined,
+          unauthorized,
+        );
+      }
+
+      if (config.url === "/protected") {
+        const unauthorized = response(config, 401, {
+          error: {
+            code: "NOT_AUTHENTICATED",
+            message: "Session invalide",
+          },
+        });
+
+        throw new AxiosError(
+          "Request failed with status code 401",
+          "ERR_BAD_REQUEST",
+          config,
+          undefined,
+          unauthorized,
+        );
+      }
+
+      throw new Error(`URL inattendue dans le test : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    setAccessToken("revoked-access");
+
+    try {
+      await expect(httpClient.get("/protected")).rejects.toMatchObject({
+        errorClass: "auth",
+      });
+    } finally {
+      window.removeEventListener(AUTH_SESSION_INVALIDATED_EVENT, listener);
+    }
+
+    expect(invalidationEvents).toBe(1);
     expect(getAccessToken()).toBeNull();
   });
 });

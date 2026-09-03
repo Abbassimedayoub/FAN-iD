@@ -82,7 +82,7 @@ def build_authentication_service() -> AuthenticationService:
     return AuthenticationService(binding=default_binding_service())
 
 
-def set_refresh_cookie(response: Response, refresh: str, expires_at: Any) -> None:
+def set_refresh_cookie(response: Response, refresh: str) -> None:
     """
     Depose le refresh dans un cookie HttpOnly — chemin web uniquement.
 
@@ -98,7 +98,6 @@ def set_refresh_cookie(response: Response, refresh: str, expires_at: Any) -> Non
     response.set_cookie(
         settings.REFRESH_COOKIE_NAME,
         refresh,
-        expires=expires_at,
         domain=settings.REFRESH_COOKIE_DOMAIN,
         path=settings.REFRESH_COOKIE_PATH,
         secure=settings.REFRESH_COOKIE_SECURE,
@@ -222,6 +221,7 @@ class LoginView(APIView):
             LoginCommand(
                 email=data["email"],
                 password=data["password"],
+                client=data["client"],
                 fingerprint=data.get("fingerprint") or None,
                 platform=data.get("platform") or None,
                 label=data.get("label") or "",
@@ -242,7 +242,6 @@ class LoginView(APIView):
             set_refresh_cookie(
                 response,
                 result.pair.refresh,
-                result.pair.refresh_expires_at,
             )
         else:
             body["refresh"] = result.pair.refresh
@@ -336,7 +335,6 @@ class RefreshView(APIView):
             set_refresh_cookie(
                 response,
                 result.pair.refresh,
-                result.pair.refresh_expires_at,
             )
         else:
             body["refresh"] = result.pair.refresh

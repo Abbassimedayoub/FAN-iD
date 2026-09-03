@@ -24,6 +24,8 @@ from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
 from .constants import (
     AUTH_LEVEL_PASSWORD,
     AUTH_LEVELS,
+    CLIENT_MOBILE,
+    CLIENT_WEB,
     CODE_HASH_PATTERN,
     DEVICE_PLATFORMS,
     DEVICE_REVOKED_REASONS,
@@ -284,6 +286,19 @@ class Session(UUIDModel):
     auth_level = models.PositiveSmallIntegerField(default=AUTH_LEVEL_PASSWORD)
     ip = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=255, blank=True, default="")
+    client = models.CharField(
+        max_length=10,
+        choices=[
+            (CLIENT_WEB, CLIENT_WEB),
+            (CLIENT_MOBILE, CLIENT_MOBILE),
+        ],
+        null=True,
+        blank=True,
+        help_text=(
+            "Canal ayant ouvert la session. Null uniquement pour les sessions "
+            "historiques ou les appels internes anterieurs a ce champ."
+        ),
+    )
     # `default=` et non `auto_now_add=` : la date d'émission d'une session est
     # une donnée MÉTIER, décidée par `TokenService`, pas un horodatage d'audit
     # posé par l'ORM. `auto_now_add` la rendrait impossible à fixer

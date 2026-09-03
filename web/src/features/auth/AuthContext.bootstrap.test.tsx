@@ -8,7 +8,13 @@ import {
 } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { clearAccessToken, getAccessToken, httpClient, setAccessToken } from "@/lib/httpClient";
+import {
+  AUTH_SESSION_INVALIDATED_EVENT,
+  clearAccessToken,
+  getAccessToken,
+  httpClient,
+  setAccessToken,
+} from "@/lib/httpClient";
 
 import { AuthProvider, useAuth } from "./AuthContext";
 import { getCurrentUser } from "./session";
@@ -62,10 +68,47 @@ function AuthProbe() {
 afterEach(() => {
   httpClient.defaults.adapter = originalAdapter;
   clearAccessToken();
+  window.localStorage.clear();
 });
 
 describe("AuthProvider bootstrap", () => {
-  it("restores the web session through the HttpOnly refresh flow", async () => {
+  it("starts anonymous when no browser session cookie can be restored", async () => {
+    let meCalls = 0;
+    let refreshCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.url === "/api/v1/auth/me") {
+        meCalls += 1;
+        throw unauthorized(config);
+      }
+
+      if (config.url === "/api/v1/auth/token/refresh") {
+        refreshCalls += 1;
+        throw unauthorized(config);
+      }
+
+      throw new Error(`URL inattendue dans le test : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-status")).toHaveTextContent("anonymous");
+    });
+
+    expect(screen.getByTestId("auth-user")).toHaveTextContent("anonymous");
+    expect(meCalls).toBe(1);
+    expect(refreshCalls).toBe(1);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it("restores the web session while the current browser session is active", async () => {
     let meCalls = 0;
     let refreshCalls = 0;
 
@@ -126,7 +169,7 @@ describe("AuthProvider bootstrap", () => {
     expect(getAccessToken()).toBe("restored-access");
   });
 
-  it("becomes anonymous when no refresh session can be restored", async () => {
+  it("becomes anonymous when the current browser session can no longer refresh", async () => {
     let meCalls = 0;
     let refreshCalls = 0;
 
@@ -223,7 +266,6 @@ it("ignores a late bootstrap failure after the provider is unmounted", async () 
 
   httpClient.defaults.adapter = adapter;
   setAccessToken("still-live-access");
-
   const { unmount } = render(
     <AuthProvider>
       <AuthProbe />
@@ -279,6 +321,76 @@ describe("AuthProvider local authentication cleanup", () => {
 
     expect(screen.getByTestId("auth-user")).toHaveTextContent("anonymous");
 
+    expect(getAccessToken()).toBeNull();
+  });
+});
+
+
+describe("AuthProvider session security", () => {
+  const authenticatedUser = {
+    id: "77d350dd-aee8-4c26-b4a0-07b3b1fde10a",
+    email: "admin@example.test",
+    first_name: "Ada",
+    last_name: "Admin",
+    role: "ADMIN" as const,
+    created_at: "2026-08-20T12:00:00Z",
+  };
+
+  it("expires an authenticated web session after 15 minutes of inactivity", async () => {
+    let logoutCalls = 0;
+
+    const adapter: AxiosAdapter = async (config) => {
+      if (config.url === "/api/v1/auth/logout") {
+        logoutCalls += 1;
+        return response(config, 200, {});
+      }
+
+      throw new Error(`URL inattendue dans le test : ${config.url ?? "<vide>"}`);
+    };
+
+    httpClient.defaults.adapter = adapter;
+    setAccessToken("current-access");
+
+    render(
+      <AuthProvider initialUser={authenticatedUser} inactivityTimeoutMs={40}>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("auth-status")).toHaveTextContent("anonymous");
+      },
+      { timeout: 1000 },
+    );
+
+    expect(screen.getByTestId("auth-user")).toHaveTextContent("anonymous");
+    expect(getAccessToken()).toBeNull();
+
+    await waitFor(() => {
+      expect(logoutCalls).toBe(1);
+    });
+  });
+
+  it("becomes anonymous immediately when the HTTP layer invalidates the session", () => {
+    setAccessToken("revoked-access");
+
+    render(
+      <AuthProvider initialUser={authenticatedUser}>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated");
+
+    act(() => {
+      window.dispatchEvent(new Event(AUTH_SESSION_INVALIDATED_EVENT));
+    });
+
+    expect(screen.getByTestId("auth-status")).toHaveTextContent("anonymous");
+    expect(screen.getByTestId("auth-user")).toHaveTextContent("anonymous");
     expect(getAccessToken()).toBeNull();
   });
 });

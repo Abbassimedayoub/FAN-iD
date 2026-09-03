@@ -116,6 +116,7 @@ class TokenService:
         *,
         user: User,
         device: Device | None = None,
+        client: str | None = None,
         family_id: uuid.UUID | None = None,
         auth_level: int = AUTH_LEVEL_PASSWORD,
         ip: str | None = None,
@@ -135,6 +136,7 @@ class TokenService:
         session = Session(
             user=user,
             device=device,
+            client=client,
             family_id=family_id or uuid.uuid4(),
             auth_level=auth_level,
             ip=ip,

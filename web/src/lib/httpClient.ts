@@ -19,6 +19,18 @@ import { toAppError } from "./errors";
 
 const CORRELATION_HEADER = "X-Correlation-ID";
 const API_BASE_URL = import.meta.env["VITE_API_URL"] ?? "http://localhost:8000";
+const REFRESH_URL = "/api/v1/auth/token/refresh";
+
+export const AUTH_SESSION_INVALIDATED_EVENT = "fanid:auth-session-invalidated";
+
+const EXPLICIT_INVALID_SESSION_CODES = new Set([
+  "TOKEN_INVALID",
+  "TOKEN_REUSE_DETECTED",
+  "DEVICE_MISMATCH",
+  "NOT_AUTHENTICATED",
+  "SESSION_INVALID",
+  "SESSION_REVOKED",
+]);
 
 interface AuthRequestConfig extends InternalAxiosRequestConfig {
   _retried?: boolean;
@@ -50,6 +62,47 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
+function apiErrorCode(error: AxiosError): string | null {
+  const data = error.response?.data;
+
+  if (typeof data !== "object" || data === null || !("error" in data)) {
+    return null;
+  }
+
+  const apiError = (data as { error?: unknown }).error;
+
+  if (typeof apiError !== "object" || apiError === null || !("code" in apiError)) {
+    return null;
+  }
+
+  const code = (apiError as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
+
+function isExplicitInvalidSessionResponse(error: AxiosError): boolean {
+  return (
+    error.response?.status === 403 &&
+    EXPLICIT_INVALID_SESSION_CODES.has(apiErrorCode(error) ?? "")
+  );
+}
+
+function isTransientAppError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("errorClass" in error)) {
+    return false;
+  }
+
+  const errorClass = (error as { errorClass?: unknown }).errorClass;
+  return errorClass === "network" || errorClass === "server";
+}
+
+function notifySessionInvalidated(): void {
+  clearAccessToken();
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_SESSION_INVALIDATED_EVENT));
+  }
+}
+
 export const httpClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10_000,
@@ -71,6 +124,72 @@ httpClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+const CROSS_TAB_REFRESH_LOCK_KEY = "fanid_web_refresh_lock";
+const CROSS_TAB_REFRESH_LOCK_TTL_MS = 15_000;
+const CROSS_TAB_REFRESH_RETRY_MS = 40;
+
+function browserLocalStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function withCrossTabRefreshLock<T>(task: () => Promise<T>): Promise<T> {
+  const storage = browserLocalStorage();
+
+  if (!storage) {
+    return task();
+  }
+
+  const owner = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  try {
+    while (true) {
+      const now = Date.now();
+      const current = storage.getItem(CROSS_TAB_REFRESH_LOCK_KEY);
+
+      if (current) {
+        const separator = current.lastIndexOf("|");
+        const expiresAt = Number(current.slice(separator + 1));
+
+        if (Number.isFinite(expiresAt) && expiresAt > now) {
+          await delay(CROSS_TAB_REFRESH_RETRY_MS);
+          continue;
+        }
+      }
+
+      storage.setItem(
+        CROSS_TAB_REFRESH_LOCK_KEY,
+        `${owner}|${now + CROSS_TAB_REFRESH_LOCK_TTL_MS}`,
+      );
+
+      await delay(0);
+
+      if (storage.getItem(CROSS_TAB_REFRESH_LOCK_KEY)?.startsWith(`${owner}|`)) {
+        break;
+      }
+
+      await delay(CROSS_TAB_REFRESH_RETRY_MS);
+    }
+
+    return await task();
+  } finally {
+    try {
+      if (storage.getItem(CROSS_TAB_REFRESH_LOCK_KEY)?.startsWith(`${owner}|`)) {
+        storage.removeItem(CROSS_TAB_REFRESH_LOCK_KEY);
+      }
+    } catch {
+      // Le TTL empeche un verrou permanent si le stockage devient indisponible.
+    }
+  }
+}
+
 async function performTokenRefresh(): Promise<string> {
   const config = {
     withCredentials: true,
@@ -78,7 +197,7 @@ async function performTokenRefresh(): Promise<string> {
   } as AxiosRequestConfig & { _skipAuthRefresh: true };
 
   const response = await httpClient.post<RefreshResponse>(
-    "/api/v1/auth/token/refresh",
+    REFRESH_URL,
     { client: "web" },
     config,
   );
@@ -86,6 +205,7 @@ async function performTokenRefresh(): Promise<string> {
   const token = response.data?.access;
 
   if (typeof token !== "string" || token.length === 0) {
+    notifySessionInvalidated();
     throw new Error("Réponse de refresh invalide : access token absent");
   }
 
@@ -95,7 +215,7 @@ async function performTokenRefresh(): Promise<string> {
 
 async function refreshAccessTokenOnce(): Promise<string> {
   if (!refreshPromise) {
-    refreshPromise = performTokenRefresh().finally(() => {
+    refreshPromise = withCrossTabRefreshLock(performTokenRefresh).finally(() => {
       refreshPromise = null;
     });
   }
@@ -107,21 +227,38 @@ httpClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const original = error.config as AuthRequestConfig | undefined;
+    const status = error.response?.status;
 
     if (original?._skipAuthRefresh) {
+      if (
+        original.url === REFRESH_URL &&
+        (status === 401 || isExplicitInvalidSessionResponse(error))
+      ) {
+        notifySessionInvalidated();
+      }
+
       return Promise.reject(toAppError(error));
     }
 
-    if (error.response?.status === 401 && original && !original._retried) {
+    if (isExplicitInvalidSessionResponse(error)) {
+      notifySessionInvalidated();
+      return Promise.reject(toAppError(error));
+    }
+
+    if (status === 401 && original && !original._retried) {
       original._retried = true;
 
       try {
         const newToken = await refreshAccessTokenOnce();
         original.headers.set("Authorization", `Bearer ${newToken}`);
         return httpClient(original);
-      } catch {
-        clearAccessToken();
+      } catch (refreshError) {
+        if (isTransientAppError(refreshError)) {
+          return Promise.reject(refreshError);
+        }
       }
+    } else if (status === 401 && original?._retried) {
+      notifySessionInvalidated();
     }
 
     return Promise.reject(toAppError(error));

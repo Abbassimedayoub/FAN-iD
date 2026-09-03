@@ -9,6 +9,7 @@ import 'package:fanid_mobile/features/auth/domain/usecases/confirm_device_reset_
 import 'package:fanid_mobile/features/auth/domain/usecases/login_use_case.dart';
 import 'package:fanid_mobile/features/auth/domain/usecases/register_use_case.dart';
 import 'package:fanid_mobile/features/auth/domain/usecases/request_device_reset_use_case.dart';
+import 'package:fanid_mobile/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:fanid_mobile/features/auth/presentation/pages/auth_entry_page.dart';
 import 'package:fanid_mobile/features/auth/presentation/pages/device_locked_page.dart';
 import 'package:fanid_mobile/features/auth/presentation/pages/device_reset_confirm_page.dart';
@@ -135,13 +136,18 @@ Future<void> pumpShell(
   WidgetTester tester,
   ProviderContainer container, {
   bool settle = true,
+  Duration inactivityTimeout = const Duration(minutes: 15),
+  DateTime Function()? now,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
         theme: FanTheme.light,
-        home: const AuthEntryPage(),
+        home: AuthEntryPage(
+          inactivityTimeout: inactivityTimeout,
+          now: now,
+        ),
       ),
     ),
   );
@@ -156,6 +162,18 @@ Future<void> tapPrimaryButton(WidgetTester tester) async {
   await tester.ensureVisible(button);
   await tester.tap(button);
   await tester.pumpAndSettle();
+}
+
+void configureSessionLifecycleTest(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 1920);
+  tester.view.devicePixelRatio = 1.0;
+
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  tester.binding.handleAppLifecycleStateChanged(
+    AppLifecycleState.resumed,
+  );
 }
 
 void main() {
@@ -340,4 +358,119 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'expire la session apres 15 minutes sans interaction au premier plan',
+    (tester) async {
+      configureSessionLifecycleTest(tester);
+
+      final container = makeContainer(FakeAuthRepository());
+
+      await pumpShell(
+        tester,
+        container,
+        inactivityTimeout: const Duration(seconds: 2),
+      );
+
+      await container.read(authControllerProvider.notifier).login(
+            email: 'fan@example.test',
+            password: 'secret',
+          );
+
+      // Un pump sans duree reconstruit l'UI sans faire avancer
+      // artificiellement l'horloge jusqu'au timeout.
+      await tester.pump();
+
+      expect(find.text('Bonjour Ines'), findsOneWidget);
+      expect(find.byType(LoginPage), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 2100));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(
+        find.text(LoginView.sessionExpiredNotice),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'reste connecte apres un bref passage en arriere-plan',
+    (tester) async {
+      configureSessionLifecycleTest(tester);
+      var now = DateTime.utc(2026, 9, 3, 16);
+
+      final container = makeContainer(FakeAuthRepository());
+
+      await pumpShell(
+        tester,
+        container,
+        now: () => now,
+      );
+
+      await container.read(authControllerProvider.notifier).login(
+            email: 'fan@example.test',
+            password: 'secret',
+          );
+      await tester.pumpAndSettle();
+
+      tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.paused,
+      );
+      await tester.pump();
+
+      now = now.add(const Duration(minutes: 2));
+
+      tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bonjour Ines'), findsOneWidget);
+      expect(find.byType(LoginPage), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'expire la session au retour apres 15 minutes en arriere-plan',
+    (tester) async {
+      configureSessionLifecycleTest(tester);
+      var now = DateTime.utc(2026, 9, 3, 16);
+
+      final container = makeContainer(FakeAuthRepository());
+
+      await pumpShell(
+        tester,
+        container,
+        now: () => now,
+      );
+
+      await container.read(authControllerProvider.notifier).login(
+            email: 'fan@example.test',
+            password: 'secret',
+          );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bonjour Ines'), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.paused,
+      );
+      await tester.pump();
+
+      now = now.add(const Duration(minutes: 16));
+
+      tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(
+        find.text(LoginView.sessionExpiredNotice),
+        findsOneWidget,
+      );
+    },
+  );
 }

@@ -16,8 +16,14 @@ from rest_framework.test import APIClient
 
 from apps.core.adapters.device_lock import FakeDeviceLock
 from apps.identity import views
-from apps.identity.constants import PLATFORM_ANDROID, PLATFORM_IOS
-from apps.identity.models import User
+from apps.identity.constants import (
+    CLIENT_MOBILE,
+    CLIENT_WEB,
+    PLATFORM_ANDROID,
+    PLATFORM_IOS,
+    SESSION_REVOKED_REPLACED,
+)
+from apps.identity.models import Session, User
 from apps.identity.services.authentication import AuthenticationService
 from apps.identity.services.devices import DeviceBindingService
 
@@ -112,6 +118,8 @@ def test_a_web_client_receives_the_refresh_only_in_an_httponly_cookie(client, fa
     assert cookie["httponly"] is True
     assert cookie["path"] == settings.REFRESH_COOKIE_PATH
     assert cookie["samesite"] == settings.REFRESH_COOKIE_SAMESITE
+    assert cookie["expires"] == ""
+    assert cookie["max-age"] == ""
     assert cookie.value not in response.content.decode()
 
 
@@ -317,3 +325,70 @@ class _FakeRequest:
 
     def __init__(self, data: dict) -> None:
         self.data = data
+
+
+def test_a_second_web_login_replaces_only_the_previous_web_session(client, fan):
+    first = client.post(URL, payload(client="web"), format="json")
+    assert first.status_code == 200, first.data
+
+    first_access = first.data["access"]
+    first_session = Session.objects.get(
+        user=fan,
+        client=CLIENT_WEB,
+        revoked_at__isnull=True,
+    )
+
+    second = client.post(URL, payload(client="web"), format="json")
+    assert second.status_code == 200, second.data
+
+    first_session.refresh_from_db()
+    assert first_session.revoked_at is not None
+    assert first_session.revoked_reason == SESSION_REVOKED_REPLACED
+
+    active_web = Session.objects.filter(
+        user=fan,
+        client=CLIENT_WEB,
+        revoked_at__isnull=True,
+    )
+    assert active_web.count() == 1
+    assert active_web.get().pk != first_session.pk
+
+    old_browser = APIClient()
+    old_browser.credentials(HTTP_AUTHORIZATION=f"Bearer {first_access}")
+    assert old_browser.get("/api/v1/auth/me").status_code == 401
+
+
+def test_a_new_web_login_never_revokes_the_mobile_session(client, fan):
+    mobile = client.post(
+        URL,
+        payload(
+            client="mobile",
+            fingerprint=PHONE,
+            platform=PLATFORM_ANDROID,
+            label="Pixel 8",
+        ),
+        format="json",
+    )
+    assert mobile.status_code == 200, mobile.data
+
+    mobile_session = Session.objects.get(
+        user=fan,
+        client=CLIENT_MOBILE,
+        revoked_at__isnull=True,
+    )
+
+    web = client.post(URL, payload(client="web"), format="json")
+    assert web.status_code == 200, web.data
+
+    mobile_session.refresh_from_db()
+    assert mobile_session.revoked_at is None
+    assert mobile_session.revoked_reason is None
+
+    assert (
+        Session.objects.filter(
+            user=fan,
+            client=CLIENT_WEB,
+            revoked_at__isnull=True,
+        ).count()
+        == 1
+    )

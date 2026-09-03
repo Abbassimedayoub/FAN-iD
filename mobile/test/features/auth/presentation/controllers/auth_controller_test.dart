@@ -121,15 +121,17 @@ void main() {
     expect(repository.refreshFingerprint, isNull);
   });
 
-  test('bootstrap refreshes an existing session with fingerprint', () async {
+  test('bootstrap never restores a persisted session after app restart',
+      () async {
     FlutterSecureStorage.setMockInitialValues({
       TokenStore.refreshTokenKey: 'old-refresh',
       DeviceFingerprintStore.fingerprintKey: 'a' * 64,
     });
 
     final repository = FakeAuthRepository();
+    final tokenStore = TokenStore();
     final container = makeContainer(
-      tokenStore: TokenStore(),
+      tokenStore: tokenStore,
       fingerprintStore: DeviceFingerprintStore(),
       repository: repository,
     );
@@ -137,11 +139,13 @@ void main() {
 
     final session = await container.read(authControllerProvider.future);
 
-    expect(session, same(repository.session));
-    expect(repository.refreshFingerprint, 'a' * 64);
+    expect(session, isNull);
+    expect(repository.refreshFingerprint, isNull);
+    expect(await tokenStore.readRefreshToken(), isNull);
   });
 
-  test('bootstrap clears local session after AuthFailure', () async {
+  test('bootstrap clears stale persisted tokens before authentication',
+      () async {
     FlutterSecureStorage.setMockInitialValues({
       TokenStore.refreshTokenKey: 'old-refresh',
       DeviceFingerprintStore.fingerprintKey: 'a' * 64,

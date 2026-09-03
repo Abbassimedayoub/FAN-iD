@@ -75,14 +75,14 @@ void main() {
 
       final firstExpectation = expectLater(
         first,
-        throwsA(isA<StateError>()),
+        throwsA(isA<AuthFailure>()),
       );
       final secondExpectation = expectLater(
         second,
-        throwsA(isA<StateError>()),
+        throwsA(isA<AuthFailure>()),
       );
 
-      completer.completeError(StateError('refresh failed'));
+      completer.completeError(const AuthFailure());
 
       await firstExpectation;
       await secondExpectation;
@@ -240,6 +240,7 @@ void main() {
 
     test('does not refresh a second 401 after retry', () async {
       var refreshCalls = 0;
+      var cleanupCalls = 0;
       final adapter = _QueueAdapter([401, 401]);
 
       final client = DioClient(
@@ -248,6 +249,9 @@ void main() {
         refreshHandler: () async {
           refreshCalls += 1;
           return 'new-access';
+        },
+        onRefreshFailure: () async {
+          cleanupCalls += 1;
         },
       );
       client.dio.httpClientAdapter = adapter;
@@ -258,15 +262,66 @@ void main() {
       );
 
       expect(refreshCalls, 1);
+      expect(cleanupCalls, 1);
       expect(adapter.requests, hasLength(2));
+    });
+
+    test('does not clear authentication for a generic permission 403',
+        () async {
+      var cleanupCalls = 0;
+      final adapter = _QueueAdapter([403]);
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => 'access',
+        refreshHandler: () async => 'unused',
+        onRefreshFailure: () async {
+          cleanupCalls += 1;
+        },
+      );
+      client.dio.httpClientAdapter = adapter;
+
+      await expectLater(
+        client.dio.get('/protected'),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(cleanupCalls, 0);
+    });
+
+    test('clears authentication for an explicit invalid-session 403', () async {
+      var cleanupCalls = 0;
+      final adapter = _QueueAdapter(
+        [403],
+        body:
+            '{"error":{"code":"SESSION_REVOKED","message":"Session révoquée"}}',
+      );
+
+      final client = DioClient(
+        baseUrl: 'https://example.test',
+        tokenProvider: () => 'access',
+        refreshHandler: () async => 'unused',
+        onRefreshFailure: () async {
+          cleanupCalls += 1;
+        },
+      );
+      client.dio.httpClientAdapter = adapter;
+
+      await expectLater(
+        client.dio.get('/protected'),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(cleanupCalls, 1);
     });
   });
 }
 
 class _QueueAdapter implements HttpClientAdapter {
-  _QueueAdapter(this.statuses);
+  _QueueAdapter(this.statuses, {this.body = '{}'});
 
   final List<int> statuses;
+  final String body;
   final List<RequestOptions> requests = [];
 
   @override
@@ -279,7 +334,7 @@ class _QueueAdapter implements HttpClientAdapter {
     final status = statuses.removeAt(0);
 
     return ResponseBody.fromString(
-      '{}',
+      body,
       status,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],

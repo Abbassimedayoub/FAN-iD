@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,7 +55,14 @@ enum _AuthScreen {
 }
 
 class AuthEntryPage extends ConsumerStatefulWidget {
-  const AuthEntryPage({super.key});
+  const AuthEntryPage({
+    this.inactivityTimeout = const Duration(minutes: 15),
+    this.now,
+    super.key,
+  });
+
+  final Duration inactivityTimeout;
+  final DateTime Function()? now;
 
   @override
   ConsumerState<AuthEntryPage> createState() => _AuthEntryPageState();
@@ -74,12 +82,16 @@ class _AuthEntryPageState extends ConsumerState<AuthEntryPage>
   String? _loginNotice;
   String? _passwordResetEmail;
   bool _scannerSessionValidationRunning = false;
+  bool _inactivityLogoutRunning = false;
   Timer? _scannerSessionValidationTimer;
+  Timer? _inactivityTimer;
+  DateTime? _backgroundedAt;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_handlePointerEvent);
 
     _scannerSessionValidationTimer = Timer.periodic(
       const Duration(seconds: 8),
@@ -92,6 +104,9 @@ class _AuthEntryPageState extends ConsumerState<AuthEntryPage>
   @override
   void dispose() {
     _scannerSessionValidationTimer?.cancel();
+    _inactivityTimer?.cancel();
+    GestureBinding.instance.pointerRouter
+        .removeGlobalRoute(_handlePointerEvent);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -99,7 +114,86 @@ class _AuthEntryPageState extends ConsumerState<AuthEntryPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_revalidateScannerSession());
+      unawaited(_handleResume());
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _recordBackgroundStart();
+    }
+  }
+
+  DateTime _now() => widget.now?.call() ?? DateTime.now();
+
+  void _handlePointerEvent(PointerEvent event) {
+    if (event is PointerDownEvent) {
+      _resetInactivityTimer();
+    }
+  }
+
+  void _recordBackgroundStart() {
+    final session = ref.read(authControllerProvider).valueOrNull;
+    if (session == null) {
+      return;
+    }
+
+    _backgroundedAt ??= _now();
+    _inactivityTimer?.cancel();
+  }
+
+  void _resetInactivityTimer() {
+    final session = ref.read(authControllerProvider).valueOrNull;
+
+    if (!mounted ||
+        session == null ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(
+      widget.inactivityTimeout,
+      () => unawaited(_expireForInactivity()),
+    );
+  }
+
+  Future<void> _handleResume() async {
+    final session = ref.read(authControllerProvider).valueOrNull;
+    final backgroundedAt = _backgroundedAt;
+    _backgroundedAt = null;
+
+    if (session != null &&
+        backgroundedAt != null &&
+        _now().difference(backgroundedAt) >= widget.inactivityTimeout) {
+      await _expireForInactivity();
+      return;
+    }
+
+    _resetInactivityTimer();
+    await _revalidateScannerSession();
+  }
+
+  Future<void> _expireForInactivity() async {
+    if (!mounted ||
+        _inactivityLogoutRunning ||
+        ref.read(authControllerProvider).valueOrNull == null) {
+      return;
+    }
+
+    _inactivityLogoutRunning = true;
+    _inactivityTimer?.cancel();
+
+    try {
+      await ref.read(authControllerProvider.notifier).signOutLocal();
+
+      if (mounted) {
+        _showLoginWithNotice(LoginView.sessionExpiredNotice);
+      }
+    } finally {
+      _inactivityLogoutRunning = false;
     }
   }
 
@@ -148,6 +242,12 @@ class _AuthEntryPageState extends ConsumerState<AuthEntryPage>
       _deviceLockedFailure = null;
       _challenge = null;
       _loginNotice = notice;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     });
   }
 
@@ -200,6 +300,20 @@ class _AuthEntryPageState extends ConsumerState<AuthEntryPage>
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
+
+    ref.listen<AsyncValue<LoginSession?>>(authControllerProvider,
+        (previous, next) {
+      final previousSession = previous?.valueOrNull;
+      final nextSession = next.valueOrNull;
+
+      if (previousSession == null && nextSession != null) {
+        _backgroundedAt = null;
+        _resetInactivityTimer();
+      } else if (nextSession == null) {
+        _inactivityTimer?.cancel();
+        _backgroundedAt = null;
+      }
+    });
 
     ref.listen<int>(authExpiryGenerationProvider, (previous, next) {
       if (previous != null && next > previous) {

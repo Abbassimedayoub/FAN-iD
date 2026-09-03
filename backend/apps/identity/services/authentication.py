@@ -39,12 +39,18 @@ import uuid
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.observability.metrics import fanid_auth_login_total, fanid_auth_token_refresh_total
 from apps.core.outbox.publisher import publish_event
 
-from ..constants import SESSION_REVOKED_LOGOUT, SESSION_REVOKED_PASSWORD_CHANGE
+from ..constants import (
+    CLIENT_WEB,
+    SESSION_REVOKED_LOGOUT,
+    SESSION_REVOKED_PASSWORD_CHANGE,
+    SESSION_REVOKED_REPLACED,
+)
 from ..events import (
     AGGREGATE_USER,
     USER_LOGGED_IN,
@@ -97,6 +103,7 @@ class LoginCommand:
 
     email: str
     password: str
+    client: str | None = None
     fingerprint: str | None = None
     platform: str | None = None
     label: str = ""
@@ -148,9 +155,23 @@ class AuthenticationService:
 
         try:
             with transaction.atomic():
-                if user.must_change_password:
+                # Deux connexions Web concurrentes du meme compte doivent etre
+                # serialisees. Le verrou utilisateur garantit qu une seule
+                # nouvelle session Web gagne.
+                if command.client == CLIENT_WEB or user.must_change_password:
                     user = User.objects.select_for_update().select_related("role").get(pk=user.pk)
 
+                if command.client == CLIENT_WEB:
+                    replaced_at = timezone.now()
+                    Session.objects.filter(
+                        user=user,
+                        revoked_at__isnull=True,
+                    ).filter(Q(client=CLIENT_WEB) | Q(client__isnull=True, device__isnull=True)).update(
+                        revoked_at=replaced_at,
+                        revoked_reason=SESSION_REVOKED_REPLACED,
+                    )
+
+                if user.must_change_password:
                     if user.temporary_password_used_at is not None:
                         logger.info(
                             "auth.login.failed",
@@ -189,6 +210,7 @@ class AuthenticationService:
                 pair = TokenService.issue_pair(
                     user=user,
                     device=device,
+                    client=command.client,
                     ip=command.ip,
                     user_agent=command.user_agent,
                 )

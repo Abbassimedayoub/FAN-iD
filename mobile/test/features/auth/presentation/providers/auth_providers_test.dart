@@ -1,3 +1,4 @@
+import 'package:fanid_mobile/core/errors/failure.dart';
 import 'package:dio/dio.dart';
 import 'package:fanid_mobile/features/auth/data/storage/device_fingerprint_store.dart';
 import 'package:fanid_mobile/features/auth/data/storage/token_store.dart';
@@ -111,7 +112,49 @@ void main() {
     expect(runtime.tokenStore.accessToken, 'new-access');
   });
 
-  test('refresh failure clears tokens and signals session expiry', () async {
+  test(
+    'refresh network failure preserves tokens and does not signal session expiry',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          apiBaseUrlProvider.overrideWithValue('https://api.example.test'),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final runtime = container.read(authRuntimeProvider);
+
+      await runtime.tokenStore.save(
+        accessToken: 'old-access',
+        refreshToken: 'old-refresh',
+      );
+
+      runtime.dioClient.dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                error: 'offline',
+              ),
+            );
+          },
+        ),
+      );
+
+      await expectLater(
+        runtime.dioClient.refreshAccessTokenOnce(),
+        throwsA(anything),
+      );
+
+      expect(runtime.tokenStore.accessToken, 'old-access');
+      expect(await runtime.tokenStore.readRefreshToken(), 'old-refresh');
+      expect(container.read(authExpiryGenerationProvider), 0);
+    },
+  );
+
+  test('invalid refresh clears tokens and signals session expiry', () async {
     final container = ProviderContainer(
       overrides: [
         apiBaseUrlProvider.overrideWithValue('https://api.example.test'),
@@ -132,8 +175,18 @@ void main() {
           handler.reject(
             DioException(
               requestOptions: options,
-              type: DioExceptionType.connectionError,
-              error: 'offline',
+              type: DioExceptionType.badResponse,
+              response: Response<dynamic>(
+                requestOptions: options,
+                statusCode: 401,
+                data: const {
+                  'error': {
+                    'code': 'TOKEN_INVALID',
+                    'message': 'Session invalide',
+                    'details': <String, dynamic>{},
+                  },
+                },
+              ),
             ),
           );
         },
@@ -142,7 +195,7 @@ void main() {
 
     await expectLater(
       runtime.dioClient.refreshAccessTokenOnce(),
-      throwsA(anything),
+      throwsA(isA<AuthFailure>()),
     );
 
     expect(runtime.tokenStore.accessToken, isNull);

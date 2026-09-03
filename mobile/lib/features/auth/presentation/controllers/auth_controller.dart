@@ -13,24 +13,12 @@ class AuthController extends AsyncNotifier<LoginSession?> {
   Future<LoginSession?> build() async {
     ref.watch(authExpiryGenerationProvider);
 
-    final tokenStore = ref.read(tokenStoreProvider);
-    final refreshToken = await tokenStore.readRefreshToken();
+    // Une nouvelle instance de l'application constitue une nouvelle session.
+    // Le refresh token d'un ancien processus ne doit donc jamais restaurer
+    // automatiquement l'utilisateur. Le fingerprint appareil reste persistant.
+    await ref.read(tokenStoreProvider).clear();
 
-    if (refreshToken == null) {
-      return null;
-    }
-
-    final fingerprint =
-        await ref.read(deviceFingerprintStoreProvider).getOrCreate();
-
-    try {
-      return await ref
-          .read(authRepositoryProvider)
-          .refresh(fingerprint: fingerprint);
-    } on AuthFailure {
-      await tokenStore.clear();
-      return null;
-    }
+    return null;
   }
 
   Future<void> login({
