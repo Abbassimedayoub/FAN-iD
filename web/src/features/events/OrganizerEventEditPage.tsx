@@ -8,6 +8,7 @@ import { OrganizerShell } from "@/features/organizers/OrganizerShell";
 import { fetchEventCategories, fetchOrganizerEvent, updateEventDraft } from "./api";
 import type { EventDraftInput, OrganizerEvent } from "./types";
 import { endTimeThreeHoursAfter } from "./eventScheduleDefaults";
+import { isEventDateAtLeastTomorrow, minimumEventDate } from "./eventScheduleDefaults";
 
 function localDate(value: string): string {
   const date = new Date(value);
@@ -40,6 +41,8 @@ function localTime(value: string): string {
 }
 
 function EventEditor({ event }: { event: OrganizerEvent }) {
+  const minimumDate = minimumEventDate();
+
   const [current, setCurrent] = useState(event);
 
   const [name, setName] = useState(event.name);
@@ -81,6 +84,11 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
 
     if (!name.trim() || !categoryId || !date || !startTime || !endTime) {
       setError("Le nom, la catégorie, la date et les horaires sont requis.");
+      return;
+    }
+
+    if (!isEventDateAtLeastTomorrow(date)) {
+      setError("La date de l’événement doit être au minimum demain.");
       return;
     }
 
@@ -231,6 +239,7 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
             <Input
               id="edit-event-date"
               type="date"
+              min={minimumDate}
               value={date}
               onChange={(e) => {
                 setDate(e.target.value);

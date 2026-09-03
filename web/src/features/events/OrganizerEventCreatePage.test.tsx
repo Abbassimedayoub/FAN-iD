@@ -48,6 +48,7 @@ function renderPage() {
         <MemoryRouter initialEntries={["/organizer/events/new"]}>
           <Routes>
             <Route path="/organizer/events/new" element={<OrganizerEventCreatePage />} />
+            <Route path="/organizer/events" element={<h1>Liste des événements</h1>} />
             <Route path="/organizer" element={<h1>Dashboard</h1>} />
             <Route path="/login" element={<h1>Connexion</h1>} />
           </Routes>
@@ -685,13 +686,11 @@ it("publie réellement un événement prêt", async () => {
 
   expect(
     await screen.findByRole("heading", {
-      name: "Événement publié",
+      name: "Liste des événements",
     }),
   ).toBeInTheDocument();
 
   expect(publishCalls).toBe(1);
-
-  expect(screen.getByText("Publié")).toBeInTheDocument();
 
   queryClient.clear();
 });

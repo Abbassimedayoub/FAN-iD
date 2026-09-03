@@ -55,3 +55,31 @@ export function endDateTimeThreeHoursAfter(startsAt: string): string {
     pad(start.getMinutes()),
   ].join("");
 }
+
+export function minimumEventDate(referenceDate: Date = new Date()): string {
+  const tomorrow = new Date(referenceDate);
+
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const pad = (value: number): string => String(value).padStart(2, "0");
+
+  return [
+    tomorrow.getFullYear(),
+    "-",
+    pad(tomorrow.getMonth() + 1),
+    "-",
+    pad(tomorrow.getDate()),
+  ].join("");
+}
+
+export function isEventDateAtLeastTomorrow(
+  eventDate: string,
+  referenceDate: Date = new Date(),
+): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    return false;
+  }
+
+  return eventDate >= minimumEventDate(referenceDate);
+}

@@ -65,6 +65,10 @@ from .permissions import (
     TicketCategoryResourcePermission,
 )
 from .serializers import (
+    EVENT_START_MINIMUM_ERROR,
+    event_start_date_is_allowed,
+)
+from .serializers import (
     CategorySerializer,
     CategoryWriteSerializer,
     EventCancelSerializer,
@@ -1111,6 +1115,9 @@ class EventPublishView(
 
             if event.capacity_total is None:
                 errors["capacity_total"] = "La capacité totale est requise " "avant publication."
+
+            if not event_start_date_is_allowed(event.starts_at):
+                errors["starts_at"] = EVENT_START_MINIMUM_ERROR
 
             categories = TicketCategory.objects.filter(event=event)
 

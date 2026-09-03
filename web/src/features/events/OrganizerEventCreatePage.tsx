@@ -15,6 +15,7 @@ import { OrganizerEventPublicationStep } from "./OrganizerEventPublicationStep";
 import { createEventDraft, fetchEventCategories, updateEventDraft, uploadEventImage } from "./api";
 import type { EventDraftInput, OrganizerEvent } from "./types";
 import { endTimeThreeHoursAfter } from "./eventScheduleDefaults";
+import { isEventDateAtLeastTomorrow, minimumEventDate } from "./eventScheduleDefaults";
 import { eventImageUrl } from "./eventImageUrl";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -157,6 +158,8 @@ function StepIndicator({
 export function OrganizerEventCreatePage() {
   const navigate = useNavigate();
 
+  const minimumDate = minimumEventDate();
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const [savedEvent, setSavedEvent] = useState<OrganizerEvent | null>(null);
@@ -238,6 +241,16 @@ export function OrganizerEventCreatePage() {
     values: EventInformationValues,
     advance: boolean,
   ): Promise<void> {
+    if (!isEventDateAtLeastTomorrow(values.eventDate)) {
+      form.setError("eventDate", {
+        type: "validate",
+        message: "La date de l’événement doit être au minimum demain.",
+      });
+      return;
+    }
+
+    form.clearErrors("eventDate");
+
     setApiError(null);
     setSuccessMessage(null);
 
@@ -471,6 +484,7 @@ export function OrganizerEventCreatePage() {
                       <Input
                         id="event-date"
                         type="date"
+                        min={minimumDate}
                         className="w-full"
                         {...form.register("eventDate")}
                       />
@@ -743,8 +757,10 @@ export function OrganizerEventCreatePage() {
               onBack={() => {
                 setStep(2);
               }}
-              onPublished={(published) => {
-                setSavedEvent(published);
+              onPublished={() => {
+                navigate("/organizer/events", {
+                  replace: true,
+                });
               }}
             />
           ) : null}

@@ -86,6 +86,7 @@ function renderPage() {
               element={<OrganizerEventContinuePage />}
             />
 
+            <Route path="/organizer/events" element={<h1>Liste des événements</h1>} />
             <Route path="/organizer/events/:eventId" element={<h1>Détail événement</h1>} />
 
             <Route path="/organizer/events/:eventId/edit" element={<h1>Modifier événement</h1>} />
@@ -203,7 +204,7 @@ it("reprend un brouillon jusqu à la publication", async () => {
 
   expect(
     await screen.findByRole("heading", {
-      name: "Événement publié",
+      name: "Liste des événements",
     }),
   ).toBeInTheDocument();
 

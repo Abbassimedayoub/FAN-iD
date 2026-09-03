@@ -455,6 +455,85 @@ def test_create_rejects_incoherent_dates(
     assert Event.objects.count() == 0
 
 
+
+@pytest.mark.django_db
+def test_update_rejects_start_date_before_tomorrow(
+    client,
+    category,
+    roles,
+):
+    user, organizer = make_organizer(
+        roles,
+        suffix="update-minimum-date",
+        validation_status=ORGANIZER_APPROVED,
+    )
+
+    original_start = timezone.now() + datetime.timedelta(days=5)
+
+    event = Event.objects.create(
+        organizer=organizer,
+        category=category,
+        name="Date future",
+        starts_at=original_start,
+        ends_at=original_start + datetime.timedelta(hours=2),
+    )
+
+    forbidden_start = timezone.now()
+
+    response = authenticate(
+        client,
+        user,
+    ).patch(
+        f"{EVENTS_URL}/{event.pk}",
+        {
+            "starts_at": forbidden_start.isoformat(),
+            "ends_at": (
+                forbidden_start + datetime.timedelta(hours=2)
+            ).isoformat(),
+        },
+        format="json",
+        HTTP_IF_MATCH='"1"',
+    )
+
+    assert response.status_code == 400
+
+    event.refresh_from_db()
+
+    assert event.starts_at == original_start
+    assert event.version == 1
+
+
+@pytest.mark.django_db
+def test_create_requires_start_date_at_least_tomorrow(
+    client,
+    category,
+    roles,
+):
+    user, _ = make_organizer(
+        roles,
+        suffix="minimum-date",
+        validation_status=ORGANIZER_APPROVED,
+    )
+
+    start = timezone.now()
+
+    body = event_payload(category)
+    body["starts_at"] = start.isoformat()
+    body["ends_at"] = (start + datetime.timedelta(hours=2)).isoformat()
+
+    response = authenticate(
+        client,
+        user,
+    ).post(
+        EVENTS_URL,
+        body,
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert Event.objects.count() == 0
+
+
 @pytest.mark.django_db
 def test_same_name_is_allowed_for_different_organizers(
     client,

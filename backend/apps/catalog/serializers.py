@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from typing import Any
+
+from django.utils import timezone
 
 from rest_framework import serializers
 
@@ -137,6 +141,17 @@ class EventSerializer(serializers.Serializer):
         )
 
 
+EVENT_START_MINIMUM_ERROR = "La date de l’événement doit être au minimum demain."
+
+
+def minimum_event_start_date():
+    return timezone.localdate() + timedelta(days=1)
+
+
+def event_start_date_is_allowed(starts_at: Any) -> bool:
+    return timezone.localdate(starts_at) >= minimum_event_start_date()
+
+
 class EventWriteSerializer(serializers.Serializer):
     """
     Contrat fermé du brouillon Event.
@@ -194,6 +209,17 @@ class EventWriteSerializer(serializers.Serializer):
             "ends_at",
             getattr(event, "ends_at", None),
         )
+
+        validate_start_date = not self.partial or "starts_at" in attrs
+
+        if (
+            starts_at is not None
+            and validate_start_date
+            and not event_start_date_is_allowed(starts_at)
+        ):
+            raise serializers.ValidationError(
+                {"starts_at": EVENT_START_MINIMUM_ERROR}
+            )
 
         if starts_at is not None and ends_at is not None and ends_at <= starts_at:
             raise serializers.ValidationError(
@@ -292,6 +318,11 @@ class EventPostponeSerializer(serializers.Serializer):
         if (starts_at is None) != (ends_at is None):
             raise serializers.ValidationError(
                 {"starts_at": ("Les nouvelles dates doivent être " "renseignées ensemble ou laissées vides.")}
+            )
+
+        if starts_at is not None and not event_start_date_is_allowed(starts_at):
+            raise serializers.ValidationError(
+                {"starts_at": EVENT_START_MINIMUM_ERROR}
             )
 
         if starts_at is not None and ends_at is not None and ends_at <= starts_at:

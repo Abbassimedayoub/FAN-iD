@@ -13,7 +13,7 @@ import type { OrganizerEvent } from "./types";
 function DraftContinuation({ event }: { event: OrganizerEvent }) {
   const navigate = useNavigate();
 
-  const [current, setCurrent] = useState(event);
+  const current = event;
 
   const [step, setStep] = useState<2 | 3>(2);
 
@@ -75,8 +75,10 @@ function DraftContinuation({ event }: { event: OrganizerEvent }) {
           onBack={() => {
             setStep(2);
           }}
-          onPublished={(published) => {
-            setCurrent(published);
+          onPublished={() => {
+            navigate("/organizer/events", {
+              replace: true,
+            });
           }}
         />
       )}
