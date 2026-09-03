@@ -2,7 +2,7 @@
         <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:usesCleartextTraffic="true"
-        android:label="fanid_mobile"
+        android:label="FAN iD"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
