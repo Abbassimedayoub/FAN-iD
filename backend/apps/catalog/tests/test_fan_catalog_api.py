@@ -155,7 +155,7 @@ def test_fan_catalog_lists_categories_without_status_filter(
 
 
 @pytest.mark.django_db
-def test_fan_catalog_events_keep_every_existing_status(
+def test_fan_catalog_events_hide_archived_and_keep_other_statuses(
     client,
     roles,
 ):
@@ -191,8 +191,13 @@ def test_fan_catalog_events_keep_every_existing_status(
     )
 
     assert response.status_code == 200
+
+    visible_statuses = set(Event.STATUSES) - {
+        Event.ARCHIVED,
+    }
+
     assert response.data["count"] == len(
-        Event.STATUSES
+        visible_statuses
     )
 
     returned_ids = {
@@ -203,12 +208,18 @@ def test_fan_catalog_events_keep_every_existing_status(
     assert returned_ids == {
         str(event.pk)
         for event in created
+        if event.status != Event.ARCHIVED
     }
 
     assert {
         item["status"]
         for item in response.data["results"]
-    } == set(Event.STATUSES)
+    } == visible_statuses
+
+    assert Event.ARCHIVED not in {
+        item["status"]
+        for item in response.data["results"]
+    }
 
 
 @pytest.mark.django_db

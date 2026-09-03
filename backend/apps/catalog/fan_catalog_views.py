@@ -92,6 +92,9 @@ class FanCatalogEventListView(APIView):
             Event.objects.filter(
                 category_id=category_id,
             )
+            .exclude(
+                status=Event.ARCHIVED,
+            )
             .select_related("category")
             .order_by(
                 "starts_at",
