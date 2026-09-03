@@ -337,15 +337,52 @@ describe("AdminOrganizerDetailPage actions", () => {
     expect(getCalls).toBe(2);
   });
 
-  it("suspend un organisateur approuvé", async () => {
+  it("exige un nouvel OTP avant chaque suspension d un organisateur approuvé", async () => {
+    const challengeId = "00000000-0000-4000-8000-000000000094";
+
     const approved: Organizer = {
       ...organizer,
       validation_status: "APPROVED",
       version: 7,
     };
 
+    const postUrls: string[] = [];
+    let suspendCalls = 0;
+
     const adapter: AxiosAdapter = async (config) => {
+      if (config.method === "get") {
+        return response(config, 200, approved);
+      }
+
       if (config.method === "post") {
+        postUrls.push(config.url ?? "");
+      }
+
+      if (config.url === "/api/v1/auth/step-up/request") {
+        expect(config.data).toBe(JSON.stringify({}));
+
+        return response(config, 200, {
+          challenge_id: challengeId,
+          expires_in_seconds: 300,
+        });
+      }
+
+      if (config.url === "/api/v1/auth/step-up/confirm") {
+        expect(config.data).toBe(
+          JSON.stringify({
+            challenge_id: challengeId,
+            code: "654321",
+          }),
+        );
+
+        return response(config, 204, undefined);
+      }
+
+      if (config.url === `/api/v1/admin/organizers/${ORGANIZER_ID}/suspend`) {
+        suspendCalls += 1;
+
+        expect(config.headers.get("If-Match")).toBe('"7"');
+
         return response(config, 200, {
           ...approved,
           validation_status: "SUSPENDED",
@@ -353,7 +390,7 @@ describe("AdminOrganizerDetailPage actions", () => {
         });
       }
 
-      return response(config, 200, approved);
+      throw new Error(`URL inattendue : ${config.url ?? "<vide>"}`);
     };
 
     httpClient.defaults.adapter = adapter;
@@ -363,9 +400,40 @@ describe("AdminOrganizerDetailPage actions", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Suspendre" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirmer la suspension" }));
 
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Vérification renforcée",
+      }),
+    ).toBeInTheDocument();
+
+    expect(suspendCalls).toBe(0);
+
+    expect(postUrls).toEqual(["/api/v1/auth/step-up/request"]);
+
+    fireEvent.change(screen.getByLabelText("Code de vérification"), {
+      target: {
+        value: "654321",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmer le code",
+      }),
+    );
+
     expect(await screen.findByText("Organisateur suspendu.")).toBeInTheDocument();
+
     expect(screen.getByText("Suspendu")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Suspendre" })).not.toBeInTheDocument();
+
+    expect(suspendCalls).toBe(1);
+
+    expect(postUrls).toEqual([
+      "/api/v1/auth/step-up/request",
+      "/api/v1/auth/step-up/confirm",
+      `/api/v1/admin/organizers/${ORGANIZER_ID}/suspend`,
+    ]);
   });
 
   it.each<OrganizerStatus>(["REJECTED", "SUSPENDED"])(

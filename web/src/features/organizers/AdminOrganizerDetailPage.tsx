@@ -119,6 +119,23 @@ export function AdminOrganizerDetailPage() {
     setFeedback(null);
     setReopenAction(null);
 
+    if (action.kind === "suspend") {
+      try {
+        const challenge = await requestStepUp();
+
+        setStepUpError(null);
+        setStepUpState({
+          action,
+          challenge,
+        });
+
+        return true;
+      } catch (requestError) {
+        showActionFailure(requestError as AppError);
+        return false;
+      }
+    }
+
     try {
       await executeOrganizerAction(action);
       showActionSuccess(action);
