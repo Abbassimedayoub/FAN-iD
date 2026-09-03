@@ -7,7 +7,7 @@ import { StepUpDialog } from "@/features/auth/StepUpDialog";
 import type { AppError } from "@/lib/errors";
 
 import { OrganizerStatusBadge } from "./OrganizerStatusBadge";
-import { ApproveDialog, RejectDialog, SuspendDialog } from "./OrganizerActionDialogs";
+import { RejectDialog, SuspendDialog } from "./OrganizerActionDialogs";
 import type { Organizer } from "./types";
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
@@ -54,7 +54,7 @@ export interface OrganizerActionFeedback {
 }
 
 export interface OrganizerActionReopen {
-  kind: "approve" | "reject" | "suspend";
+  kind: "reject" | "suspend";
   rejectReason?: string;
 }
 
@@ -69,7 +69,6 @@ export interface OrganizerDetailActions {
   isPending: boolean;
   feedback: OrganizerActionFeedback | null;
   isStaleResource: boolean;
-  onApprove: () => Promise<boolean>;
   onReject: (reason: string) => Promise<boolean>;
   onSuspend: () => Promise<boolean>;
   onReloadStale: () => void;
@@ -88,7 +87,7 @@ interface AdminOrganizerDetailViewProps {
   actions?: OrganizerDetailActions;
 }
 
-type ActionDialog = "approve" | "reject" | "suspend" | null;
+type ActionDialog = "reject" | "suspend" | null;
 
 export function AdminOrganizerDetailView({
   data,
@@ -210,24 +209,14 @@ export function AdminOrganizerDetailView({
 
           <div className="mt-4 flex flex-wrap gap-3">
             {canReview ? (
-              <>
-                <Button
-                  type="button"
-                  disabled={actions.isPending}
-                  onClick={() => openActionDialog("approve")}
-                >
-                  Approuver
-                </Button>
-
-                <Button
-                  type="button"
-                  disabled={actions.isPending}
-                  onClick={() => openActionDialog("reject")}
-                  className="bg-red-600"
-                >
-                  Rejeter
-                </Button>
-              </>
+              <Button
+                type="button"
+                disabled={actions.isPending}
+                onClick={() => openActionDialog("reject")}
+                className="bg-red-600"
+              >
+                Rejeter
+              </Button>
             ) : null}
 
             {canSuspend ? (
@@ -246,13 +235,6 @@ export function AdminOrganizerDetailView({
 
       {actions ? (
         <>
-          <ApproveDialog
-            open={actionDialog === "approve"}
-            isPending={actions.isPending}
-            onClose={closeActionDialog}
-            onConfirm={actions.onApprove}
-          />
-
           <RejectDialog
             open={actionDialog === "reject"}
             isPending={actions.isPending}

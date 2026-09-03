@@ -20,12 +20,12 @@ const CHALLENGE_ID = "00000000-0000-4000-8000-000000000099";
 const organizer: Organizer = {
   id: ORGANIZER_ID,
   org_name: "Association Lumière",
-  validation_status: "APPROVED",
+  validation_status: "PENDING",
   commission_rate: "0.0000",
   vat_number: null,
   contact_email: "contact@example.test",
   rejection_reason: null,
-  validated_at: "2026-09-03T15:00:00Z",
+  validated_at: null,
   version: 4,
   created_at: "2026-09-03T14:00:00Z",
   updated_at: "2026-09-03T15:00:00Z",
@@ -71,7 +71,7 @@ function apiError(
 function negotiating() {
   return {
     organizer_id: ORGANIZER_ID,
-    validation_status: "APPROVED",
+    validation_status: "PENDING",
     commission_status: "NEGOTIATING",
     agreed_rate: null,
     agreed_at: null,
@@ -121,6 +121,7 @@ it("charge la négociation à la demande et protège l acceptation Admin par ste
 
       return response(config, 200, {
         ...negotiating(),
+        validation_status: "APPROVED",
         commission_status: "COMMISSION_AGREED",
         agreed_rate: "0.1200",
         agreed_at: "2026-09-03T16:00:00Z",
@@ -211,7 +212,7 @@ it("charge la négociation à la demande et protège l acceptation Admin par ste
     }),
   );
 
-  expect(await screen.findByText("Commission acceptée : 12 %.")).toBeInTheDocument();
+  expect(await screen.findByText("Commission acceptée : 12 %. Compte organisateur approuvé automatiquement.")).toBeInTheDocument();
   expect(acceptCalls).toBe(2);
 
   queryClient.clear();

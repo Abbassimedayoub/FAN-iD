@@ -93,10 +93,15 @@ export function OrganizerCommissionPanel({
       return {
         ...current,
         version: next.version,
+        validation_status: next.validation_status,
         ...(next.commission_status === "COMMISSION_AGREED" && next.agreed_rate !== null
           ? { commission_rate: next.agreed_rate }
           : {}),
       };
+    });
+
+    void queryClient.invalidateQueries({
+      queryKey: myOrganizerQueryKey,
     });
   }
 
@@ -142,7 +147,9 @@ export function OrganizerCommissionPanel({
     try {
       const next = await acceptMyCommissionProposal(negotiationVersion);
       applyNegotiation(next);
-      setFeedback(`Commission acceptée : ${formatCommissionRate(next.agreed_rate)}.`);
+      setFeedback(
+        `Commission acceptée : ${formatCommissionRate(next.agreed_rate)}. Votre compte est approuvé automatiquement.`,
+      );
     } catch (error) {
       setActionError(actionErrorMessage(error));
     } finally {
@@ -196,8 +203,8 @@ export function OrganizerCommissionPanel({
           </p>
 
           <p className="mt-2 text-sm leading-6 text-amber-800">
-            Votre compte peut être approuvé séparément, mais la gestion des événements restera
-            verrouillée jusqu’à l’accord de commission.
+            Votre dossier reste en attente pendant la négociation. Dès qu’un accord est accepté,
+            votre compte est approuvé automatiquement et l’accès commercial est débloqué.
           </p>
         </div>
       ) : null}

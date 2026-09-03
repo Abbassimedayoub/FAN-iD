@@ -94,10 +94,15 @@ export function AdminOrganizerCommissionPanel({ organizer }: AdminOrganizerCommi
       return {
         ...current,
         version: next.version,
+        validation_status: next.validation_status,
         ...(next.commission_status === "COMMISSION_AGREED" && next.agreed_rate !== null
           ? { commission_rate: next.agreed_rate }
           : {}),
       };
+    });
+
+    void queryClient.invalidateQueries({
+      queryKey: organizerQueryKeys.detail(organizer.id),
     });
 
     void queryClient.invalidateQueries({
@@ -114,7 +119,7 @@ export function AdminOrganizerCommissionPanel({ organizer }: AdminOrganizerCommi
 
     setFeedback(
       decision.kind === "accept"
-        ? `Commission acceptée : ${formatCommissionRate(next.agreed_rate)}.`
+        ? `Commission acceptée : ${formatCommissionRate(next.agreed_rate)}. Compte organisateur approuvé automatiquement.`
         : "Contre-proposition FANID envoyée.",
     );
   }
@@ -276,8 +281,8 @@ export function AdminOrganizerCommissionPanel({ organizer }: AdminOrganizerCommi
       </div>
 
       <p className="mt-3 text-sm leading-6 text-navy/60">
-        L’approbation du compte reste indépendante de cette négociation. Tant que la commission
-        n’est pas convenue, les événements de l’organisateur restent verrouillés.
+        Le dossier reste en attente pendant la négociation. Dès qu’un accord de commission est
+        accepté, le compte organisateur est approuvé automatiquement.
       </p>
 
       {negotiation.commission_status === "COMMISSION_AGREED" ? (

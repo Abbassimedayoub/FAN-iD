@@ -192,12 +192,12 @@ def test_negotiation_continues_after_account_is_open(
 
 
 @pytest.mark.django_db
-def test_organizer_accepts_admin_counter_without_reopening_account(
+def test_organizer_accepting_admin_counter_auto_approves_account(
     roles,
 ):
     owner, admin, organizer = make_context(
         roles,
-        "owner-accept",
+        "owner-auto-approve",
     )
 
     OrganizerCommissionService.create_initial_proposal(
@@ -206,18 +206,14 @@ def test_organizer_accepts_admin_counter_without_reopening_account(
         rate=Decimal("0.1200"),
     )
 
-    organizer = OrganizerOnboardingService.approve(
-        organizer_id=organizer.pk,
-        actor_id=admin.pk,
-        expected_version=organizer.version,
-    )
-
     organizer = OrganizerCommissionService.admin_counter(
         organizer_id=organizer.pk,
         actor_id=admin.pk,
         expected_version=organizer.version,
         rate=Decimal("0.0800"),
     )
+
+    assert organizer.validation_status == ORGANIZER_PENDING
 
     organizer = OrganizerCommissionService.organizer_accept(
         organizer_id=organizer.pk,
@@ -228,6 +224,8 @@ def test_organizer_accepts_admin_counter_without_reopening_account(
     assert organizer.validation_status == ORGANIZER_APPROVED
     assert organizer.commission_rate == Decimal("0.0800")
     assert organizer.commission_agreed_at is not None
+    assert organizer.validated_at is not None
+    assert organizer.validated_by_id == admin.pk
 
     context = resolve_organizer_commercial_context(
         user_id=owner.pk,
@@ -241,12 +239,12 @@ def test_organizer_accepts_admin_counter_without_reopening_account(
 
 
 @pytest.mark.django_db
-def test_commission_can_be_agreed_before_account_approval(
+def test_admin_accepting_commission_auto_approves_account(
     roles,
 ):
     owner, admin, organizer = make_context(
         roles,
-        "agreement-first",
+        "agreement-auto-approve",
     )
 
     OrganizerCommissionService.create_initial_proposal(
@@ -255,31 +253,19 @@ def test_commission_can_be_agreed_before_account_approval(
         rate=Decimal("0.0900"),
     )
 
+    assert organizer.validation_status == ORGANIZER_PENDING
+
     organizer = OrganizerCommissionService.admin_accept(
         organizer_id=organizer.pk,
         actor_id=admin.pk,
         expected_version=organizer.version,
     )
 
-    assert organizer.validation_status == ORGANIZER_PENDING
+    assert organizer.validation_status == ORGANIZER_APPROVED
     assert organizer.commission_rate == Decimal("0.0900")
     assert organizer.commission_agreed_at is not None
-
-    context = resolve_organizer_commercial_context(
-        user_id=owner.pk,
-    )
-
-    assert context == (
-        organizer.pk,
-        False,
-        False,
-    )
-
-    organizer = OrganizerOnboardingService.approve(
-        organizer_id=organizer.pk,
-        actor_id=admin.pk,
-        expected_version=organizer.version,
-    )
+    assert organizer.validated_at is not None
+    assert organizer.validated_by_id == admin.pk
 
     context = resolve_organizer_commercial_context(
         user_id=owner.pk,

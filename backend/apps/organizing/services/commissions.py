@@ -7,6 +7,8 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.outbox.publisher import publish_event
+
 from apps.core.exceptions import (
     ConflictError,
     InvalidStateTransitionError,
@@ -20,6 +22,11 @@ from ..constants import (
     ORGANIZER_COMMISSION_PROPOSER_ADMIN,
     ORGANIZER_COMMISSION_PROPOSER_ORGANIZER,
     ORGANIZER_PENDING,
+)
+from ..events import (
+    AGGREGATE_ORGANIZER,
+    ORGANIZER_APPROVED_EVENT,
+    organizer_decision_payload,
 )
 from ..models import (
     Organizer,
@@ -37,10 +44,10 @@ class OrganizerCommissionService:
     """
     Negociation structuree Organizer <-> Admin.
 
-    L'ouverture du compte et l'accord financier sont deux decisions
-    independantes :
-    - validation_status gere l'ouverture du compte ;
-    - commission_agreed_at gere l'accord de commission.
+    La negociation structuree porte aussi la decision d'ouverture :
+    - tant qu'aucun accord n'est conclu, le dossier reste PENDING ;
+    - l'acceptation finale de la commission approuve automatiquement
+      le compte Organizer.
     """
 
     @staticmethod
@@ -357,18 +364,55 @@ class OrganizerCommissionService:
             ],
         )
 
+        auto_approve = organizer.validation_status == ORGANIZER_PENDING
+
+        approval_actor_id = (
+            proposal.proposed_by_id
+            if proposal.proposer_role
+            == ORGANIZER_COMMISSION_PROPOSER_ADMIN
+            else accepted_by_id
+        )
+
         organizer.commission_rate = proposal.rate
         organizer.commission_agreed_at = now
         organizer.version += 1
 
+        update_fields = [
+            "commission_rate",
+            "commission_agreed_at",
+            "version",
+            "updated_at",
+        ]
+
+        if auto_approve:
+            organizer.validation_status = ORGANIZER_APPROVED
+            organizer.rejection_reason = None
+            organizer.validated_at = now
+            organizer.validated_by_id = approval_actor_id
+
+            update_fields.extend(
+                [
+                    "validation_status",
+                    "rejection_reason",
+                    "validated_at",
+                    "validated_by",
+                ],
+            )
+
         organizer.save(
-            update_fields=[
-                "commission_rate",
-                "commission_agreed_at",
-                "version",
-                "updated_at",
-            ],
+            update_fields=update_fields,
         )
+
+        if auto_approve:
+            publish_event(
+                event_type=ORGANIZER_APPROVED_EVENT,
+                aggregate_type=AGGREGATE_ORGANIZER,
+                aggregate_id=organizer.pk,
+                actor_id=approval_actor_id,
+                payload=organizer_decision_payload(
+                    status=ORGANIZER_APPROVED,
+                ),
+            )
 
         return organizer
 

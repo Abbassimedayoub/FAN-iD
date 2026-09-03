@@ -318,23 +318,16 @@ def test_alternating_counter_proposals_keep_history(
 
 
 @pytest.mark.django_db
-def test_organizer_accept_does_not_change_account_state(
+def test_organizer_accept_auto_approves_pending_account(
     factory,
     roles,
 ):
     owner, admin, organizer = make_context(
         roles,
-        "owner-accept",
+        "owner-auto-approve",
     )
 
-    organizer = OrganizerOnboardingService.approve(
-        organizer_id=organizer.pk,
-        actor_id=admin.pk,
-        expected_version=organizer.version,
-    )
-
-    assert organizer.validation_status == (ORGANIZER_APPROVED)
-    assert organizer.commission_agreed_at is None
+    assert organizer.validation_status != ORGANIZER_APPROVED
 
     counter = admin_call(
         factory,
@@ -358,14 +351,19 @@ def test_organizer_accept_does_not_change_account_state(
     )
 
     assert response.status_code == 200, response.data
-    assert response.data["commission_status"] == (ORGANIZER_COMMISSION_AGREED)
+    assert response.data["validation_status"] == ORGANIZER_APPROVED
+    assert response.data["commission_status"] == (
+        ORGANIZER_COMMISSION_AGREED
+    )
     assert response.data["agreed_rate"] == "0.0800"
 
     organizer.refresh_from_db()
 
-    assert organizer.validation_status == (ORGANIZER_APPROVED)
+    assert organizer.validation_status == ORGANIZER_APPROVED
     assert organizer.commission_rate == Decimal("0.0800")
     assert organizer.commission_agreed_at is not None
+    assert organizer.validated_at is not None
+    assert organizer.validated_by_id == admin.pk
 
 
 @pytest.mark.django_db
@@ -402,8 +400,17 @@ def test_admin_accept_requires_step_up(
     )
 
     assert accepted.status_code == 200, accepted.data
-    assert accepted.data["commission_status"] == (ORGANIZER_COMMISSION_AGREED)
+    assert accepted.data["validation_status"] == ORGANIZER_APPROVED
+    assert accepted.data["commission_status"] == (
+        ORGANIZER_COMMISSION_AGREED
+    )
     assert accepted.data["agreed_rate"] == "0.1200"
+
+    organizer.refresh_from_db()
+
+    assert organizer.validation_status == ORGANIZER_APPROVED
+    assert organizer.validated_at is not None
+    assert organizer.validated_by_id == admin.pk
 
 
 @pytest.mark.django_db

@@ -14,17 +14,11 @@ import { AdminOrganizerReactivationPanel } from "./AdminOrganizerReactivationPan
 import { AdminOrganizerEventsPanel } from "./AdminOrganizerEventsPanel";
 import { useOrganizer } from "./useOrganizer";
 import {
-  useApproveOrganizer,
   useRejectOrganizer,
   useSuspendOrganizer,
 } from "./useOrganizerMutations";
 
 type PendingOrganizerAction =
-  | {
-      kind: "approve";
-      version: number;
-      successMessage: string;
-    }
   | {
       kind: "reject";
       version: number;
@@ -60,7 +54,6 @@ export function AdminOrganizerDetailPage() {
   const { organizerId = "" } = useParams<{ organizerId: string }>();
 
   const query = useOrganizer(organizerId);
-  const approve = useApproveOrganizer();
   const reject = useRejectOrganizer();
   const suspend = useSuspendOrganizer();
 
@@ -70,17 +63,9 @@ export function AdminOrganizerDetailPage() {
   const [stepUpError, setStepUpError] = useState<string | null>(null);
   const [reopenAction, setReopenAction] = useState<OrganizerActionReopen | null>(null);
 
-  const isActionPending = approve.isPending || reject.isPending || suspend.isPending;
+  const isActionPending = reject.isPending || suspend.isPending;
 
   async function executeOrganizerAction(action: PendingOrganizerAction): Promise<void> {
-    if (action.kind === "approve") {
-      await approve.mutateAsync({
-        organizerId,
-        version: action.version,
-      });
-      return;
-    }
-
     if (action.kind === "reject") {
       await reject.mutateAsync({
         organizerId,
@@ -213,7 +198,6 @@ export function AdminOrganizerDetailPage() {
     setStepUpError(null);
     setReopenAction(null);
 
-    approve.reset();
     reject.reset();
     suspend.reset();
 
@@ -241,15 +225,6 @@ export function AdminOrganizerDetailPage() {
           isStaleResource,
           reopenAction,
           onClearReopenAction: () => setReopenAction(null),
-          onApprove: () => {
-            if (currentVersion == null) return Promise.resolve(false);
-
-            return runAction({
-              kind: "approve",
-              version: currentVersion,
-              successMessage: "Demande approuvée.",
-            });
-          },
           onReject: (reason) => {
             if (currentVersion == null) return Promise.resolve(false);
 
