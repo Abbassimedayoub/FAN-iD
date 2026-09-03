@@ -205,7 +205,7 @@ describe("AdminOrganizerDetailView", () => {
 
     expect(screen.getByText("Association Lumière")).toBeInTheDocument();
     expect(screen.getByText("contact@example.test")).toBeInTheDocument();
-    expect(screen.getByText("10 %")).toBeInTheDocument();
+    expect(screen.getByText("Voir la négociation ci-dessous")).toBeInTheDocument();
     expect(screen.getByText("En attente")).toBeInTheDocument();
 
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
@@ -344,7 +344,7 @@ describe("couverture des branches organizer detail", () => {
     expect(calls).toBe(3);
   });
 
-  it("conserve une commission non numérique telle quelle", () => {
+  it("renvoie la commission vers la négociation structurée", () => {
     render(
       <AdminOrganizerDetailView
         data={{
@@ -359,7 +359,7 @@ describe("couverture des branches organizer detail", () => {
       />,
     );
 
-    expect(screen.getByText("indisponible")).toBeInTheDocument();
+    expect(screen.getByText("Voir la négociation ci-dessous")).toBeInTheDocument();
   });
 
   it("ne rend rien lorsqu'aucune donnée ni erreur n'est disponible", () => {

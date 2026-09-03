@@ -8,6 +8,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Button, Card, Input } from "@/components/primitives";
 import { useAuth } from "@/features/auth/AuthContext";
 
+import { commissionPercentToRate } from "./commission";
 import { completeOrganizerApplication, registerOrganizerAccount } from "./organizerRegistration";
 
 const MINIMUM_AGE = 16;
@@ -99,6 +100,21 @@ const organizationSchema = z.object({
     .min(1, "E-mail de contact requis.")
     .max(254, "Adresse e-mail trop longue.")
     .email("Adresse e-mail de contact invalide."),
+  proposedCommissionPercent: z
+    .string()
+    .trim()
+    .min(1, "Votre proposition de commission est obligatoire.")
+    .refine((value) => {
+      const normalized = value.replace(",", ".");
+
+      if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+        return false;
+      }
+
+      const percent = Number(normalized);
+
+      return Number.isFinite(percent) && percent >= 0 && percent <= 100;
+    }, "Saisissez un pourcentage entre 0 et 100 avec au maximum deux décimales."),
   vatNumber: z.string().trim().max(32, "Numéro de TVA trop long."),
 });
 
@@ -313,6 +329,7 @@ export function OrganizerRegistrationPage() {
     defaultValues: {
       organizationName: "",
       contactEmail: "",
+      proposedCommissionPercent: "",
       vatNumber: "",
     },
   });
@@ -371,6 +388,7 @@ export function OrganizerRegistrationPage() {
       const result = await completeOrganizerApplication(storedAccount, {
         org_name: values.organizationName.trim(),
         contact_email: values.contactEmail.trim(),
+        proposed_commission_rate: commissionPercentToRate(values.proposedCommissionPercent),
         ...(values.vatNumber.trim() ? { vat_number: values.vatNumber.trim() } : {}),
       });
 
@@ -863,6 +881,53 @@ export function OrganizerRegistrationPage() {
                     >
                       Retour
                     </Button>
+
+                    <div>
+                      <label
+                        htmlFor="organizer-proposed-commission"
+                        className="mb-2 block text-[13px] font-semibold text-navy"
+                      >
+                        Proposition de commission FANID (%)
+                      </label>
+
+                      <div className="relative">
+                        <Input
+                          id="organizer-proposed-commission"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          inputMode="decimal"
+                          placeholder="12"
+                          className="min-h-[50px] w-full pr-12"
+                          aria-invalid={
+                            organizationForm.formState.errors.proposedCommissionPercent
+                              ? "true"
+                              : "false"
+                          }
+                          {...organizationForm.register("proposedCommissionPercent")}
+                        />
+
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-navy/45"
+                        >
+                          %
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-xs leading-5 text-navy/45">
+                        Cette proposition ouvre la négociation avec FANID. L’approbation de votre
+                        compte et l’accord de commission restent deux décisions distinctes.
+                      </p>
+
+                      <FieldError
+                        id="organizer-proposed-commission-error"
+                        message={
+                          organizationForm.formState.errors.proposedCommissionPercent?.message
+                        }
+                      />
+                    </div>
 
                     <Button
                       type="submit"

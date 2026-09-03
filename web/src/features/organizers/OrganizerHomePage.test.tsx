@@ -46,6 +46,52 @@ function organizer(validationStatus: "PENDING" | "APPROVED" | "SUSPENDED") {
   };
 }
 
+function negotiating(validationStatus: "PENDING" | "APPROVED") {
+  return {
+    organizer_id: "organizer-1",
+    validation_status: validationStatus,
+    commission_status: "NEGOTIATING",
+    agreed_rate: null,
+    agreed_at: null,
+    version: validationStatus === "PENDING" ? 1 : 2,
+    proposals: [
+      {
+        id: "proposal-1",
+        sequence: 1,
+        proposer_role: "ORGANIZER",
+        proposed_by_id: "user-organizer-1",
+        rate: "0.1200",
+        created_at: "2026-08-25T16:01:00Z",
+        accepted_at: null,
+        accepted_by_id: null,
+      },
+    ],
+  };
+}
+
+function agreed() {
+  return {
+    organizer_id: "organizer-1",
+    validation_status: "APPROVED",
+    commission_status: "COMMISSION_AGREED",
+    agreed_rate: "0.1000",
+    agreed_at: "2026-08-25T18:00:00Z",
+    version: 3,
+    proposals: [
+      {
+        id: "proposal-1",
+        sequence: 1,
+        proposer_role: "ORGANIZER",
+        proposed_by_id: "user-organizer-1",
+        rate: "0.1000",
+        created_at: "2026-08-25T16:01:00Z",
+        accepted_at: "2026-08-25T18:00:00Z",
+        accepted_by_id: "admin-1",
+      },
+    ],
+  };
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -87,6 +133,10 @@ it("affiche le statut PENDING et les outils de compte", async () => {
       return response(config, organizer("PENDING"));
     }
 
+    if (config.method === "get" && config.url === "/api/v1/organizers/me/commission-negotiation") {
+      return response(config, negotiating("PENDING"));
+    }
+
     throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
   };
 
@@ -121,7 +171,7 @@ it("affiche le statut PENDING et les outils de compte", async () => {
 
   expect(
     screen.getByRole("button", {
-      name: "Événements bientôt disponibles",
+      name: "Événements verrouillés",
     }),
   ).toBeDisabled();
 
@@ -138,6 +188,10 @@ it("affiche le tableau de bord APPROVED sans inventer un endpoint événementiel
       return response(config, organizer("APPROVED"));
     }
 
+    if (config.method === "get" && config.url === "/api/v1/organizers/me/commission-negotiation") {
+      return response(config, agreed());
+    }
+
     throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
   };
 
@@ -150,7 +204,7 @@ it("affiche le tableau de bord APPROVED sans inventer un endpoint événementiel
   ).toBeInTheDocument();
 
   expect(
-    screen.getByRole("link", {
+    await screen.findByRole("link", {
       name: "Créer un événement",
     }),
   ).toHaveAttribute("href", "/organizer/events/new");
@@ -161,7 +215,52 @@ it("affiche le tableau de bord APPROVED sans inventer un endpoint événementiel
     }),
   ).toHaveAttribute("href", "/organizer/events");
 
-  expect(requestedUrls).toEqual(["/api/v1/organizers/me"]);
+  expect(requestedUrls).toEqual([
+    "/api/v1/organizers/me",
+    "/api/v1/organizers/me/commission-negotiation",
+  ]);
+
+  queryClient.clear();
+});
+
+it("garde les événements verrouillés pour un compte APPROVED tant que la commission négocie", async () => {
+  httpClient.defaults.adapter = async (config) => {
+    if (config.method === "get" && config.url === "/api/v1/organizers/me") {
+      return response(config, organizer("APPROVED"));
+    }
+
+    if (config.method === "get" && config.url === "/api/v1/organizers/me/commission-negotiation") {
+      return response(config, negotiating("APPROVED"));
+    }
+
+    throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
+  };
+
+  const { queryClient } = renderPage();
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "Compte organisateur validé",
+    }),
+  ).toBeInTheDocument();
+
+  expect(
+    screen.getByRole("button", {
+      name: "Événements verrouillés",
+    }),
+  ).toBeDisabled();
+
+  expect(
+    screen.queryByRole("link", {
+      name: "Créer un événement",
+    }),
+  ).not.toBeInTheDocument();
+
+  expect(
+    screen.getByText(
+      "Votre compte est approuvé, mais un accord de commission avec FANID est requis avant de créer ou gérer des événements.",
+    ),
+  ).toBeInTheDocument();
 
   queryClient.clear();
 });
@@ -257,6 +356,10 @@ it("déconnecte réellement l’organisateur puis revient à la connexion", asyn
   httpClient.defaults.adapter = async (config) => {
     if (config.method === "get" && config.url === "/api/v1/organizers/me") {
       return response(config, organizer("APPROVED"));
+    }
+
+    if (config.method === "get" && config.url === "/api/v1/organizers/me/commission-negotiation") {
+      return response(config, agreed());
     }
 
     if (config.method === "post" && config.url === "/api/v1/auth/logout") {

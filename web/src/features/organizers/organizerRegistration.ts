@@ -22,6 +22,7 @@ export interface AccountRegistrationInput {
 export interface OrganizerApplicationInput {
   org_name: string;
   contact_email: string;
+  proposed_commission_rate: string;
   vat_number?: string;
 }
 
@@ -126,6 +127,7 @@ export async function completeOrganizerApplication(
     const response = await httpClient.post<Organizer>("/api/v1/organizers/apply", {
       org_name: application.org_name,
       contact_email: application.contact_email,
+      proposed_commission_rate: application.proposed_commission_rate,
       ...(application.vat_number ? { vat_number: application.vat_number } : {}),
     });
 

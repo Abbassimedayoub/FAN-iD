@@ -255,6 +255,7 @@ describe("OrganizerRegistrationPage", () => {
           JSON.stringify({
             org_name: "Association Lumière",
             contact_email: "organizer@example.test",
+            proposed_commission_rate: "0.1200",
             vat_number: "FR123456789",
           }),
         );
@@ -311,6 +312,10 @@ describe("OrganizerRegistrationPage", () => {
       target: {
         value: "Association Lumière",
       },
+    });
+
+    fireEvent.change(screen.getByLabelText("Proposition de commission FANID (%)"), {
+      target: { value: "12" },
     });
 
     fireEvent.change(screen.getByLabelText(/Numéro de TVA/), {
@@ -486,5 +491,60 @@ describe("OrganizerRegistrationPage", () => {
         name: "Se connecter",
       }),
     ).toHaveAttribute("href", "/login");
+  });
+  it("rend la proposition de commission obligatoire avant la candidature", async () => {
+    let applyCalls = 0;
+
+    httpClient.defaults.adapter = async (config) => {
+      if (config.method === "post" && config.url === "/api/v1/auth/register") {
+        return response(config, 201, {
+          id: "user-required-commission",
+          email: "organizer@example.test",
+          first_name: "Ines",
+          last_name: "Bouzid",
+          role: "FAN",
+          created_at: "2026-09-03T16:00:00Z",
+        });
+      }
+
+      if (config.url === "/api/v1/organizers/apply") {
+        applyCalls += 1;
+      }
+
+      throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
+    };
+
+    renderPage();
+    fillAccountForm();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Continuer vers l’organisation",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Votre organisation",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Nom de l’organisation"), {
+      target: {
+        value: "Association Lumière",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Créer mon espace organisateur",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Votre proposition de commission est obligatoire."),
+    ).toBeInTheDocument();
+
+    expect(applyCalls).toBe(0);
   });
 });

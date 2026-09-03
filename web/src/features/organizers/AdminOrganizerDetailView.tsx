@@ -23,18 +23,6 @@ function displayDate(value: string | null): string {
   return value ? DATE_TIME_FORMATTER.format(new Date(value)) : "—";
 }
 
-function displayCommission(value: string): string {
-  const rate = Number(value);
-
-  if (!Number.isFinite(rate)) {
-    return value;
-  }
-
-  return `${new Intl.NumberFormat("fr-FR", {
-    maximumFractionDigits: 2,
-  }).format(rate * 100)} %`;
-}
-
 function DetailSkeleton() {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6 md:p-8">
@@ -207,7 +195,7 @@ export function AdminOrganizerDetailView({
           <DetailField label="Contact" value={data.contact_email} />
           <DetailField label="Identifiant du dossier" value={data.id} />
           <DetailField label="N° TVA" value={displayValue(data.vat_number)} />
-          <DetailField label="Commission" value={displayCommission(data.commission_rate)} />
+          <DetailField label="Commission" value="Voir la négociation ci-dessous" />
           <DetailField label="Déposée le" value={displayDate(data.created_at)} />
           <DetailField label="Validée le" value={displayDate(data.validated_at)} />
           <DetailField label="Dernière mise à jour" value={displayDate(data.updated_at)} />

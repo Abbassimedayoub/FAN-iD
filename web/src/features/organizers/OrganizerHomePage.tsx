@@ -7,7 +7,9 @@ import { Badge, Button, Card } from "@/components/primitives";
 import { useAuth } from "@/features/auth/AuthContext";
 import { logoutWeb } from "@/features/auth/logout";
 
+import { fetchMyCommissionNegotiation, organizerCommissionQueryKeys } from "./commission";
 import { fetchMyOrganizer, myOrganizerQueryKey } from "./myOrganizer";
+import { OrganizerCommissionPanel } from "./OrganizerCommissionPanel";
 import {
   fetchMyOrganizerReactivationRequest,
   myOrganizerReactivationQueryKey,
@@ -48,11 +50,13 @@ const STATUS_CONTENT: Record<
 
 function OrganizerNavigation({
   approved,
+  commerciallyReady,
   logoutPending,
   logoutError,
   onLogout,
 }: {
   approved: boolean;
+  commerciallyReady: boolean;
   logoutPending: boolean;
   logoutError: boolean;
   onLogout: () => void;
@@ -86,7 +90,7 @@ function OrganizerNavigation({
             Changer le mot de passe
           </Link>
 
-          {approved ? (
+          {commerciallyReady ? (
             <Link
               to="/organizer/events"
               className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-navy/10 bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
@@ -97,10 +101,10 @@ function OrganizerNavigation({
             <button
               type="button"
               disabled
-              aria-label="Événements bientôt disponibles"
+              aria-label="Événements verrouillés"
               className="inline-flex min-h-[44px] cursor-not-allowed items-center justify-center rounded-xl border border-navy/10 bg-navy/5 px-4 py-2 text-sm font-semibold text-navy/40"
             >
-              Événements · bientôt
+              Événements · verrouillés
             </button>
           )}
         </div>
@@ -117,12 +121,17 @@ function OrganizerNavigation({
 
       {!approved ? (
         <p className="mt-3 text-xs leading-5 text-navy/45">
-          Les fonctions opérationnelles, dont la création d’événements, seront accessibles
-          uniquement lorsque votre organisation sera approuvée.
+          Les fonctions opérationnelles restent verrouillées tant que votre organisation n’est pas
+          approuvée.
+        </p>
+      ) : !commerciallyReady ? (
+        <p className="mt-3 text-xs leading-5 text-navy/45">
+          Votre compte est approuvé, mais les événements restent verrouillés jusqu’à l’accord de
+          commission.
         </p>
       ) : (
         <p className="mt-3 text-xs leading-5 text-navy/45">
-          Créez et préparez vos événements avant leur publication.
+          Votre compte et votre commission sont validés. Vous pouvez gérer vos événements.
         </p>
       )}
 
@@ -156,6 +165,13 @@ export function OrganizerHomePage() {
   const query = useQuery({
     queryKey: myOrganizerQueryKey,
     queryFn: fetchMyOrganizer,
+  });
+
+  const commissionQuery = useQuery({
+    queryKey: organizerCommissionQueryKeys.my,
+    queryFn: fetchMyCommissionNegotiation,
+    enabled: Boolean(query.data) && query.data?.validation_status !== "SUSPENDED",
+    retry: false,
   });
 
   const reactivationQuery = useQuery({
@@ -220,6 +236,8 @@ export function OrganizerHomePage() {
   const organizer = query.data;
   const content = STATUS_CONTENT[organizer.validation_status];
   const approved = organizer.validation_status === "APPROVED";
+  const commissionAgreed = commissionQuery.data?.commission_status === "COMMISSION_AGREED";
+  const commerciallyReady = approved && commissionAgreed;
 
   const reactivationRequest = reactivationQuery.data?.request ?? null;
 
@@ -242,6 +260,7 @@ export function OrganizerHomePage() {
 
         <OrganizerNavigation
           approved={approved}
+          commerciallyReady={commerciallyReady}
           logoutPending={logoutPending}
           logoutError={logoutError}
           onLogout={() => {
@@ -259,6 +278,18 @@ export function OrganizerHomePage() {
                 : "Vous avez été redirigé vers l’espace organisateur déjà associé à cette adresse e-mail."}
             </p>
           </Card>
+        ) : null}
+
+        {organizer.validation_status !== "SUSPENDED" ? (
+          <OrganizerCommissionPanel
+            organizer={organizer}
+            negotiation={commissionQuery.data}
+            isPending={commissionQuery.isPending}
+            isError={commissionQuery.isError}
+            onRetry={() => {
+              void commissionQuery.refetch();
+            }}
+          />
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -393,10 +424,10 @@ export function OrganizerHomePage() {
 
               <h2 className="mt-3 font-sora text-xl font-bold text-navy">Gestion événementielle</h2>
 
-              {approved ? (
+              {commerciallyReady ? (
                 <>
                   <p className="mt-3 text-sm leading-6 text-navy/55">
-                    Votre organisation est autorisée à utiliser les fonctionnalités organisateur.
+                    Le compte et la commission sont validés. La gestion événementielle est active.
                   </p>
 
                   <Link
@@ -408,7 +439,9 @@ export function OrganizerHomePage() {
                 </>
               ) : (
                 <p className="mt-3 text-sm leading-6 text-navy/55">
-                  La gestion des événements nécessite un compte organisateur approuvé.
+                  {!approved
+                    ? "La gestion des événements nécessite d’abord l’approbation du compte organisateur."
+                    : "Votre compte est approuvé, mais un accord de commission avec FANID est requis avant de créer ou gérer des événements."}
                 </p>
               )}
             </Card>

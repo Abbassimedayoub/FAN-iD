@@ -9,6 +9,7 @@ import {
   type OrganizerActionFeedback,
   type OrganizerActionReopen,
 } from "./AdminOrganizerDetailView";
+import { AdminOrganizerCommissionSection } from "./AdminOrganizerCommissionSection";
 import { AdminOrganizerReactivationPanel } from "./AdminOrganizerReactivationPanel";
 import { AdminOrganizerEventsPanel } from "./AdminOrganizerEventsPanel";
 import { useOrganizer } from "./useOrganizer";
@@ -265,6 +266,7 @@ export function AdminOrganizerDetailPage() {
 
       {query.data ? (
         <>
+          <AdminOrganizerCommissionSection organizer={query.data} />
           <AdminOrganizerEventsPanel organizerId={query.data.id} />
           <AdminOrganizerReactivationPanel organizer={query.data} />
         </>
