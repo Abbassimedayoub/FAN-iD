@@ -8,7 +8,10 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.organizing.constants import ORGANIZER_PENDING
-from apps.organizing.models import Organizer
+from apps.organizing.models import (
+    Organizer,
+    OrganizerCommissionProposal,
+)
 
 User = get_user_model()
 
@@ -39,6 +42,7 @@ def payload(**overrides) -> dict:
     data = {
         "org_name": "Stade de France",
         "contact_email": "contact@example.test",
+        "proposed_commission_rate": "0.1200",
         "vat_number": "FR123456789",
     }
     data.update(overrides)
@@ -65,6 +69,17 @@ def test_apply_creates_a_pending_dossier_and_returns_201(client, fan):
     assert organizer.org_name == "Stade de France"
     assert organizer.contact_email == "contact@example.test"
     assert organizer.vat_number == "FR123456789"
+
+    proposal = OrganizerCommissionProposal.objects.get(
+        organizer=organizer,
+    )
+
+    assert proposal.sequence == 1
+    assert proposal.proposer_role == "ORGANIZER"
+    assert proposal.proposed_by_id == fan.pk
+    assert str(proposal.rate) == "0.1200"
+    assert proposal.accepted_at is None
+    assert proposal.accepted_by_id is None
 
 
 def test_apply_grants_the_organizer_role_immediately(client, fan):

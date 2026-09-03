@@ -35,6 +35,7 @@ from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
 
 from .constants import (
     ORG_NAME_MAX_LENGTH,
+    ORGANIZER_COMMISSION_PROPOSER_ROLES,
     ORGANIZER_PENDING,
     ORGANIZER_STATUSES,
     SCANNER_CREDENTIAL_REQUEST_PENDING,
@@ -74,6 +75,10 @@ class Organizer(UUIDModel, TimeStampedModel, VersionedModel):
         choices=[(status, status) for status in ORGANIZER_STATUSES],
     )
     commission_rate = models.DecimalField(max_digits=5, decimal_places=4, default=DEFAULT_COMMISSION_RATE)
+    commission_agreed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
     vat_number = models.CharField(max_length=32, null=True, blank=True)
     contact_email = models.EmailField(max_length=254)
     rejection_reason = models.TextField(null=True, blank=True)
@@ -112,6 +117,100 @@ class Organizer(UUIDModel, TimeStampedModel, VersionedModel):
 
     def __str__(self) -> str:
         return f"{self.org_name} ({self.validation_status})"
+
+
+class OrganizerCommissionProposal(
+    UUIDModel,
+    TimeStampedModel,
+):
+    """
+    Proposition structuree de commission.
+
+    Une nouvelle negociation cree toujours une nouvelle ligne.
+    Le taux, l'auteur et la sequence ne sont jamais reecrits.
+    L'acceptation renseigne uniquement accepted_at/accepted_by.
+    """
+
+    organizer = models.ForeignKey(
+        Organizer,
+        on_delete=models.PROTECT,
+        related_name="commission_proposals",
+    )
+
+    sequence = models.PositiveIntegerField()
+
+    proposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="organizer_commission_proposals_authored",
+    )
+
+    proposer_role = models.CharField(
+        max_length=16,
+        choices=[
+            (role, role)
+            for role in ORGANIZER_COMMISSION_PROPOSER_ROLES
+        ],
+    )
+
+    rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+    )
+
+    accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="organizer_commission_proposals_accepted",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "organizing_organizer_commission_proposal"
+        ordering = ["sequence"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organizer", "sequence"],
+                name="uq_org_commission_proposal_seq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(rate__gte=0)
+                    & models.Q(rate__lte=1)
+                ),
+                name="ck_org_commission_proposal_rate",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    proposer_role__in=list(
+                        ORGANIZER_COMMISSION_PROPOSER_ROLES
+                    ),
+                ),
+                name="ck_org_commission_proposer_role",
+            ),
+        ]
+
+        indexes = [
+            models.Index(
+                fields=["organizer", "sequence"],
+                name="ix_org_commission_prop_seq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.organizer_id} "
+            f"#{self.sequence} "
+            f"{self.proposer_role} "
+            f"{self.rate}"
+        )
 
 
 class Scanner(

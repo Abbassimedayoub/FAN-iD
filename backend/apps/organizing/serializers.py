@@ -19,6 +19,15 @@ class OrganizerApplySerializer(serializers.Serializer):
 
     org_name = serializers.CharField(max_length=ORG_NAME_MAX_LENGTH)
     contact_email = serializers.EmailField(max_length=254)
+
+    proposed_commission_rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        min_value=0,
+        max_value=1,
+        required=True,
+    )
+
     vat_number = serializers.CharField(
         max_length=32,
         required=False,

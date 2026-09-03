@@ -30,6 +30,7 @@ __all__ = [
     "get_scanner_portal_context",
     "list_scanner_assignment_summaries",
     "resolve_organizer_context",
+    "resolve_organizer_commercial_context",
 ]
 
 
@@ -87,6 +88,92 @@ def resolve_organizer_context(
     return (
         organizer_id,
         validation_status == ORGANIZER_APPROVED,
+    )
+
+
+def resolve_organizer_commercial_context(
+    *,
+    user_id: uuid.UUID,
+) -> tuple[uuid.UUID | None, bool, bool]:
+    """
+    Retourne :
+    (organizer_id, compte_approuve, commission_convenue).
+
+    Le troisieme booleen ne devient vrai que si le compte est APPROVED
+    ET qu'un accord financier explicite existe.
+    """
+
+    row = (
+        Organizer.objects.filter(
+            user_id=user_id,
+        )
+        .values_list(
+            "pk",
+            "validation_status",
+            "commission_agreed_at",
+        )
+        .first()
+    )
+
+    if row is not None:
+        (
+            organizer_id,
+            validation_status,
+            commission_agreed_at,
+        ) = row
+
+        approved = (
+            validation_status == ORGANIZER_APPROVED
+        )
+
+        return (
+            organizer_id,
+            approved,
+            (
+                approved
+                and commission_agreed_at is not None
+            ),
+        )
+
+    scanner_row = (
+        Scanner.objects.filter(
+            user_id=user_id,
+            user__is_active=True,
+            user__anonymized_at__isnull=True,
+            user__must_change_password=False,
+            status__in=[
+                "OPENED",
+                "ACTIVE",
+            ],
+        )
+        .values_list(
+            "organizer_id",
+            "organizer__validation_status",
+            "organizer__commission_agreed_at",
+        )
+        .first()
+    )
+
+    if scanner_row is None:
+        return None, False, False
+
+    (
+        organizer_id,
+        validation_status,
+        commission_agreed_at,
+    ) = scanner_row
+
+    approved = (
+        validation_status == ORGANIZER_APPROVED
+    )
+
+    return (
+        organizer_id,
+        approved,
+        (
+            approved
+            and commission_agreed_at is not None
+        ),
     )
 
 

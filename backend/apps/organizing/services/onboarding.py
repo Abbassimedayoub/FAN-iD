@@ -69,10 +69,22 @@ class OrganizerOnboardingService:
         actor_id: uuid.UUID,
         expected_version: int,
     ) -> Organizer:
+        """
+        Ouvre le compte Organizer.
+
+        Cette decision ne vaut PAS accord de commission.
+        La negociation financiere peut continuer apres APPROVED.
+        """
         organizer = cls._get(organizer_id)
-        cls._require_state(organizer, ORGANIZER_PENDING, ORGANIZER_APPROVED)
+
+        cls._require_state(
+            organizer,
+            ORGANIZER_PENDING,
+            ORGANIZER_APPROVED,
+        )
 
         now = timezone.now()
+
         new_version = versioned_update(
             model=Organizer,
             pk=organizer.pk,
@@ -90,7 +102,9 @@ class OrganizerOnboardingService:
             aggregate_type=AGGREGATE_ORGANIZER,
             aggregate_id=organizer.pk,
             actor_id=actor_id,
-            payload=organizer_decision_payload(status=ORGANIZER_APPROVED),
+            payload=organizer_decision_payload(
+                status=ORGANIZER_APPROVED,
+            ),
         )
 
         logger.info(

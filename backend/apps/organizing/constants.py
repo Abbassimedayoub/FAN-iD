@@ -37,6 +37,16 @@ ORGANIZER_STATUSES: Final[tuple[str, ...]] = (
 ORG_NAME_MAX_LENGTH: Final = 120
 
 
+# Auteurs possibles d'une proposition structuree de commission.
+ORGANIZER_COMMISSION_PROPOSER_ORGANIZER: Final = "ORGANIZER"
+ORGANIZER_COMMISSION_PROPOSER_ADMIN: Final = "ADMIN"
+
+ORGANIZER_COMMISSION_PROPOSER_ROLES: Final[tuple[str, ...]] = (
+    ORGANIZER_COMMISSION_PROPOSER_ORGANIZER,
+    ORGANIZER_COMMISSION_PROPOSER_ADMIN,
+)
+
+
 # Cycle de vie d'un scanner invité.
 SCANNER_INVITED: Final = "INVITED"
 SCANNER_EMAIL_SENT: Final = "EMAIL_SENT"

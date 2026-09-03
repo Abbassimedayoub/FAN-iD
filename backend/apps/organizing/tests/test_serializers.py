@@ -26,6 +26,7 @@ def test_apply_serializer_accepts_only_the_public_input_shape():
         data={
             "org_name": "Stade de France",
             "contact_email": "contact@example.test",
+            "proposed_commission_rate": "0.1200",
             "vat_number": "FR123456789",
         }
     )
@@ -34,6 +35,7 @@ def test_apply_serializer_accepts_only_the_public_input_shape():
     assert serializer.validated_data == {
         "org_name": "Stade de France",
         "contact_email": "contact@example.test",
+        "proposed_commission_rate": Decimal("0.1200"),
         "vat_number": "FR123456789",
     }
 
@@ -43,6 +45,7 @@ def test_apply_serializer_does_not_expose_privileged_model_fields():
         data={
             "org_name": "Stade de France",
             "contact_email": "contact@example.test",
+            "proposed_commission_rate": "0.1200",
             "validation_status": "APPROVED",
             "commission_rate": "0.9999",
             "validated_by": "11111111-1111-4111-8111-111111111111",
@@ -60,11 +63,27 @@ def test_apply_serializer_does_not_expose_privileged_model_fields():
         "contact_email": "contact@example.test",
         "vat_number": None,
     }
+
+    assert serializer.validated_data[
+        "proposed_commission_rate"
+    ] == Decimal("0.1200")
     assert "validation_status" not in serializer.validated_data
     assert "commission_rate" not in serializer.validated_data
     assert "validated_by" not in serializer.validated_data
     assert "rejection_reason" not in serializer.validated_data
     assert "version" not in serializer.validated_data
+
+
+def test_apply_serializer_requires_initial_commission_proposal():
+    serializer = OrganizerApplySerializer(
+        data={
+            "org_name": "Stade de France",
+            "contact_email": "contact@example.test",
+        },
+    )
+
+    assert serializer.is_valid() is False
+    assert "proposed_commission_rate" in serializer.errors
 
 
 @pytest.mark.parametrize(

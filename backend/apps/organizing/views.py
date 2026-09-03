@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -34,6 +34,7 @@ from .serializers import (
     OrganizerSerializer,
     organizer_apply_data,
 )
+from .services.commissions import OrganizerCommissionService
 from .services.onboarding import OrganizerOnboardingService
 
 
@@ -132,19 +133,31 @@ class OrganizerApplyView(APIView):
             )
 
         data = organizer_apply_data(serializer.validated_data)
+        proposed_rate = serializer.validated_data[
+            "proposed_commission_rate"
+        ]
 
         try:
-            organizer = Organizer.objects.create(
-                user_id=request.user.pk,
-                **data,
-            )
+            with transaction.atomic():
+                organizer = Organizer.objects.create(
+                    user_id=request.user.pk,
+                    **data,
+                )
+
+                OrganizerCommissionService.create_initial_proposal(
+                    organizer_id=organizer.pk,
+                    actor_id=request.user.pk,
+                    rate=proposed_rate,
+                )
+
+                grant_organizer_role(
+                    user_id=request.user.pk,
+                )
         except IntegrityError as exc:
             raise ConflictError(
                 code="ORGANIZER_ALREADY_EXISTS",
                 message="Un dossier organisateur existe déjà.",
             ) from exc
-
-        grant_organizer_role(user_id=request.user.pk)
 
         response = Response(
             OrganizerSerializer(organizer).data,
