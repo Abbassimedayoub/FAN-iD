@@ -7,8 +7,13 @@ import { OrganizerShell } from "@/features/organizers/OrganizerShell";
 
 import { fetchEventCategories, fetchOrganizerEvent, updateEventDraft } from "./api";
 import type { EventDraftInput, OrganizerEvent } from "./types";
-import { endTimeThreeHoursAfter } from "./eventScheduleDefaults";
-import { isEventDateAtLeastTomorrow, minimumEventDate } from "./eventScheduleDefaults";
+import {
+  buildEventDateTimes,
+  endTimeThreeHoursAfter,
+  eventEndsNextDay,
+  isEventDateAtLeastTomorrow,
+  minimumEventDate,
+} from "./eventScheduleDefaults";
 
 function localDate(value: string): string {
   const date = new Date(value);
@@ -57,6 +62,8 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
 
   const [endTime, setEndTime] = useState(localTime(event.ends_at));
 
+  const endsNextDay = eventEndsNextDay(startTime, endTime);
+
   const [venue, setVenue] = useState(event.venue);
 
   const [capacity, setCapacity] = useState(
@@ -92,12 +99,14 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
       return;
     }
 
-    const start = new Date(`${date}T${startTime}:00`);
+    const schedule = buildEventDateTimes(
+      date,
+      startTime,
+      endTime,
+    );
 
-    const end = new Date(`${date}T${endTime}:00`);
-
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
-      setError("L’heure de fin doit être postérieure à l’heure de début.");
+    if (schedule === null) {
+      setError("Les horaires de l’événement sont invalides.");
       return;
     }
 
@@ -116,8 +125,8 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
       category_id: categoryId,
       name: name.trim(),
       description: description.trim(),
-      starts_at: start.toISOString(),
-      ends_at: end.toISOString(),
+      starts_at: schedule.start.toISOString(),
+      ends_at: schedule.end.toISOString(),
       venue: venue.trim(),
       capacity_total: capacityTotal,
     };
@@ -292,6 +301,12 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
               }}
               className="w-full"
             />
+
+            {endsNextDay ? (
+              <p className="mt-1.5 text-xs font-semibold text-[#1769d2]">
+                J+1 · fin le lendemain
+              </p>
+            ) : null}
           </div>
         </div>
 

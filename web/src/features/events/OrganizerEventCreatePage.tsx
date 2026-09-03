@@ -14,8 +14,13 @@ import { OrganizerEventCategoryField } from "./OrganizerEventCategoryField";
 import { OrganizerEventPublicationStep } from "./OrganizerEventPublicationStep";
 import { createEventDraft, fetchEventCategories, updateEventDraft, uploadEventImage } from "./api";
 import type { EventDraftInput, OrganizerEvent } from "./types";
-import { endTimeThreeHoursAfter } from "./eventScheduleDefaults";
-import { isEventDateAtLeastTomorrow, minimumEventDate } from "./eventScheduleDefaults";
+import {
+  buildEventDateTimes,
+  endTimeThreeHoursAfter,
+  eventEndsNextDay,
+  isEventDateAtLeastTomorrow,
+  minimumEventDate,
+} from "./eventScheduleDefaults";
 import { eventImageUrl } from "./eventImageUrl";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -49,15 +54,17 @@ const eventInformationSchema = z
     }
 
     if (values.eventDate && values.startTime && values.endTime) {
-      const start = new Date(`${values.eventDate}T${values.startTime}:00`);
+      const schedule = buildEventDateTimes(
+        values.eventDate,
+        values.startTime,
+        values.endTime,
+      );
 
-      const end = new Date(`${values.eventDate}T${values.endTime}:00`);
-
-      if (Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end <= start) {
+      if (schedule === null) {
         context.addIssue({
           code: "custom",
           path: ["endTime"],
-          message: "L’heure de fin doit être postérieure au début.",
+          message: "Les horaires de l’événement sont invalides.",
         });
       }
     }
@@ -104,16 +111,22 @@ function errorMessage(error: unknown): string {
 }
 
 function toPayload(values: EventInformationValues): EventDraftInput {
-  const start = new Date(`${values.eventDate}T${values.startTime}:00`);
+  const schedule = buildEventDateTimes(
+    values.eventDate,
+    values.startTime,
+    values.endTime,
+  );
 
-  const end = new Date(`${values.eventDate}T${values.endTime}:00`);
+  if (schedule === null) {
+    throw new Error("Invalid event schedule");
+  }
 
   return {
     category_id: values.categoryId,
     name: values.name.trim(),
     description: values.description.trim(),
-    starts_at: start.toISOString(),
-    ends_at: end.toISOString(),
+    starts_at: schedule.start.toISOString(),
+    ends_at: schedule.end.toISOString(),
     venue: values.venue.trim(),
     capacity_total: values.capacityTotal.trim() === "" ? null : Number(values.capacityTotal),
   };
@@ -210,6 +223,15 @@ export function OrganizerEventCreatePage() {
   const categoryOptions = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
 
   const selectedCategoryId = form.watch("categoryId");
+
+  const selectedStartTime = form.watch("startTime");
+
+  const selectedEndTime = form.watch("endTime");
+
+  const endsNextDay = eventEndsNextDay(
+    selectedStartTime,
+    selectedEndTime,
+  );
 
   function selectImage(file: File | undefined): void {
     setImageError(null);
@@ -541,6 +563,12 @@ export function OrganizerEventCreatePage() {
                         className="w-full"
                         {...form.register("endTime")}
                       />
+
+                      {endsNextDay ? (
+                        <p className="mt-1.5 text-xs font-semibold text-[#1769d2]">
+                          J+1 · fin le lendemain
+                        </p>
+                      ) : null}
 
                       <FieldError message={form.formState.errors.endTime?.message} />
                     </div>

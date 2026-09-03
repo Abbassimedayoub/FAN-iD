@@ -28,6 +28,52 @@ export function endTimeThreeHoursAfter(startTime: string): string {
   return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
 }
 
+export function eventEndsNextDay(
+  startTime: string,
+  endTime: string,
+): boolean {
+  const validTime = /^\d{2}:\d{2}$/;
+
+  if (!validTime.test(startTime) || !validTime.test(endTime)) {
+    return false;
+  }
+
+  return endTime <= startTime;
+}
+
+export function buildEventDateTimes(
+  eventDate: string,
+  startTime: string,
+  endTime: string,
+): {
+  start: Date;
+  end: Date;
+  endsNextDay: boolean;
+} | null {
+  const start = new Date(`${eventDate}T${startTime}:00`);
+  const end = new Date(`${eventDate}T${endTime}:00`);
+
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    return null;
+  }
+
+  const endsNextDay = eventEndsNextDay(startTime, endTime);
+
+  if (endsNextDay) {
+    end.setDate(end.getDate() + 1);
+  }
+
+  if (end <= start) {
+    return null;
+  }
+
+  return {
+    start,
+    end,
+    endsNextDay,
+  };
+}
+
 export function endDateTimeThreeHoursAfter(startsAt: string): string {
   if (!startsAt) {
     return "";
