@@ -21,7 +21,12 @@ import uuid
 
 from .authz import Action, Resource, Subject, authorize, may_attempt
 from .constants import ROLE_IDS, ROLE_ORGANIZER
-from .events import USER_LOGGED_IN, USER_PASSWORD_CHANGED, USER_PROFILE_UPDATED
+from .events import (
+    USER_LOGGED_IN,
+    USER_PASSWORD_CHANGED,
+    USER_PHONE_CHANGED,
+    USER_PROFILE_UPDATED,
+)
 from .models import User
 from .permissions import (
     ActionPermission,
@@ -50,6 +55,7 @@ __all__ = [
     "USER_LOGGED_IN",
     "USER_PASSWORD_CHANGED",
     "USER_PROFILE_UPDATED",
+    "USER_PHONE_CHANGED",
     "create_invited_scanner_account",
     "deactivate_scanner_account",
     "derive_scanner_temporary_password",

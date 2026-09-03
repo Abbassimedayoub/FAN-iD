@@ -258,3 +258,66 @@ def send_password_changed_email(
     return {
         "sent": True,
     }
+
+@shared_task(
+    name="identity.send_phone_changed_email",
+)
+def send_phone_changed_email(
+    *,
+    user_id: str,
+    first_record: bool,
+) -> None:
+    import logging
+
+    task_logger = logging.getLogger(
+        "fanid.identity",
+    )
+
+    user = User.objects.filter(
+        pk=user_id,
+    ).first()
+
+    if user is None:
+        return
+
+    phone = str(
+        user.phone or "",
+    ).strip()
+
+    if not phone:
+        return
+
+    if first_record:
+        subject = (
+            "[FANID] Numéro de téléphone enregistré"
+        )
+        body = (
+            "Votre numéro de téléphone a été enregistré : "
+            f"{phone}."
+        )
+    else:
+        subject = (
+            "[FANID] Numéro de téléphone modifié"
+        )
+        body = (
+            "Votre numéro de téléphone est désormais "
+            f"{phone}. "
+            "Si vous n'êtes pas à l'origine de cette "
+            "modification, contactez immédiatement FANID."
+        )
+
+    try:
+        build_notification_sender().send_email(
+            to=user.email,
+            subject=subject,
+            body=body,
+        )
+    except Exception:  # noqa: BLE001
+        task_logger.exception(
+            "auth.phone_change.confirmation_email_failed",
+            extra={
+                "user_id": str(
+                    user.pk,
+                ),
+            },
+        )

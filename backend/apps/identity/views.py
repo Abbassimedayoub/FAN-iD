@@ -32,7 +32,13 @@ from apps.core.outbox.publisher import publish_event
 from .authentication import default_binding_service
 from .authz import Action
 from .constants import CLIENT_WEB, OTP_TTL_MINUTES, PASSWORD_RESET_TTL_MINUTES, SESSION_REVOKED_LOGOUT
-from .events import AGGREGATE_USER, USER_PROFILE_UPDATED, user_profile_updated_payload
+from .events import (
+    AGGREGATE_USER,
+    USER_PHONE_CHANGED,
+    USER_PROFILE_UPDATED,
+    user_phone_changed_payload,
+    user_profile_updated_payload,
+)
 from .models import Device, Session, User
 from .permissions import ActionPermission, SelfResourcePermission, SelfUserPermission
 from .serializers import (
@@ -45,6 +51,8 @@ from .serializers import (
     PasswordChangeSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    PhoneChangeConfirmSerializer,
+    PhoneChangeRequestSerializer,
     ProfileUpdateSerializer,
     RefreshSerializer,
     RegistrationSerializer,
@@ -57,6 +65,11 @@ from .serializers import (
 from .services.authentication import AuthenticationService, LoginCommand, RefreshCommand
 from .services.device_reset import DeviceResetService
 from .services.password_reset import PasswordResetService
+from .services.phone_change import (
+    PhoneChangeService,
+    clean_phone,
+    same_phone,
+)
 from .services.profile import ProfileService
 from .services.registration import RegistrationService
 from .services.step_up import StepUpService
@@ -750,6 +763,13 @@ def build_profile_service() -> ProfileService:
     return ProfileService()
 
 
+def build_phone_change_service() -> PhoneChangeService:
+    """Assemble le service de changement de téléphone."""
+    return PhoneChangeService(
+        sender=build_notification_sender(),
+    )
+
+
 class MeView(APIView):
     """GET/PATCH /api/v1/auth/me."""
 
@@ -813,8 +833,20 @@ class MeView(APIView):
         serializer.is_valid(raise_exception=True)
 
         changes = dict(serializer.validated_data)
-        if str(user.role.name) == "SCANNER" and "phone" in changes:
-            if user.must_change_password:
+
+        if "phone" in changes:
+            role_name = str(user.role.name)
+            current_phone = str(
+                user.phone or "",
+            ).strip()
+            requested_phone = str(
+                changes.get("phone") or "",
+            ).strip()
+
+            if (
+                role_name == "SCANNER"
+                and user.must_change_password
+            ):
                 raise ValidationError(
                     {
                         "phone": [
@@ -826,14 +858,60 @@ class MeView(APIView):
                     }
                 )
 
-            phone = str(changes.get("phone") or "").strip()
+            if current_phone:
+                if (
+                    requested_phone
+                    and same_phone(
+                        current_phone,
+                        requested_phone,
+                    )
+                ):
+                    changes.pop(
+                        "phone",
+                        None,
+                    )
+                else:
+                    raise ValidationError(
+                        {
+                            "phone": [
+                                (
+                                    "PHONE_CHANGE_REQUIRES_VERIFICATION: "
+                                    "Un code de validation est obligatoire "
+                                    "pour remplacer le numéro actuel."
+                                )
+                            ]
+                        }
+                    )
+            elif not requested_phone:
+                if role_name == "SCANNER":
+                    raise ValidationError(
+                        {
+                            "phone": [
+                                (
+                                    "Le numéro de téléphone est obligatoire "
+                                    "pour un compte scanner."
+                                )
+                            ]
+                        }
+                    )
 
-            if not phone:
-                raise ValidationError(
-                    {"phone": ["Le numéro de téléphone est obligatoire " "pour un compte scanner."]}
+                changes.pop(
+                    "phone",
+                    None,
                 )
-
-            changes["phone"] = phone
+            else:
+                try:
+                    changes["phone"] = clean_phone(
+                        requested_phone,
+                    )
+                except ValueError as exc:
+                    raise ValidationError(
+                        {
+                            "phone": [
+                                str(exc),
+                            ]
+                        }
+                    ) from exc
 
         # Un PATCH vide ou composé uniquement de champs hors contrat est un
         # no-op : pas de nouvelle version artificielle. La précondition reste
@@ -859,6 +937,17 @@ class MeView(APIView):
                     changed_fields=list(changes.keys()),
                 ),
             )
+
+            if "phone" in changes:
+                publish_event(
+                    event_type=USER_PHONE_CHANGED,
+                    aggregate_type=AGGREGATE_USER,
+                    aggregate_id=user.pk,
+                    actor_id=user.pk,
+                    payload=user_phone_changed_payload(
+                        first_record=True,
+                    ),
+                )
 
         return self.response_for(user)
 
@@ -977,3 +1066,240 @@ class DeviceMeView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+class PhoneChangeRequestView(APIView):
+    """
+    Demande un OTP pour remplacer un téléphone déjà enregistré.
+
+    L'ancien numéro reste l'unique valeur persistée jusqu'à la
+    confirmation.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        SelfUserPermission,
+    ]
+    write_action = Action.USER_UPDATE_SELF
+    throttle_classes = [
+        ScopedRateThrottle,
+    ]
+    throttle_scope = "profile_update"
+
+    def get_user(
+        self,
+        request: Request,
+    ) -> User:
+        user = (
+            User.objects.select_related(
+                "role",
+            )
+            .get(pk=request.user.pk)
+        )
+        self.check_object_permissions(
+            request,
+            user,
+        )
+        return user
+
+    @extend_schema(
+        operation_id="auth_phone_change_request",
+        summary=(
+            "Demander le code de changement de téléphone"
+        ),
+        request=PhoneChangeRequestSerializer,
+        responses={
+            200: OpenApiResponse(
+                description=(
+                    "Challenge envoyé par e-mail"
+                )
+            ),
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+    )
+    def post(
+        self,
+        request: FanIdApiRequest,
+    ) -> Response:
+        user = self.get_user(
+            request,
+        )
+
+        if (
+            str(user.role.name) == "SCANNER"
+            and user.must_change_password
+        ):
+            raise ValidationError(
+                {
+                    "phone": [
+                        (
+                            "SCANNER_PASSWORD_CHANGE_REQUIRED_BEFORE_PHONE: "
+                            "Vous devez d'abord remplacer votre mot de passe temporaire."
+                        )
+                    ]
+                }
+            )
+
+        current_phone = str(
+            user.phone or "",
+        ).strip()
+
+        if not current_phone:
+            raise ValidationError(
+                {
+                    "phone": [
+                        (
+                            "PHONE_NOT_REGISTERED: "
+                            "Aucun numéro actuel n'est enregistré. "
+                            "Le premier numéro doit être ajouté depuis le profil."
+                        )
+                    ]
+                }
+            )
+
+        serializer = PhoneChangeRequestSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        target_phone = (
+            serializer.validated_data[
+                "phone"
+            ]
+        )
+
+        if same_phone(
+            current_phone,
+            target_phone,
+        ):
+            raise ValidationError(
+                {
+                    "phone": [
+                        (
+                            "Le nouveau numéro doit être "
+                            "différent du numéro actuel."
+                        )
+                    ]
+                }
+            )
+
+        result = (
+            build_phone_change_service()
+            .request(
+                user=user,
+                session_id=request.session_id,
+                phone=target_phone,
+            )
+        )
+
+        return Response(
+            {
+                "challenge_id": str(
+                    result.challenge_id,
+                ),
+                "expires_in_seconds": (
+                    int(
+                        OTP_TTL_MINUTES,
+                    )
+                    * 60
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PhoneChangeConfirmView(APIView):
+    """Valide l'OTP puis remplace atomiquement le téléphone."""
+
+    permission_classes = [
+        IsAuthenticated,
+        SelfUserPermission,
+    ]
+    write_action = Action.USER_UPDATE_SELF
+    throttle_classes = [
+        ScopedRateThrottle,
+    ]
+    throttle_scope = "profile_update"
+
+    def get_user(
+        self,
+        request: Request,
+    ) -> User:
+        user = (
+            User.objects.select_related(
+                "role",
+            )
+            .get(pk=request.user.pk)
+        )
+        self.check_object_permissions(
+            request,
+            user,
+        )
+        return user
+
+    @extend_schema(
+        operation_id="auth_phone_change_confirm",
+        summary=(
+            "Confirmer le changement de téléphone"
+        ),
+        request=PhoneChangeConfirmSerializer,
+        responses={
+            200: UserMeSerializer,
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            429: ERROR_RESPONSE,
+        },
+    )
+    def post(
+        self,
+        request: FanIdApiRequest,
+    ) -> Response:
+        user = self.get_user(
+            request,
+        )
+
+        serializer = PhoneChangeConfirmSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        result = (
+            build_phone_change_service()
+            .confirm(
+                user=user,
+                session_id=request.session_id,
+                challenge_id=(
+                    serializer.validated_data[
+                        "challenge_id"
+                    ]
+                ),
+                phone=(
+                    serializer.validated_data[
+                        "phone"
+                    ]
+                ),
+                code=(
+                    serializer.validated_data[
+                        "code"
+                    ]
+                ),
+            )
+        )
+
+        response = Response(
+            UserMeSerializer(
+                result.user,
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+        response["ETag"] = format_etag(
+            result.user.version,
+        )
+        return response

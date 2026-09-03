@@ -492,3 +492,45 @@ class StepUpConfirmSerializer(serializers.Serializer):
 
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(max_length=16, trim_whitespace=True)
+
+class PhoneChangeRequestSerializer(serializers.Serializer):
+    """Demande de remplacement du numéro de téléphone."""
+
+    phone = serializers.CharField(
+        max_length=32,
+        trim_whitespace=True,
+    )
+
+    def validate_phone(self, value: str) -> str:
+        from .services.phone_change import clean_phone
+
+        try:
+            return clean_phone(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(
+                str(exc),
+            ) from exc
+
+
+class PhoneChangeConfirmSerializer(serializers.Serializer):
+    """Confirmation OTP du remplacement du téléphone."""
+
+    challenge_id = serializers.UUIDField()
+    phone = serializers.CharField(
+        max_length=32,
+        trim_whitespace=True,
+    )
+    code = serializers.CharField(
+        max_length=16,
+        trim_whitespace=True,
+    )
+
+    def validate_phone(self, value: str) -> str:
+        from .services.phone_change import clean_phone
+
+        try:
+            return clean_phone(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(
+                str(exc),
+            ) from exc

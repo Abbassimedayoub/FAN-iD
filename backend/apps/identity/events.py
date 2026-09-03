@@ -159,3 +159,20 @@ def user_profile_updated_payload(
     return {
         "changed_fields": sorted(set(changed_fields)),
     }
+
+USER_PHONE_CHANGED: Final = "identity.user.phone_changed"
+
+
+def user_phone_changed_payload(
+    *,
+    first_record: bool,
+) -> dict[str, Any]:
+    """
+    Indique uniquement la nature de la modification.
+
+    Le numero reste dans identity_user et n'est pas duplique
+    dans l'Outbox.
+    """
+    return {
+        "first_record": bool(first_record),
+    }

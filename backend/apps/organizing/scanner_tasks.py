@@ -622,3 +622,120 @@ def send_scanner_invitation_reissued_emails(
     return {
         "sent": True,
     }
+
+@shared_task(
+    name=(
+        "organizing."
+        "send_scanner_phone_changed_organizer_email"
+    ),
+)
+def send_scanner_phone_changed_organizer_email(
+    *,
+    scanner_id: str,
+    first_record: bool,
+) -> None:
+    import logging
+
+    from apps.core.adapters.notifications import (
+        build_notification_sender,
+    )
+
+    task_logger = logging.getLogger(
+        "fanid.organizing",
+    )
+
+    scanner = (
+        Scanner.objects.select_related(
+            "user",
+            "organizer__user",
+        )
+        .filter(
+            pk=scanner_id,
+        )
+        .first()
+    )
+
+    if scanner is None:
+        return
+
+    phone = str(
+        scanner.user.phone or "",
+    ).strip()
+
+    if not phone:
+        return
+
+    first_name = (
+        str(
+            scanner.user.first_name
+            or scanner.invited_first_name
+            or ""
+        )
+        .strip()
+    )
+    last_name = (
+        str(
+            scanner.user.last_name
+            or scanner.invited_last_name
+            or ""
+        )
+        .strip()
+    )
+
+    scanner_name = (
+        f"{first_name} {last_name}".strip()
+        or scanner.user.email
+    )
+
+    organizer_email = str(
+        scanner.organizer.contact_email
+        or ""
+    ).strip()
+
+    if not organizer_email:
+        organizer_email = str(
+            scanner.organizer.user.email
+            or ""
+        ).strip()
+
+    if not organizer_email:
+        return
+
+    if first_record:
+        subject = (
+            "[FANID] Numéro de téléphone "
+            "du scanner enregistré"
+        )
+        body = (
+            "Le numéro de téléphone de "
+            f"{scanner_name} a été enregistré : "
+            f"{phone}."
+        )
+    else:
+        subject = (
+            "[FANID] Numéro de téléphone "
+            "du scanner modifié"
+        )
+        body = (
+            "Le numéro de téléphone de "
+            f"{scanner_name} est devenu {phone}."
+        )
+
+    try:
+        build_notification_sender().send_email(
+            to=organizer_email,
+            subject=subject,
+            body=body,
+        )
+    except Exception:  # noqa: BLE001
+        task_logger.exception(
+            "scanner.phone_change.organizer_email_failed",
+            extra={
+                "scanner_id": str(
+                    scanner.pk,
+                ),
+                "organizer_id": str(
+                    scanner.organizer_id,
+                ),
+            },
+        )

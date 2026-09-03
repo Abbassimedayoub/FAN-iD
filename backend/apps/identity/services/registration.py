@@ -127,6 +127,22 @@ class RegistrationService:
             payload=user_registered_payload(role_name=user.role.name),
         )
 
+        if str(user.phone or "").strip():
+            from ..events import (
+                USER_PHONE_CHANGED,
+                user_phone_changed_payload,
+            )
+
+            publish_event(
+                event_type=USER_PHONE_CHANGED,
+                aggregate_type=AGGREGATE_USER,
+                aggregate_id=user.pk,
+                actor_id=user.pk,
+                payload=user_phone_changed_payload(
+                    first_record=True,
+                ),
+            )
+
         # Ni l adresse, ni le mot de passe, ni aucun element du corps de requete.
         # Le `correlation_id` pose par le middleware relie cette ligne a la
         # requete HTTP, qui porte deja ce qu il faut pour enqueter.
