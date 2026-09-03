@@ -9,7 +9,7 @@ standards de DRF :
 
 Le plan impose :
 
-- login : 5/min/IP + 10/h/compte ;
+- login : 5/min/IP + 60/h/compte ;
 - refresh : 30/h/session.
 """
 
@@ -119,8 +119,8 @@ class DeviceResetAccountRateThrottle(LoginAccountRateThrottle):
     **C est l axe qui protege la victime.** Une demande de reinitialisation
     envoie un courriel : sans plafond par compte, mille adresses IP suffisent a
     noyer la boite d une personne ciblee, et le quota par origine n y peut rien.
-    Trois par heure laisse largement de quoi se tromper, et rend le harcelement
-    inoperant.
+    Dix par heure laisse plusieurs tentatives legitimes tout en conservant
+    une protection contre le harcelement par courriel.
     """
 
     scope = "device_reset_account"
