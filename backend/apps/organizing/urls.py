@@ -21,7 +21,13 @@ from .scanner_views import (
     OrganizerScannerCollectionView,
     OrganizerScannerDetailView,
 )
-from .views import OrganizerApplyView, OrganizerMeView
+from .views import (
+    OrganizerApplyView,
+    OrganizerCommissionAcceptView,
+    OrganizerCommissionNegotiationView,
+    OrganizerCommissionProposalView,
+    OrganizerMeView,
+)
 
 app_name = "organizing"
 
@@ -48,6 +54,21 @@ urlpatterns = [
     ),
     path("apply", OrganizerApplyView.as_view(), name="organizer-apply"),
     path("me", OrganizerMeView.as_view(), name="organizer-me"),
+    path(
+        "me/commission-negotiation",
+        OrganizerCommissionNegotiationView.as_view(),
+        name="organizer-commission-negotiation",
+    ),
+    path(
+        "me/commission-proposals",
+        OrganizerCommissionProposalView.as_view(),
+        name="organizer-commission-proposals",
+    ),
+    path(
+        "me/commission-accept",
+        OrganizerCommissionAcceptView.as_view(),
+        name="organizer-commission-accept",
+    ),
     path(
         "me/reactivation-request",
         OrganizerReactivationRequestView.as_view(),

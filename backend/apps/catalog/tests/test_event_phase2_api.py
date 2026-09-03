@@ -58,6 +58,7 @@ def make_organizer(
         org_name=f"Organisation {suffix}",
         contact_email=(f"contact-{suffix}@example.test"),
         validation_status=APPROVED,
+        commission_agreed_at=timezone.now(),
     )
 
     return user, organizer

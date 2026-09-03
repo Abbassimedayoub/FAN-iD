@@ -30,9 +30,12 @@ from .permissions import OrganizerRecordPermission
 from .serializers import (
     AdminOrganizerListResponseSerializer,
     OrganizerApplySerializer,
+    OrganizerCommissionNegotiationSerializer,
+    OrganizerCommissionProposalCreateSerializer,
     OrganizerRejectSerializer,
     OrganizerSerializer,
     organizer_apply_data,
+    organizer_commission_negotiation_data,
 )
 from .services.commissions import OrganizerCommissionService
 from .services.onboarding import OrganizerOnboardingService
@@ -133,9 +136,7 @@ class OrganizerApplyView(APIView):
             )
 
         data = organizer_apply_data(serializer.validated_data)
-        proposed_rate = serializer.validated_data[
-            "proposed_commission_rate"
-        ]
+        proposed_rate = serializer.validated_data["proposed_commission_rate"]
 
         try:
             with transaction.atomic():
@@ -202,6 +203,168 @@ class OrganizerMeView(OrganizerScopedMixin, APIView):
 
 
 # ---------------------------------------------------------------------------
+# Negociation de commission - Organizer
+# ---------------------------------------------------------------------------
+
+
+def _commission_response(
+    organizer: Organizer,
+) -> Response:
+    response = Response(
+        OrganizerCommissionNegotiationSerializer(
+            organizer_commission_negotiation_data(
+                organizer,
+            ),
+        ).data,
+        status=status.HTTP_200_OK,
+    )
+    response["ETag"] = format_etag(organizer.version)
+    return response
+
+
+def _current_organizer(
+    request: Request,
+) -> Organizer:
+    organizer = Organizer.objects.filter(
+        user_id=request.user.pk,
+    ).first()
+
+    if organizer is None:
+        from apps.core.exceptions import NotFoundBusinessError
+
+        raise NotFoundBusinessError()
+
+    return organizer
+
+
+class OrganizerCommissionNegotiationView(
+    OrganizerScopedMixin,
+    APIView,
+):
+    permission_classes = [
+        IsAuthenticated,
+        OrganizerRecordPermission,
+    ]
+    required_action = Action.ORGANIZER_READ
+
+    @extend_schema(
+        operation_id="organizers_commission_negotiation_get",
+        summary="Lire la negociation de commission",
+        responses={
+            200: OrganizerCommissionNegotiationSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+        },
+    )
+    def get(
+        self,
+        request: Request,
+    ) -> Response:
+        organizer = _current_organizer(request)
+        self.check_object_permissions(
+            request,
+            organizer,
+        )
+        return _commission_response(organizer)
+
+
+class OrganizerCommissionProposalView(
+    OrganizerScopedMixin,
+    APIView,
+):
+    permission_classes = [
+        IsAuthenticated,
+        OrganizerRecordPermission,
+    ]
+    required_action = Action.ORGANIZER_UPDATE
+
+    @extend_schema(
+        operation_id="organizers_commission_proposal_create",
+        summary="Faire une contre-proposition de commission",
+        request=OrganizerCommissionProposalCreateSerializer,
+        responses={
+            200: OrganizerCommissionNegotiationSerializer,
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
+    def post(
+        self,
+        request: Request,
+    ) -> Response:
+        organizer = _current_organizer(request)
+        self.check_object_permissions(
+            request,
+            organizer,
+        )
+
+        serializer = OrganizerCommissionProposalCreateSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        organizer = OrganizerCommissionService.organizer_counter(
+            organizer_id=organizer.pk,
+            actor_id=request.user.pk,
+            expected_version=parse_if_match(
+                request.headers.get("If-Match"),
+            ),
+            rate=serializer.validated_data["commission_rate"],
+        )
+
+        return _commission_response(organizer)
+
+
+class OrganizerCommissionAcceptView(
+    OrganizerScopedMixin,
+    APIView,
+):
+    permission_classes = [
+        IsAuthenticated,
+        OrganizerRecordPermission,
+    ]
+    required_action = Action.ORGANIZER_UPDATE
+
+    @extend_schema(
+        operation_id="organizers_commission_accept",
+        summary="Accepter la proposition Admin",
+        request=None,
+        responses={
+            200: OrganizerCommissionNegotiationSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
+    def post(
+        self,
+        request: Request,
+    ) -> Response:
+        organizer = _current_organizer(request)
+        self.check_object_permissions(
+            request,
+            organizer,
+        )
+
+        organizer = OrganizerCommissionService.organizer_accept(
+            organizer_id=organizer.pk,
+            actor_id=request.user.pk,
+            expected_version=parse_if_match(
+                request.headers.get("If-Match"),
+            ),
+        )
+
+        return _commission_response(organizer)
+
+
+# ---------------------------------------------------------------------------
 # S1-A.8b — decisions administratives
 # ---------------------------------------------------------------------------
 
@@ -240,6 +403,117 @@ class OrganizerAdminActionView(APIView):
         )
         response["ETag"] = format_etag(organizer.version)
         return response
+
+
+class AdminOrganizerCommissionNegotiationView(
+    OrganizerAdminActionView,
+):
+    required_action = Action.ORGANIZER_READ
+
+    @extend_schema(
+        operation_id="admin_organizers_commission_negotiation_get",
+        summary="Lire la negociation de commission",
+        responses={
+            200: OrganizerCommissionNegotiationSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+        },
+    )
+    def get(
+        self,
+        request: Request,
+        organizer_id: Any,
+    ) -> Response:
+        organizer = self.get_organizer(
+            request,
+            organizer_id,
+        )
+
+        return _commission_response(
+            organizer,
+        )
+
+
+class AdminOrganizerCommissionProposalView(
+    OrganizerAdminActionView,
+):
+    required_action = Action.ORGANIZER_APPROVE
+
+    @extend_schema(
+        operation_id="admin_organizers_commission_proposal_create",
+        summary="Faire une contre-proposition de commission",
+        request=OrganizerCommissionProposalCreateSerializer,
+        responses={
+            200: OrganizerCommissionNegotiationSerializer,
+            400: ERROR_RESPONSE,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
+    def post(
+        self,
+        request: Request,
+        organizer_id: Any,
+    ) -> Response:
+        organizer = self.get_organizer(
+            request,
+            organizer_id,
+        )
+
+        serializer = OrganizerCommissionProposalCreateSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        organizer = OrganizerCommissionService.admin_counter(
+            organizer_id=organizer.pk,
+            actor_id=request.user.pk,
+            expected_version=self.expected_version(request),
+            rate=serializer.validated_data["commission_rate"],
+        )
+
+        return _commission_response(organizer)
+
+
+class AdminOrganizerCommissionAcceptView(
+    OrganizerAdminActionView,
+):
+    required_action = Action.ORGANIZER_APPROVE
+
+    @extend_schema(
+        operation_id="admin_organizers_commission_accept",
+        summary="Accepter la proposition Organizer",
+        request=None,
+        responses={
+            200: OrganizerCommissionNegotiationSerializer,
+            401: ERROR_RESPONSE,
+            403: ERROR_RESPONSE,
+            404: ERROR_RESPONSE,
+            409: ERROR_RESPONSE,
+            428: ERROR_RESPONSE,
+        },
+    )
+    def post(
+        self,
+        request: Request,
+        organizer_id: Any,
+    ) -> Response:
+        organizer = self.get_organizer(
+            request,
+            organizer_id,
+        )
+
+        organizer = OrganizerCommissionService.admin_accept(
+            organizer_id=organizer.pk,
+            actor_id=request.user.pk,
+            expected_version=self.expected_version(request),
+        )
+
+        return _commission_response(organizer)
 
 
 class OrganizerApproveView(OrganizerAdminActionView):

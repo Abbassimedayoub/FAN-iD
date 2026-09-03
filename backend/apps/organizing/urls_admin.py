@@ -12,6 +12,9 @@ from .reactivation_views import (
     AdminOrganizerReactivationRequestView,
 )
 from .views import (
+    AdminOrganizerCommissionAcceptView,
+    AdminOrganizerCommissionNegotiationView,
+    AdminOrganizerCommissionProposalView,
     AdminOrganizerDetailView,
     AdminOrganizerListView,
     OrganizerApproveView,
@@ -31,6 +34,21 @@ urlpatterns = [
         "<uuid:organizer_id>",
         AdminOrganizerDetailView.as_view(),
         name="detail",
+    ),
+    path(
+        "<uuid:organizer_id>/commission-negotiation",
+        AdminOrganizerCommissionNegotiationView.as_view(),
+        name="commission-negotiation",
+    ),
+    path(
+        "<uuid:organizer_id>/commission-proposals",
+        AdminOrganizerCommissionProposalView.as_view(),
+        name="commission-proposals",
+    ),
+    path(
+        "<uuid:organizer_id>/commission-accept",
+        AdminOrganizerCommissionAcceptView.as_view(),
+        name="commission-accept",
     ),
     path(
         "<uuid:organizer_id>/approve",

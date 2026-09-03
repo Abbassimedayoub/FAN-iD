@@ -2,9 +2,35 @@ from __future__ import annotations
 
 from typing import Any
 
-from rest_framework.permissions import SAFE_METHODS
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from apps.identity.api import Action, ActionPermission, OrganizerResourcePermission
+
+
+class IsCommissionAgreedOrganizer(BasePermission):
+    """
+    Verrou commercial des surfaces evenement.
+
+    L'approbation ouvre le compte Organizer.
+    L'accord de commission ouvre les fonctions evenement.
+    """
+
+    message = "Un accord de commission est requis " "avant de gerer des evenements."
+    code = "COMMISSION_NOT_AGREED"
+
+    def has_permission(
+        self,
+        request: Any,
+        view: Any,
+    ) -> bool:
+        return (
+            getattr(
+                request,
+                "organizer_commission_agreed",
+                False,
+            )
+            is True
+        )
 
 
 class CategoryCollectionPermission(ActionPermission):

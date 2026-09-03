@@ -11,7 +11,13 @@ from typing import Any
 
 from rest_framework import serializers
 
-from .constants import ORG_NAME_MAX_LENGTH
+from .constants import (
+    ORGANIZER_COMMISSION_AGREED,
+    ORGANIZER_COMMISSION_CANCELLED,
+    ORGANIZER_COMMISSION_NEGOTIATING,
+    ORGANIZER_REJECTED,
+    ORG_NAME_MAX_LENGTH,
+)
 
 
 class OrganizerApplySerializer(serializers.Serializer):
@@ -54,6 +60,96 @@ class OrganizerSerializer(serializers.Serializer):
     version = serializers.IntegerField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+
+
+class OrganizerCommissionProposalSerializer(
+    serializers.Serializer,
+):
+    id = serializers.UUIDField(read_only=True)
+    sequence = serializers.IntegerField(read_only=True)
+    proposer_role = serializers.CharField(read_only=True)
+    proposed_by_id = serializers.UUIDField(read_only=True)
+    rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(read_only=True)
+    accepted_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+    )
+    accepted_by_id = serializers.UUIDField(
+        read_only=True,
+        allow_null=True,
+    )
+
+
+class OrganizerCommissionNegotiationSerializer(
+    serializers.Serializer,
+):
+    organizer_id = serializers.UUIDField(read_only=True)
+    validation_status = serializers.CharField(read_only=True)
+    commission_status = serializers.CharField(read_only=True)
+    agreed_rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        read_only=True,
+        allow_null=True,
+    )
+    agreed_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+    )
+    version = serializers.IntegerField(read_only=True)
+    proposals = OrganizerCommissionProposalSerializer(
+        many=True,
+        read_only=True,
+    )
+
+
+class OrganizerCommissionProposalCreateSerializer(
+    serializers.Serializer,
+):
+    commission_rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        min_value=0,
+        max_value=1,
+    )
+
+
+def organizer_commission_negotiation_data(
+    organizer,
+) -> dict[str, Any]:
+    proposals = list(
+        organizer.commission_proposals.all().order_by(
+            "sequence",
+        )
+    )
+
+    if organizer.validation_status == ORGANIZER_REJECTED:
+        commission_status = ORGANIZER_COMMISSION_CANCELLED
+        agreed_rate = None
+        agreed_at = None
+    elif organizer.commission_agreed_at is not None:
+        commission_status = ORGANIZER_COMMISSION_AGREED
+        agreed_rate = organizer.commission_rate
+        agreed_at = organizer.commission_agreed_at
+    else:
+        commission_status = ORGANIZER_COMMISSION_NEGOTIATING
+        agreed_rate = None
+        agreed_at = None
+
+    return {
+        "organizer_id": organizer.pk,
+        "validation_status": organizer.validation_status,
+        "commission_status": commission_status,
+        "agreed_rate": agreed_rate,
+        "agreed_at": agreed_at,
+        "version": organizer.version,
+        "proposals": proposals,
+    }
 
 
 class OrganizerRejectSerializer(serializers.Serializer):

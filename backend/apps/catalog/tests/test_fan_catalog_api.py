@@ -10,7 +10,6 @@ from rest_framework.test import APIClient
 
 from apps.catalog.models import Category, Event
 
-
 User = get_user_model()
 
 CATEGORIES_URL = "/api/v1/catalog/categories"
@@ -53,6 +52,7 @@ def make_organizer(
         org_name=f"Catalogue {suffix}",
         contact_email=f"catalogue-{suffix}@example.test",
         validation_status=ORGANIZER_APPROVED,
+        commission_agreed_at=timezone.now(),
     )
 
 
@@ -78,11 +78,7 @@ def create_event(
         venue="Stade FANID",
         capacity_total=1000,
         status=event_status,
-        published_at=(
-            timezone.now()
-            if event_status != Event.DRAFT
-            else None
-        ),
+        published_at=(timezone.now() if event_status != Event.DRAFT else None),
         lifecycle_reason=(
             f"Reason {event_status}"
             if event_status
@@ -133,17 +129,11 @@ def test_fan_catalog_lists_categories_without_status_filter(
 
     assert response.status_code == 200
 
-    returned_ids = {
-        item["id"]
-        for item in response.data
-    }
+    returned_ids = {item["id"] for item in response.data}
 
     assert returned_ids == {
         str(empty_category.pk),
-        *{
-            str(category.pk)
-            for category in categories
-        },
+        *{str(category.pk) for category in categories},
     }
 
     for item in response.data:
@@ -196,30 +186,15 @@ def test_fan_catalog_events_hide_archived_and_keep_other_statuses(
         Event.ARCHIVED,
     }
 
-    assert response.data["count"] == len(
-        visible_statuses
-    )
+    assert response.data["count"] == len(visible_statuses)
 
-    returned_ids = {
-        item["id"]
-        for item in response.data["results"]
-    }
+    returned_ids = {item["id"] for item in response.data["results"]}
 
-    assert returned_ids == {
-        str(event.pk)
-        for event in created
-        if event.status != Event.ARCHIVED
-    }
+    assert returned_ids == {str(event.pk) for event in created if event.status != Event.ARCHIVED}
 
-    assert {
-        item["status"]
-        for item in response.data["results"]
-    } == visible_statuses
+    assert {item["status"] for item in response.data["results"]} == visible_statuses
 
-    assert Event.ARCHIVED not in {
-        item["status"]
-        for item in response.data["results"]
-    }
+    assert Event.ARCHIVED not in {item["status"] for item in response.data["results"]}
 
 
 @pytest.mark.django_db
@@ -264,13 +239,8 @@ def test_fan_catalog_events_are_filtered_only_by_category(
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    assert response.data["results"][0]["id"] == str(
-        wanted.pk
-    )
-    assert (
-        response.data["results"][0]["status"]
-        == Event.DRAFT
-    )
+    assert response.data["results"][0]["id"] == str(wanted.pk)
+    assert response.data["results"][0]["status"] == Event.DRAFT
 
 
 @pytest.mark.django_db
@@ -370,9 +340,7 @@ def test_fan_catalog_accepts_legacy_event_without_organizer(
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    assert response.data["results"][0]["id"] == str(
-        event.pk
-    )
+    assert response.data["results"][0]["id"] == str(event.pk)
 
 
 @pytest.mark.django_db

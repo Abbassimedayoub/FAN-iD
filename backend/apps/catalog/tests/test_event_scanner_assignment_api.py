@@ -45,6 +45,7 @@ def make_organizer(
         org_name=(f"Event Scanner Org {suffix}"),
         contact_email=(f"event-scanner-contact-{suffix}" "@example.test"),
         validation_status=(ORGANIZER_APPROVED),
+        commission_agreed_at=timezone.now(),
     )
 
     return user, organizer

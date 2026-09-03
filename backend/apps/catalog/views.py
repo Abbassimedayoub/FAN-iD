@@ -34,7 +34,7 @@ from apps.identity.api import Action, ActionPermission, IsApprovedOrganizer, Res
 from apps.organizing.api import (
     get_scanner_assignment_summary,
     list_scanner_assignment_summaries,
-    resolve_organizer_context,
+    resolve_organizer_commercial_context,
 )
 
 from .events import (
@@ -55,6 +55,7 @@ from .permissions import (
     EventCollectionPermission,
     EventImagePermission,
     EventPostponePermission,
+    IsCommissionAgreedOrganizer,
     EventPublishPermission,
     EventResourcePermission,
     EventScannerAssignmentPermission,
@@ -249,6 +250,7 @@ class CatalogOrganizerContextMixin:
 
         organizer_id = None
         organizer_approved = False
+        organizer_commission_agreed = False
 
         if user is not None and getattr(
             user,
@@ -258,12 +260,14 @@ class CatalogOrganizerContextMixin:
             (
                 organizer_id,
                 organizer_approved,
-            ) = resolve_organizer_context(
+                organizer_commission_agreed,
+            ) = resolve_organizer_commercial_context(
                 user_id=user.pk,
             )
 
         request.organizer_id = organizer_id
         request.organizer_approved = organizer_approved
+        request.organizer_commission_agreed = organizer_commission_agreed
 
         super().initial(
             request,
@@ -360,6 +364,7 @@ class EventImageView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventImagePermission,
     ]
 
@@ -730,6 +735,7 @@ class EventListCreateView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventCollectionPermission,
     ]
 
@@ -836,6 +842,7 @@ class EventDetailView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventResourcePermission,
     ]
 
@@ -1059,6 +1066,7 @@ class EventPublishView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventPublishPermission,
     ]
 
@@ -1162,6 +1170,7 @@ class EventPostponeView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventPostponePermission,
     ]
 
@@ -1312,6 +1321,7 @@ class EventSuspendView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventSuspendPermission,
     ]
 
@@ -1406,6 +1416,7 @@ class EventCancelView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventCancelPermission,
     ]
 
@@ -1502,6 +1513,7 @@ class EventArchiveView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventArchivePermission,
     ]
 
@@ -1566,6 +1578,7 @@ class EventUnarchiveView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventUnarchivePermission,
     ]
 
@@ -1636,6 +1649,7 @@ class TicketCategoryListCreateView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         TicketCategoryCollectionPermission,
     ]
 
@@ -1745,6 +1759,7 @@ class TicketCategoryDetailView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         TicketCategoryResourcePermission,
     ]
 
@@ -2100,6 +2115,7 @@ class EventScannerAssignmentCollectionView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventScannerAssignmentPermission,
     ]
 
@@ -2272,6 +2288,7 @@ class EventScannerAssignmentDetailView(
     permission_classes = [
         IsAuthenticated,
         IsApprovedOrganizer,
+        IsCommissionAgreedOrganizer,
         EventScannerAssignmentPermission,
     ]
 
