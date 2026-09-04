@@ -16,11 +16,20 @@ export interface Organizer {
   updated_at: string;
 }
 
+export interface AdminOrganizerPendingReactivation {
+  id: string;
+  organizer_id: string;
+  organizer_name: string;
+  created_at: string;
+}
+
 export interface OrganizerPage {
   count: number;
   next: string | null;
   previous: string | null;
   results: Organizer[];
+  pending_reactivation_count?: number;
+  pending_reactivations?: AdminOrganizerPendingReactivation[];
 }
 
 export interface OrganizerFilters {

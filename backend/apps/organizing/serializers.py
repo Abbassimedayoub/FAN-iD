@@ -168,6 +168,18 @@ class OrganizerRejectSerializer(serializers.Serializer):
         return value
 
 
+class AdminOrganizerPendingReactivationSerializer(serializers.Serializer):
+    """Notification compacte d une réouverture en attente."""
+
+    id = serializers.UUIDField(read_only=True)
+    organizer_id = serializers.UUIDField(read_only=True)
+    organizer_name = serializers.CharField(
+        source="organizer.org_name",
+        read_only=True,
+    )
+    created_at = serializers.DateTimeField(read_only=True)
+
+
 class AdminOrganizerListResponseSerializer(serializers.Serializer):
     """Page standard de dossiers organisateurs pour l administration."""
 
@@ -175,6 +187,11 @@ class AdminOrganizerListResponseSerializer(serializers.Serializer):
     next = serializers.URLField(read_only=True, allow_null=True)
     previous = serializers.URLField(read_only=True, allow_null=True)
     results = OrganizerSerializer(many=True, read_only=True)
+    pending_reactivation_count = serializers.IntegerField(read_only=True)
+    pending_reactivations = AdminOrganizerPendingReactivationSerializer(
+        many=True,
+        read_only=True,
+    )
 
 
 def organizer_apply_data(data: dict[str, Any]) -> dict[str, Any]:

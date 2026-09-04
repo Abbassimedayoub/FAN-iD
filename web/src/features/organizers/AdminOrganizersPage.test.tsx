@@ -604,3 +604,71 @@ describe("AdminOrganizersPage - intégration TanStack Query", () => {
     queryClient.clear();
   });
 });
+
+describe("AdminOrganizersView - notifications de réouverture", () => {
+  it("affiche les demandes en attente et ouvre directement le dossier organisateur", () => {
+    const onOpenOrganizer = vi.fn();
+    const suspendedOrganizer = organizer("SUSPENDED", 4);
+
+    render(
+      <AdminOrganizersView
+        {...defaultViewProps}
+        data={{
+          ...successPage,
+          pending_reactivation_count: 2,
+          pending_reactivations: [
+            {
+              id: "10000000-0000-4000-8000-000000000001",
+              organizer_id: suspendedOrganizer.id,
+              organizer_name: suspendedOrganizer.org_name,
+              created_at: "2026-09-04T18:00:00Z",
+            },
+            {
+              id: "10000000-0000-4000-8000-000000000002",
+              organizer_id: "00000000-0000-4000-8000-000000000099",
+              organizer_name: "Club Horizon",
+              created_at: "2026-09-04T17:00:00Z",
+            },
+          ],
+        }}
+        onOpenOrganizer={onOpenOrganizer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Demandes de réouverture",
+      }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText("2 demandes en attente")).toBeInTheDocument();
+
+    const openButton = screen.getByRole("button", {
+      name: "Ouvrir la demande de réouverture de Organisation 4",
+    });
+
+    fireEvent.click(openButton);
+
+    expect(onOpenOrganizer).toHaveBeenCalledTimes(1);
+    expect(onOpenOrganizer).toHaveBeenCalledWith(suspendedOrganizer.id);
+  });
+
+  it("n'affiche aucune notification lorsqu'aucune réouverture n'est en attente", () => {
+    render(
+      <AdminOrganizersView
+        {...defaultViewProps}
+        data={{
+          ...successPage,
+          pending_reactivation_count: 0,
+          pending_reactivations: [],
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("heading", {
+        name: "Demandes de réouverture",
+      }),
+    ).not.toBeInTheDocument();
+  });
+});

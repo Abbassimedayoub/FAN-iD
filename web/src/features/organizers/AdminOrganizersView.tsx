@@ -169,6 +169,10 @@ export function AdminOrganizersView({
 
   const canShowAll = Boolean(data) && !showAll && (data?.count ?? 0) > PREVIEW_LIMIT;
 
+  const pendingReactivations = data?.pending_reactivations ?? [];
+  const pendingReactivationCount =
+    data?.pending_reactivation_count ?? pendingReactivations.length;
+
   return (
     <main className="mx-auto flex w-full max-w-[1400px] flex-col gap-7 p-5 sm:p-6 md:p-8">
       <header>
@@ -185,6 +189,76 @@ export function AdminOrganizersView({
           administratives et ouvrez chaque fiche pour effectuer les actions autorisées.
         </p>
       </header>
+
+      {pendingReactivationCount > 0 ? (
+        <section
+          aria-labelledby="pending-reactivations-title"
+          className="space-y-3"
+        >
+          <Card className="border border-primary/20 bg-primary/5 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                  Notification administrative
+                </p>
+
+                <h2
+                  id="pending-reactivations-title"
+                  className="mt-1 font-sora text-lg font-bold text-navy"
+                >
+                  Demandes de réouverture
+                </h2>
+
+                <p className="mt-1 text-sm text-navy/65">
+                  {pendingReactivationCount} demande
+                  {pendingReactivationCount > 1 ? "s" : ""} en attente
+                  {pendingReactivationCount > pendingReactivations.length
+                    ? ` · ${pendingReactivations.length} plus récentes affichées`
+                    : ""}
+                </p>
+              </div>
+
+              <span
+                aria-label={`${pendingReactivationCount} demandes de réouverture en attente`}
+                className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full bg-primary px-3 text-sm font-bold text-white"
+              >
+                {pendingReactivationCount}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {pendingReactivations.map((reactivation) => (
+                <div
+                  key={reactivation.id}
+                  className="flex flex-col gap-3 rounded-xl border border-navy/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-navy">
+                      {reactivation.organizer_name}
+                    </p>
+
+                    <p className="mt-1 text-xs text-navy/50">
+                      Demande reçue le{" "}
+                      {new Date(reactivation.created_at).toLocaleString("fr-FR")}
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    disabled={!onOpenOrganizer}
+                    aria-label={`Ouvrir la demande de réouverture de ${reactivation.organizer_name}`}
+                    onClick={() => {
+                      onOpenOrganizer?.(reactivation.organizer_id);
+                    }}
+                  >
+                    Ouvrir le dossier
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
+      ) : null}
 
       {data ? (
         <section aria-labelledby="organizer-overview-title" className="space-y-4">

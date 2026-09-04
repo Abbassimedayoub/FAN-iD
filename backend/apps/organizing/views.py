@@ -25,10 +25,11 @@ from apps.core.pagination import StandardPagination
 from apps.identity.api import Action, ActionPermission, grant_organizer_role
 
 from .constants import ORGANIZER_APPROVED
-from .models import Organizer
+from .models import Organizer, OrganizerReactivationRequest
 from .permissions import OrganizerRecordPermission
 from .serializers import (
     AdminOrganizerListResponseSerializer,
+    AdminOrganizerPendingReactivationSerializer,
     OrganizerApplySerializer,
     OrganizerCommissionNegotiationSerializer,
     OrganizerCommissionProposalCreateSerializer,
@@ -713,4 +714,24 @@ class AdminOrganizerListView(APIView):
         page = paginator.paginate_queryset(queryset, request, view=self)
 
         serializer = OrganizerSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+
+        pending_reactivations = (
+            OrganizerReactivationRequest.objects.filter(
+                status=OrganizerReactivationRequest.STATUS_PENDING,
+            )
+            .select_related("organizer")
+            .order_by("-created_at", "-pk")
+        )
+
+        pending_count = pending_reactivations.count()
+        pending_items = pending_reactivations[:5]
+
+        response = paginator.get_paginated_response(serializer.data)
+        response.data["pending_reactivation_count"] = pending_count
+        response.data["pending_reactivations"] = (
+            AdminOrganizerPendingReactivationSerializer(
+                pending_items,
+                many=True,
+            ).data
+        )
+        return response
