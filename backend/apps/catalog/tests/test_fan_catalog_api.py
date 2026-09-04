@@ -16,6 +16,7 @@ CATEGORIES_URL = "/api/v1/catalog/categories"
 EVENTS_URL = "/api/v1/catalog/events"
 
 ORGANIZER_APPROVED = "APPROVED"
+ORGANIZER_SUSPENDED = "SUSPENDED"
 
 
 @pytest.fixture
@@ -195,6 +196,65 @@ def test_fan_catalog_events_hide_archived_and_keep_other_statuses(
     assert {item["status"] for item in response.data["results"]} == visible_statuses
 
     assert Event.ARCHIVED not in {item["status"] for item in response.data["results"]}
+
+
+@pytest.mark.django_db
+def test_fan_catalog_hides_events_of_suspended_organizer(
+    client,
+    roles,
+):
+    suspended_organizer = make_organizer(
+        roles,
+        suffix="suspended-hidden",
+    )
+    approved_organizer = make_organizer(
+        roles,
+        suffix="approved-visible",
+    )
+
+    category = Category.objects.create(
+        name="Suspension organizer",
+    )
+
+    hidden_event = create_event(
+        organizer=suspended_organizer,
+        category=category,
+        name="Event organizer suspendu",
+        event_status=Event.PUBLISHED,
+        days=1,
+    )
+
+    visible_event = create_event(
+        organizer=approved_organizer,
+        category=category,
+        name="Event organizer approuve",
+        event_status=Event.PUBLISHED,
+        days=2,
+    )
+
+    suspended_organizer.validation_status = ORGANIZER_SUSPENDED
+    suspended_organizer.save(
+        update_fields=[
+            "validation_status",
+            "updated_at",
+        ]
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert [item["id"] for item in response.data["results"]] == [
+        str(visible_event.pk)
+    ]
+    assert str(hidden_event.pk) not in {
+        item["id"] for item in response.data["results"]
+    }
 
 
 @pytest.mark.django_db

@@ -57,14 +57,45 @@ class _ScannerPortalPageState extends ConsumerState<ScannerPortalPage> {
     await next;
   }
 
-  void _openScanner() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ScannerHomePage(
-          user: widget.user,
+  Future<void> _openScanner() async {
+    try {
+      final events = await _loadEvents();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (events.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Aucun événement autorisé pour le scan.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ScannerHomePage(
+            user: widget.user,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Le scanner est indisponible pour ce compte.',
+          ),
+        ),
+      );
+    }
   }
 
   String _formatDate(DateTime? value) {

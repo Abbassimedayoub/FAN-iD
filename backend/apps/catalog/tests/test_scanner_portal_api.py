@@ -11,6 +11,8 @@ from .test_event_scanner_assignment_api import client_for, make_event, make_orga
 
 PORTAL_URL = "/api/v1/scanner/events"
 
+ORGANIZER_SUSPENDED = "SUSPENDED"
+
 
 @pytest.mark.django_db
 def test_scanner_sees_only_its_active_assignments(
@@ -145,6 +147,47 @@ def test_scanner_cannot_read_event_from_other_scanner_or_organizer(
 
     assert response.status_code == 200
     assert response.data == []
+
+
+@pytest.mark.django_db
+def test_scanner_portal_is_blocked_when_organizer_is_suspended(
+    roles,
+):
+    owner, organizer = make_organizer(
+        roles,
+        suffix="portal-suspended",
+    )
+
+    scanner = make_scanner(
+        roles,
+        organizer=organizer,
+        owner=owner,
+        suffix="portal-suspended",
+        status="ACTIVE",
+    )
+
+    event = make_event(
+        organizer=organizer,
+        suffix="portal-suspended",
+    )
+
+    EventScannerAssignment.objects.create(
+        event=event,
+        scanner_id=scanner.pk,
+        assigned_by_id=owner.pk,
+    )
+
+    organizer.validation_status = ORGANIZER_SUSPENDED
+    organizer.save(
+        update_fields=[
+            "validation_status",
+            "updated_at",
+        ]
+    )
+
+    response = client_for(scanner.user).get(PORTAL_URL)
+
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db

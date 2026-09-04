@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.request import Request
@@ -57,10 +58,11 @@ class FanCatalogEventListView(APIView):
     """
     Liste des événements d'une catégorie pour le Fan.
 
-    Tous les états existants sont conservés :
-    DRAFT, PUBLISHED, POSTPONED, SUSPENDED, CANCELLED et ARCHIVED.
+    Les événements ARCHIVED sont masqués.
 
-    Le Mobile décidera ensuite de leur représentation visuelle.
+    Un événement rattaché à un Organizer n'est exposé au Fan que tant
+    que cet Organizer reste APPROVED. Les événements legacy sans
+    Organizer restent lisibles pour préserver la compatibilité.
     """
 
     authentication_classes = []
@@ -90,6 +92,8 @@ class FanCatalogEventListView(APIView):
 
         queryset = (
             Event.objects.filter(
+                Q(organizer__isnull=True)
+                | Q(organizer__validation_status="APPROVED"),
                 category_id=category_id,
             )
             .exclude(
