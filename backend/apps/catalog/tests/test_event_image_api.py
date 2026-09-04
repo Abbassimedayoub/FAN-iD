@@ -315,7 +315,7 @@ def test_foreign_event_image_is_hidden(
 
 
 @pytest.mark.django_db
-def test_published_event_image_cannot_change(
+def test_owner_can_add_image_to_published_event(
     client,
     category,
     roles,
@@ -332,8 +332,10 @@ def test_published_event_image_cannot_change(
         suffix="published",
     )
 
+    published_at = timezone.now()
+
     event.status = Event.PUBLISHED
-    event.published_at = timezone.now()
+    event.published_at = published_at
 
     event.save(
         update_fields=[
@@ -354,8 +356,16 @@ def test_published_event_image_cannot_change(
         HTTP_IF_MATCH='"1"',
     )
 
-    assert response.status_code == 409
-    assert storage._objects == {}
+    assert response.status_code == 200
+
+    event.refresh_from_db()
+
+    assert event.status == Event.PUBLISHED
+    assert event.published_at == published_at
+    assert event.image_key.endswith(".png")
+    assert event.image_key in storage._objects
+    assert response.data["status"] == Event.PUBLISHED
+    assert response.data["published_at"] is not None
 
 
 @pytest.mark.django_db
@@ -428,6 +438,17 @@ def test_replacing_image_deletes_old_after_commit(
         ]
     )
 
+
+    published_at = timezone.now()
+    event.status = Event.PUBLISHED
+    event.published_at = published_at
+    event.save(
+        update_fields=[
+            "status",
+            "published_at",
+        ]
+    )
+
     with django_capture_on_commit_callbacks(execute=True):
         response = auth(
             client,
@@ -448,6 +469,8 @@ def test_replacing_image_deletes_old_after_commit(
     assert event.image_key != old_key
     assert old_key not in storage._objects
     assert event.image_key in storage._objects
+    assert event.status == Event.PUBLISHED
+    assert event.published_at == published_at
 
 
 @pytest.mark.django_db

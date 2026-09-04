@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,11 +37,15 @@ class FanCatalogPage extends ConsumerStatefulWidget {
   ConsumerState<FanCatalogPage> createState() => _FanCatalogPageState();
 }
 
-class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
+class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
+    with WidgetsBindingObserver {
+  static const Duration _automaticRefreshInterval = Duration(seconds: 30);
+
   late Future<List<FanCatalogCategory>> _categories;
 
   FanCatalogCategory? _selectedCategory;
   Future<List<FanCatalogEvent>>? _events;
+  Timer? _automaticRefreshTimer;
 
   String? _venueFilter;
   FanCatalogAvailabilityFilter _availabilityFilter =
@@ -49,7 +55,37 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
+
     _categories = _loadCategories();
+
+    _automaticRefreshTimer = Timer.periodic(
+      _automaticRefreshInterval,
+      (_) {
+        unawaited(
+          _refreshEventsInBackground(),
+        );
+      },
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(
+    AppLifecycleState state,
+  ) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        _refreshEventsInBackground(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _automaticRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   FanCatalogRemoteDataSource _remoteDataSource() {
@@ -107,6 +143,34 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
     });
 
     await next;
+  }
+
+  Future<void> _refreshEventsInBackground() async {
+    final category = _selectedCategory;
+
+    if (category == null) {
+      return;
+    }
+
+    try {
+      final events = await _loadEvents(
+        category.id,
+      );
+
+      if (!mounted || _selectedCategory?.id != category.id) {
+        return;
+      }
+
+      setState(() {
+        _events = Future<List<FanCatalogEvent>>.value(
+          events,
+        );
+      });
+    } catch (_) {
+      // Le rafraichissement automatique ne doit jamais
+      // masquer le catalogue deja affiche si le reseau
+      // est temporairement indisponible.
+    }
   }
 
   void _selectCategory(FanCatalogCategory category) {

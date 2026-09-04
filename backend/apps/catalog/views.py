@@ -451,7 +451,12 @@ class EventImageView(
             event_id,
         )
 
-        _require_draft(initial_event)
+        if initial_event.status not in {
+            Event.DRAFT,
+            Event.PUBLISHED,
+            Event.POSTPONED,
+        }:
+            _require_draft(initial_event)
 
         uploaded_file = request.FILES.get("image")
 
@@ -480,7 +485,12 @@ class EventImageView(
                     for_update=True,
                 )
 
-                _require_draft(event)
+                if event.status not in {
+                    Event.DRAFT,
+                    Event.PUBLISHED,
+                    Event.POSTPONED,
+                }:
+                    _require_draft(event)
 
                 old_key = event.image_key
 

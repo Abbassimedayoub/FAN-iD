@@ -8,6 +8,7 @@ import { EventSchedule } from "./EventSchedule";
 import { fetchOrganizerEvent, fetchTicketCategories } from "./api";
 import { OrganizerEventDeleteButton } from "./OrganizerEventDeleteButton";
 import { OrganizerEventLifecycleActions } from "./OrganizerEventLifecycleActions";
+import { OrganizerEventImageEditor } from "./OrganizerEventImageEditor";
 import { OrganizerEventScannerAssignments } from "./OrganizerEventScannerAssignments";
 import type { OrganizerEventStatus } from "./types";
 import { eventImageUrl } from "./eventImageUrl";
@@ -137,6 +138,20 @@ export function OrganizerEventDetailPage() {
                         />
                       </div>
                     ) : null}
+
+                    <OrganizerEventImageEditor
+                      event={event}
+                      onUpdated={async (updated) => {
+                        queryClient.setQueryData(
+                          ["catalog", "event", updated.id],
+                          updated,
+                        );
+
+                        await queryClient.invalidateQueries({
+                          queryKey: ["catalog", "organizer-events"],
+                        });
+                      }}
+                    />
                   </div>
 
                   {event.description ? (
