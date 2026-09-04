@@ -100,6 +100,7 @@ class FanCatalogEventListView(APIView):
                 status=Event.ARCHIVED,
             )
             .select_related("category")
+            .prefetch_related("ticket_categories")
             .order_by(
                 "starts_at",
                 "id",

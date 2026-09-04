@@ -13,6 +13,9 @@ class FanCatalogEvent {
     required this.venue,
     required this.capacityTotal,
     required this.imageUrl,
+    this.minPriceCents,
+    this.ticketCategoryCount = 0,
+    this.availableTicketCategoryCount = 0,
     required this.status,
     required this.publishedAt,
     required this.lifecycleReason,
@@ -50,6 +53,24 @@ class FanCatalogEvent {
               json['capacity_total']?.toString() ?? '',
             ),
       imageUrl: json['image_url']?.toString(),
+      minPriceCents: json['min_price_cents'] is int
+          ? json['min_price_cents'] as int
+          : int.tryParse(
+              json['min_price_cents']?.toString() ?? '',
+            ),
+      ticketCategoryCount: json['ticket_category_count'] is int
+          ? json['ticket_category_count'] as int
+          : int.tryParse(
+                json['ticket_category_count']?.toString() ?? '',
+              ) ??
+              0,
+      availableTicketCategoryCount:
+          json['available_ticket_category_count'] is int
+              ? json['available_ticket_category_count'] as int
+              : int.tryParse(
+                    json['available_ticket_category_count']?.toString() ?? '',
+                  ) ??
+                  0,
       status: json['status']?.toString() ?? '',
       publishedAt: DateTime.tryParse(
         json['published_at']?.toString() ?? '',
@@ -77,10 +98,39 @@ class FanCatalogEvent {
   final int? capacityTotal;
   final String? imageUrl;
 
+  final int? minPriceCents;
+  final int ticketCategoryCount;
+  final int availableTicketCategoryCount;
+
   final String status;
   final DateTime? publishedAt;
   final String lifecycleReason;
   final DateTime? lifecycleChangedAt;
+
+  String get priceLabel {
+    if (ticketCategoryCount > 0 && availableTicketCategoryCount == 0) {
+      return 'Complet';
+    }
+
+    final cents = minPriceCents;
+
+    if (cents == null) {
+      return 'Tarif à venir';
+    }
+
+    final euros = cents ~/ 100;
+    final remainder = cents % 100;
+
+    final formatted = remainder == 0
+        ? '$euros €'
+        : '$euros,${remainder.toString().padLeft(2, '0')} €';
+
+    if (availableTicketCategoryCount > 1) {
+      return 'À partir de $formatted';
+    }
+
+    return formatted;
+  }
 
   String get statusLabel {
     switch (status.toUpperCase()) {

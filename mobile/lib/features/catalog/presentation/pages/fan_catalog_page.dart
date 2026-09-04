@@ -228,6 +228,56 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
     );
   }
 
+  Widget _eventImageFallback(
+    FanCatalogEvent event,
+  ) {
+    return Container(
+      key: ValueKey<String>(
+        'fan-event-image-fallback-${event.id}',
+      ),
+      height: 180,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(
+        Icons.event_outlined,
+        size: 56,
+      ),
+    );
+  }
+
+  Widget _eventImage(
+    FanCatalogEvent event,
+  ) {
+    final imageUrl = event.imageUrl?.trim() ?? '';
+
+    if (imageUrl.isEmpty) {
+      return _eventImageFallback(event);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl,
+        key: ValueKey<String>(
+          'fan-event-image-${event.id}',
+        ),
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (
+          context,
+          error,
+          stackTrace,
+        ) {
+          return _eventImageFallback(event);
+        },
+      ),
+    );
+  }
+
   Widget _eventCard(FanCatalogEvent event) {
     return Card(
       key: ValueKey<String>(
@@ -238,6 +288,8 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            _eventImage(event),
+            const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -262,6 +314,27 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
               const SizedBox(height: 12),
               Text(event.description.trim()),
             ],
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.sell_outlined,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    event.priceLabel,
+                    key: ValueKey<String>(
+                      'fan-event-price-${event.id}',
+                    ),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Text(
               'Début : ${_formatDate(event.startsAt)}\n'

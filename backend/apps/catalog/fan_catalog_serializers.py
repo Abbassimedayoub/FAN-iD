@@ -64,6 +64,10 @@ class FanCatalogEventSerializer(serializers.Serializer):
 
     image_url = serializers.SerializerMethodField()
 
+    min_price_cents = serializers.SerializerMethodField()
+    ticket_category_count = serializers.SerializerMethodField()
+    available_ticket_category_count = serializers.SerializerMethodField()
+
     status = serializers.CharField(read_only=True)
     published_at = serializers.DateTimeField(
         read_only=True,
@@ -102,6 +106,57 @@ class FanCatalogEventSerializer(serializers.Serializer):
             obj.image_key,
             EVENT_IMAGE_URL_TTL_SECONDS,
         )
+
+    def _price_summary(
+        self,
+        obj: Event,
+    ) -> tuple[int | None, int, int]:
+        cache_name = "_fan_catalog_price_summary"
+        cached = getattr(obj, cache_name, None)
+
+        if cached is not None:
+            return cached
+
+        categories = list(obj.ticket_categories.all())
+        available = [
+            category
+            for category in categories
+            if category.sold_count < category.quota
+        ]
+
+        summary = (
+            min(
+                (
+                    category.unit_price_cents
+                    for category in available
+                ),
+                default=None,
+            ),
+            len(categories),
+            len(available),
+        )
+
+        setattr(obj, cache_name, summary)
+
+        return summary
+
+    def get_min_price_cents(
+        self,
+        obj: Event,
+    ) -> int | None:
+        return self._price_summary(obj)[0]
+
+    def get_ticket_category_count(
+        self,
+        obj: Event,
+    ) -> int:
+        return self._price_summary(obj)[1]
+
+    def get_available_ticket_category_count(
+        self,
+        obj: Event,
+    ) -> int:
+        return self._price_summary(obj)[2]
 
 
 class FanCatalogEventQuerySerializer(serializers.Serializer):

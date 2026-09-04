@@ -8,6 +8,29 @@ class FanCatalogRemoteDataSource {
 
   final Dio _dio;
 
+  String? _resolveImageUrl(Object? rawValue) {
+    final value = rawValue?.toString().trim() ?? '';
+
+    if (value.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(value);
+
+    if (uri == null || uri.hasScheme) {
+      return value;
+    }
+
+    final baseUrl = _dio.options.baseUrl.trim();
+    final baseUri = Uri.tryParse(baseUrl);
+
+    if (baseUri == null || !baseUri.hasScheme) {
+      return value;
+    }
+
+    return baseUri.resolve(value).toString();
+  }
+
   Future<List<FanCatalogCategory>> fetchCategories() async {
     final response = await _dio.get<dynamic>(
       '/api/v1/catalog/categories',
@@ -60,10 +83,16 @@ class FanCatalogRemoteDataSource {
 
       events.addAll(
         results.whereType<Map>().map(
-              (item) => FanCatalogEvent.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            ),
+          (item) {
+            final json = Map<String, dynamic>.from(item);
+
+            json['image_url'] = _resolveImageUrl(
+              json['image_url'],
+            );
+
+            return FanCatalogEvent.fromJson(json);
+          },
+        ),
       );
 
       final rawNext = data['next'];

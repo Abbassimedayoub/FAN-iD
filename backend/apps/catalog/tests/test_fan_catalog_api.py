@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.catalog.models import Category, Event
+from apps.catalog.models import Category, Event, TicketCategory
 
 User = get_user_model()
 
@@ -304,6 +304,71 @@ def test_fan_catalog_events_are_filtered_only_by_category(
 
 
 @pytest.mark.django_db
+def test_fan_catalog_exposes_available_price_summary(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="pricing",
+    )
+
+    category = Category.objects.create(
+        name="Pricing",
+    )
+
+    event = create_event(
+        organizer=organizer,
+        category=category,
+        name="Event pricing",
+        event_status=Event.PUBLISHED,
+        days=1,
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Standard",
+        quota=100,
+        sold_count=0,
+        unit_price_cents=2500,
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Early",
+        quota=20,
+        sold_count=5,
+        unit_price_cents=1500,
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Epuisé",
+        quota=10,
+        sold_count=10,
+        unit_price_cents=500,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["ticket_category_count"] == 3
+    assert item["available_ticket_category_count"] == 2
+
+    # Le tarif épuisé à 5 EUR ne doit pas devenir
+    # le prix d'appel affiché au Fan.
+    assert item["min_price_cents"] == 1500
+
+
+@pytest.mark.django_db
 def test_fan_catalog_exposes_status_details_without_organizer(
     client,
     roles,
@@ -350,6 +415,9 @@ def test_fan_catalog_exposes_status_details_without_organizer(
         "venue",
         "capacity_total",
         "image_url",
+        "min_price_cents",
+        "ticket_category_count",
+        "available_ticket_category_count",
         "status",
         "published_at",
         "lifecycle_reason",
@@ -358,6 +426,10 @@ def test_fan_catalog_exposes_status_details_without_organizer(
 
     assert set(item) == expected_fields
     assert item["status"] == Event.SUSPENDED
+    assert item["min_price_cents"] is None
+    assert item["ticket_category_count"] == 0
+    assert item["available_ticket_category_count"] == 0
+
     assert item["lifecycle_reason"] == (
         Event.objects.get(
             pk=event.pk,
