@@ -194,7 +194,7 @@ REST_FRAMEWORK = {
         ),
         "logout": env("THROTTLE_LOGOUT_RATE", default="20/hour"),
         "device_reset_request": env("THROTTLE_RESET_REQUEST_RATE", default="20/hour"),
-        "device_reset_account": env("THROTTLE_RESET_ACCOUNT_RATE", default="10/hour"),
+        "device_reset_account": env("THROTTLE_RESET_ACCOUNT_RATE", default="3/hour"),
         "device_reset_confirm": env("THROTTLE_RESET_CONFIRM_RATE", default="30/hour"),
         "step_up_request": env("THROTTLE_STEP_UP_REQUEST_RATE", default="5/hour"),
         "step_up_confirm": env("THROTTLE_STEP_UP_CONFIRM_RATE", default="30/hour"),

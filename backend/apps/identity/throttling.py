@@ -119,8 +119,8 @@ class DeviceResetAccountRateThrottle(LoginAccountRateThrottle):
     **C est l axe qui protege la victime.** Une demande de reinitialisation
     envoie un courriel : sans plafond par compte, mille adresses IP suffisent a
     noyer la boite d une personne ciblee, et le quota par origine n y peut rien.
-    Dix par heure laisse plusieurs tentatives legitimes tout en conservant
-    une protection contre le harcelement par courriel.
+    Trois par heure laisse plusieurs tentatives legitimes tout en renforcant
+    la protection contre le harcelement par courriel.
     """
 
     scope = "device_reset_account"

@@ -195,6 +195,22 @@ def test_a_malformed_challenge_id_is_a_validation_error(client, fan):
 # ===========================================================================
 
 
+def test_default_account_quota_is_three_per_hour(client, fan):
+    """Le contrat produit autorise trois demandes par heure et par compte."""
+
+    codes = [
+        client.post(
+            REQUEST_URL,
+            body(),
+            format="json",
+            REMOTE_ADDR=f"198.51.100.{index}",
+        ).status_code
+        for index in range(1, 5)
+    ]
+
+    assert codes == [200, 200, 200, 429], codes
+
+
 def test_the_same_address_is_throttled_even_from_different_ips(client, fan, monkeypatch):
     """
     L axe qui protege la victime. Sans lui, mille adresses IP suffisent a noyer
