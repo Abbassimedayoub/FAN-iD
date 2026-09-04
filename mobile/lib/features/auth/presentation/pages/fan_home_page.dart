@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../cart/presentation/pages/fan_cart_page.dart';
 import '../../../catalog/presentation/pages/fan_catalog_page.dart';
 import '../../domain/entities/login_session.dart';
 import '../controllers/auth_controller.dart';
@@ -70,7 +71,36 @@ class FanHomePage extends ConsumerWidget {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => const FanCatalogPage(),
+                        builder: (_) => FanCatalogPage(
+                          cartOwnerKey: user.email.trim().toLowerCase(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                key: const ValueKey<String>(
+                  'fan-cart-card',
+                ),
+                child: ListTile(
+                  leading: const Icon(
+                    Icons.shopping_cart_outlined,
+                  ),
+                  title: const Text('Mon panier'),
+                  subtitle: const Text(
+                    'Billets sélectionnés — conservation 10 minutes.',
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => FanCartPage(
+                          cartOwnerKey: user.email.trim().toLowerCase(),
+                        ),
                       ),
                     );
                   },

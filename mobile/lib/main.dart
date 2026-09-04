@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'features/auth/presentation/pages/auth_entry_page.dart';
 
-void main() {
-  runApp(const ProviderScope(child: FanIdApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+
+  runApp(
+    const ProviderScope(
+      child: FanIdApp(),
+    ),
+  );
 }
 
 class FanIdApp extends StatelessWidget {

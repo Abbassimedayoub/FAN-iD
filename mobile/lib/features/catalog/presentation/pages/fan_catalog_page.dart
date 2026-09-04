@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../cart/domain/fan_cart.dart';
+import '../../../cart/presentation/pages/fan_cart_page.dart';
+import '../../../cart/presentation/providers/fan_cart_provider.dart';
+import '../../../cart/presentation/widgets/fan_ticket_selection_sheet.dart';
 import '../../data/datasources/fan_catalog_remote_data_source.dart';
 import '../../domain/entities/fan_catalog_category.dart';
 import '../../domain/entities/fan_catalog_event.dart';
+import '../../domain/entities/fan_catalog_ticket_category.dart';
 import '../../domain/fan_catalog_filters.dart';
 
 typedef FanCategoriesLoader = Future<List<FanCatalogCategory>> Function();
@@ -17,12 +22,14 @@ class FanCatalogPage extends ConsumerStatefulWidget {
     this.loadCategories,
     this.loadEvents,
     this.now,
+    this.cartOwnerKey,
     super.key,
   });
 
   final FanCategoriesLoader? loadCategories;
   final FanEventsLoader? loadEvents;
   final DateTime Function()? now;
+  final String? cartOwnerKey;
 
   @override
   ConsumerState<FanCatalogPage> createState() => _FanCatalogPageState();
@@ -298,6 +305,117 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
     );
   }
 
+  Future<void> _openCart() async {
+    final ownerKey = widget.cartOwnerKey;
+
+    if (ownerKey == null) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FanCartPage(
+          cartOwnerKey: ownerKey,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addToCart(
+    FanCatalogEvent event,
+    FanCatalogTicketCategory tariff,
+    int quantity,
+  ) async {
+    final ownerKey = widget.cartOwnerKey;
+
+    if (ownerKey == null) {
+      return;
+    }
+
+    try {
+      await ref
+          .read(
+            fanCartControllerProvider(
+              ownerKey,
+            ).notifier,
+          )
+          .addItem(
+            FanCartItem(
+              eventId: event.id,
+              eventName: event.name,
+              ticketCategoryId: tariff.id,
+              ticketCategoryName: tariff.name,
+              unitPriceCents: tariff.unitPriceCents,
+              quantity: quantity,
+              availableCount: tariff.availableCount,
+              eventCapacityTotal: event.capacityTotal,
+            ),
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$quantity billet(s) ajouté(s) '
+            'au panier.',
+          ),
+          action: SnackBarAction(
+            label: 'Voir',
+            onPressed: _openCart,
+          ),
+        ),
+      );
+    } on FanCartValidationException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectTickets(
+    FanCatalogEvent event,
+  ) async {
+    if (widget.cartOwnerKey == null || !event.canAddToCart) {
+      return;
+    }
+
+    final hasAvailableTariff = event.ticketCategories.any(
+      (tariff) => tariff.isAvailable,
+    );
+
+    if (!hasAvailableTariff) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return FanTicketSelectionSheet(
+          event: event,
+          onAdd: (tariff, quantity) async {
+            Navigator.of(sheetContext).pop();
+
+            await _addToCart(
+              event,
+              tariff,
+              quantity,
+            );
+          },
+        );
+      },
+    );
+  }
+
   String _formatDate(DateTime? value) {
     if (value == null) {
       return 'Date non renseignée';
@@ -535,6 +653,23 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
                 ),
               ],
             ),
+            if (event.canAddToCart && widget.cartOwnerKey != null) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                key: ValueKey<String>(
+                  'fan-event-buy-${event.id}',
+                ),
+                onPressed: () {
+                  _selectTickets(event);
+                },
+                icon: const Icon(
+                  Icons.add_shopping_cart,
+                ),
+                label: const Text(
+                  'Choisir mes billets',
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Text(
               'Début : ${_formatDate(event.startsAt)}\n'
@@ -740,6 +875,17 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
                 },
               ),
         actions: <Widget>[
+          if (widget.cartOwnerKey != null)
+            IconButton(
+              key: const ValueKey<String>(
+                'fan-cart-open',
+              ),
+              tooltip: 'Mon panier',
+              icon: const Icon(
+                Icons.shopping_cart_outlined,
+              ),
+              onPressed: _openCart,
+            ),
           IconButton(
             tooltip: 'Actualiser',
             icon: const Icon(Icons.refresh),
