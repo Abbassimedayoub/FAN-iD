@@ -145,9 +145,17 @@ class FanCartPage extends ConsumerWidget {
                         }
                       },
                       onRemove: () async {
+                        final shouldCloseCart = cart.items.length == 1;
+
                         await controller.removeItem(
                           item.ticketCategoryId,
                         );
+
+                        if (shouldCloseCart && context.mounted) {
+                          await Navigator.of(
+                            context,
+                          ).maybePop();
+                        }
                       },
                     ),
                   ),
