@@ -17,6 +17,7 @@ from apps.organizing.constants import (
     ORGANIZER_APPROVED,
     ORGANIZER_PENDING,
     SCANNER_ACTIVE,
+    SCANNER_DELETED,
     SCANNER_EMAIL_SENT,
     SCANNER_OPENED,
 )
@@ -173,6 +174,140 @@ def test_pending_organizer_cannot_invite(
 
     assert response.status_code == 403
     assert not Scanner.objects.exists()
+
+
+@pytest.mark.django_db
+def test_scanner_assigned_to_other_organizer_is_rejected(
+    roles,
+):
+    first_owner, first_organizer = make_organizer(
+        roles,
+        suffix="cross-organizer-first",
+    )
+    second_owner, second_organizer = make_organizer(
+        roles,
+        suffix="cross-organizer-second",
+    )
+
+    email = "cross-organizer-scanner@example.test"
+
+    first = invite(
+        owner=first_owner,
+        email=email,
+    )
+
+    assert first.status_code == 201
+
+    scanner = Scanner.objects.get(
+        invited_email__iexact=email,
+    )
+    scanner.status = SCANNER_ACTIVE
+    scanner.save(
+        update_fields=[
+            "status",
+            "updated_at",
+        ]
+    )
+
+    second = invite(
+        owner=second_owner,
+        email=email,
+    )
+
+    assert second.status_code == 409
+    assert second.data["error"]["code"] == (
+        "SCANNER_ASSIGNED_TO_OTHER_ORGANIZER"
+    )
+    assert second.data["error"]["message"] == (
+        "Ce scanner est déjà affecté à un autre organisateur."
+    )
+
+    scanner.refresh_from_db()
+
+    assert scanner.organizer_id == first_organizer.pk
+    assert scanner.organizer_id != second_organizer.pk
+    assert (
+        Scanner.objects.filter(
+            invited_email__iexact=email,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_archived_scanner_cannot_move_to_other_organizer(
+    roles,
+):
+    first_owner, first_organizer = make_organizer(
+        roles,
+        suffix="cross-archived-first",
+    )
+    second_owner, second_organizer = make_organizer(
+        roles,
+        suffix="cross-archived-second",
+    )
+
+    email = "cross-archived-scanner@example.test"
+
+    first = invite(
+        owner=first_owner,
+        email=email,
+    )
+
+    assert first.status_code == 201
+
+    scanner = (
+        Scanner.objects.select_related(
+            "user",
+        )
+        .get(
+            invited_email__iexact=email,
+        )
+    )
+
+    scanner.status = SCANNER_DELETED
+    scanner.archived_at = timezone.now()
+    scanner.save(
+        update_fields=[
+            "status",
+            "archived_at",
+            "updated_at",
+        ]
+    )
+
+    scanner.user.email = (
+        "cross-archived-internal@example.test"
+    )
+    scanner.user.save(
+        update_fields=[
+            "email",
+            "updated_at",
+        ]
+    )
+
+    second = invite(
+        owner=second_owner,
+        email=email,
+    )
+
+    assert second.status_code == 409
+    assert second.data["error"]["code"] == (
+        "SCANNER_ASSIGNED_TO_OTHER_ORGANIZER"
+    )
+    assert second.data["error"]["message"] == (
+        "Ce scanner est déjà affecté à un autre organisateur."
+    )
+
+    scanner.refresh_from_db()
+
+    assert scanner.organizer_id == first_organizer.pk
+    assert scanner.organizer_id != second_organizer.pk
+    assert (
+        Scanner.objects.filter(
+            invited_email__iexact=email,
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db

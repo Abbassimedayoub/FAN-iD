@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.exceptions import ConflictError, NotFoundBusinessError, StaleResourceError
@@ -36,6 +37,27 @@ from ..events import (
 from ..models import Organizer, Scanner
 
 
+def _scanner_assigned_to_other_organizer(
+    *,
+    organizer: Organizer,
+    email: str,
+) -> bool:
+    return (
+        Scanner.objects.filter(
+            Q(
+                invited_email__iexact=email,
+            )
+            | Q(
+                user__email__iexact=email,
+            ),
+        )
+        .exclude(
+            organizer=organizer,
+        )
+        .exists()
+    )
+
+
 class ScannerInvitationService:
     @staticmethod
     def invite(
@@ -51,6 +73,18 @@ class ScannerInvitationService:
         clean_first_name = first_name.strip()
         clean_last_name = last_name.strip()
         clean_email = email.strip()
+
+        if _scanner_assigned_to_other_organizer(
+            organizer=organizer,
+            email=clean_email,
+        ):
+            raise ConflictError(
+                code="SCANNER_ASSIGNED_TO_OTHER_ORGANIZER",
+                message=(
+                    "Ce scanner est déjà affecté "
+                    "à un autre organisateur."
+                ),
+            )
 
         existing_scanner = (
             Scanner.objects.filter(
@@ -117,9 +151,24 @@ class ScannerInvitationService:
                 )
 
         except IntegrityError as exc:
+            if _scanner_assigned_to_other_organizer(
+                organizer=organizer,
+                email=clean_email,
+            ):
+                raise ConflictError(
+                    code="SCANNER_ASSIGNED_TO_OTHER_ORGANIZER",
+                    message=(
+                        "Ce scanner est déjà affecté "
+                        "à un autre organisateur."
+                    ),
+                ) from exc
+
             raise ConflictError(
                 code="SCANNER_EMAIL_ALREADY_USED",
-                message=("Cette adresse e-mail est déjà " "associée à un compte FANID."),
+                message=(
+                    "Cette adresse e-mail est déjà "
+                    "associée à un compte FANID."
+                ),
             ) from exc
 
         return scanner

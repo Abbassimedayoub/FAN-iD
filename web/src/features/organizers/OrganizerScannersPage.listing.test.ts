@@ -30,4 +30,10 @@ describe("OrganizerScannersPage listing contract", () => {
     expect(source).toContain("onRevoke={openRevocation}");
     expect(source).toContain("onArchiveSelectionChange={toggleArchiveScanner}");
   });
+
+  it("surfaces the invitation business error returned by the API", () => {
+    expect(source).toContain("{invitation.isError ? (");
+    expect(source).toContain("{toAppError(invitation.error).message}");
+    expect(source).toContain('<p role="alert" className="text-sm text-red-700">');
+  });
 });
