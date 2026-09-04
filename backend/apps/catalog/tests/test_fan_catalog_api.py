@@ -418,6 +418,8 @@ def test_fan_catalog_exposes_status_details_without_organizer(
         "min_price_cents",
         "ticket_category_count",
         "available_ticket_category_count",
+        "ticket_categories",
+        "can_add_to_cart",
         "status",
         "published_at",
         "lifecycle_reason",
@@ -429,6 +431,8 @@ def test_fan_catalog_exposes_status_details_without_organizer(
     assert item["min_price_cents"] is None
     assert item["ticket_category_count"] == 0
     assert item["available_ticket_category_count"] == 0
+    assert item["ticket_categories"] == []
+    assert item["can_add_to_cart"] is False
 
     assert item["lifecycle_reason"] == (
         Event.objects.get(
@@ -549,3 +553,201 @@ def test_fan_catalog_is_read_only(
 
     assert categories_response.status_code == 405
     assert events_response.status_code == 405
+
+
+@pytest.mark.django_db
+def test_fan_catalog_exposes_cart_ticket_categories(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="cart-tariffs",
+    )
+
+    category = Category.objects.create(
+        name="Cart tariffs",
+    )
+
+    event = create_event(
+        organizer=organizer,
+        category=category,
+        name="Cart tariffs event",
+        event_status=Event.PUBLISHED,
+        days=1,
+    )
+
+    expensive = TicketCategory.objects.create(
+        event=event,
+        name="VIP",
+        quota=10,
+        sold_count=2,
+        unit_price_cents=5000,
+    )
+
+    cheap = TicketCategory.objects.create(
+        event=event,
+        name="Virage",
+        quota=30,
+        sold_count=5,
+        unit_price_cents=4000,
+    )
+
+    sold_out = TicketCategory.objects.create(
+        event=event,
+        name="Early",
+        quota=2,
+        sold_count=2,
+        unit_price_cents=1000,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["can_add_to_cart"] is True
+
+    assert item["ticket_categories"] == [
+        {
+            "id": str(sold_out.pk),
+            "name": "Early",
+            "unit_price_cents": 1000,
+            "available_count": 0,
+        },
+        {
+            "id": str(cheap.pk),
+            "name": "Virage",
+            "unit_price_cents": 4000,
+            "available_count": 25,
+        },
+        {
+            "id": str(expensive.pk),
+            "name": "VIP",
+            "unit_price_cents": 5000,
+            "available_count": 8,
+        },
+    ]
+
+
+@pytest.mark.django_db
+def test_fan_catalog_cart_eligibility_respects_lifecycle(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="cart-lifecycle",
+    )
+
+    category = Category.objects.create(
+        name="Cart lifecycle",
+    )
+
+    expected = {}
+
+    for index, event_status in enumerate(
+        (
+            Event.PUBLISHED,
+            Event.POSTPONED,
+            Event.DRAFT,
+            Event.SUSPENDED,
+            Event.CANCELLED,
+        ),
+        start=1,
+    ):
+        event = create_event(
+            organizer=organizer,
+            category=category,
+            name=f"Cart {event_status}",
+            event_status=event_status,
+            days=index,
+        )
+
+        TicketCategory.objects.create(
+            event=event,
+            name="Standard",
+            quota=5,
+            sold_count=0,
+            unit_price_cents=2500,
+        )
+
+        expected[str(event.pk)] = event_status in {
+            Event.PUBLISHED,
+            Event.POSTPONED,
+        }
+
+        if event_status == Event.POSTPONED:
+            assert event.postponed_to_starts_at is None
+            assert event.postponed_to_ends_at is None
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    items = {
+        item["id"]: item
+        for item in response.data["results"]
+    }
+
+    assert set(items) == set(expected)
+
+    for event_id, can_add in expected.items():
+        assert items[event_id]["can_add_to_cart"] is can_add
+
+
+@pytest.mark.django_db
+def test_fan_catalog_cart_rejects_fully_sold_out_event(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="cart-full",
+    )
+
+    category = Category.objects.create(
+        name="Cart full",
+    )
+
+    event = create_event(
+        organizer=organizer,
+        category=category,
+        name="Sold out event",
+        event_status=Event.PUBLISHED,
+        days=1,
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Complet",
+        quota=3,
+        sold_count=3,
+        unit_price_cents=3000,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["can_add_to_cart"] is False
+    assert item["available_ticket_category_count"] == 0
+    assert item["ticket_categories"][0]["available_count"] == 0

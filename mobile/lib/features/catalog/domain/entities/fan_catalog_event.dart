@@ -1,3 +1,5 @@
+import 'fan_catalog_ticket_category.dart';
+
 class FanCatalogEvent {
   const FanCatalogEvent({
     required this.id,
@@ -16,6 +18,8 @@ class FanCatalogEvent {
     this.minPriceCents,
     this.ticketCategoryCount = 0,
     this.availableTicketCategoryCount = 0,
+    this.ticketCategories = const <FanCatalogTicketCategory>[],
+    this.canAddToCart = false,
     required this.status,
     required this.publishedAt,
     required this.lifecycleReason,
@@ -71,6 +75,17 @@ class FanCatalogEvent {
                     json['available_ticket_category_count']?.toString() ?? '',
                   ) ??
                   0,
+      ticketCategories: (json['ticket_categories'] is List
+              ? json['ticket_categories'] as List
+              : const <dynamic>[])
+          .whereType<Map>()
+          .map(
+            (item) => FanCatalogTicketCategory.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList(growable: false),
+      canAddToCart: json['can_add_to_cart'] == true,
       status: json['status']?.toString() ?? '',
       publishedAt: DateTime.tryParse(
         json['published_at']?.toString() ?? '',
@@ -101,6 +116,8 @@ class FanCatalogEvent {
   final int? minPriceCents;
   final int ticketCategoryCount;
   final int availableTicketCategoryCount;
+  final List<FanCatalogTicketCategory> ticketCategories;
+  final bool canAddToCart;
 
   final String status;
   final DateTime? publishedAt;

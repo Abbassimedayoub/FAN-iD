@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from apps.core.adapters.storage import build_object_storage
 
-from .models import Category, Event
+from .models import Category, Event, TicketCategory
 
 
 EVENT_IMAGE_URL_TTL_SECONDS = 300
@@ -20,6 +20,13 @@ class FanCatalogCategorySerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     name = serializers.CharField(read_only=True)
     description = serializers.CharField(read_only=True)
+
+
+class FanCatalogTicketCategorySerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    unit_price_cents = serializers.IntegerField(read_only=True)
+    available_count = serializers.IntegerField(read_only=True)
 
 
 class FanCatalogEventSerializer(serializers.Serializer):
@@ -67,6 +74,8 @@ class FanCatalogEventSerializer(serializers.Serializer):
     min_price_cents = serializers.SerializerMethodField()
     ticket_category_count = serializers.SerializerMethodField()
     available_ticket_category_count = serializers.SerializerMethodField()
+    ticket_categories = serializers.SerializerMethodField()
+    can_add_to_cart = serializers.SerializerMethodField()
 
     status = serializers.CharField(read_only=True)
     published_at = serializers.DateTimeField(
@@ -107,6 +116,34 @@ class FanCatalogEventSerializer(serializers.Serializer):
             EVENT_IMAGE_URL_TTL_SECONDS,
         )
 
+    def _ticket_categories(
+        self,
+        obj: Event,
+    ) -> list[TicketCategory]:
+        cache_name = "_fan_catalog_ticket_categories"
+        cached = getattr(obj, cache_name, None)
+
+        if cached is not None:
+            return cached
+
+        categories = list(obj.ticket_categories.all())
+
+        categories.sort(
+            key=lambda category: (
+                category.unit_price_cents,
+                category.name.casefold(),
+                str(category.pk),
+            )
+        )
+
+        setattr(
+            obj,
+            cache_name,
+            categories,
+        )
+
+        return categories
+
     def _price_summary(
         self,
         obj: Event,
@@ -117,7 +154,7 @@ class FanCatalogEventSerializer(serializers.Serializer):
         if cached is not None:
             return cached
 
-        categories = list(obj.ticket_categories.all())
+        categories = self._ticket_categories(obj)
         available = [
             category
             for category in categories
@@ -157,6 +194,30 @@ class FanCatalogEventSerializer(serializers.Serializer):
         obj: Event,
     ) -> int:
         return self._price_summary(obj)[2]
+
+    def get_ticket_categories(
+        self,
+        obj: Event,
+    ):
+        return FanCatalogTicketCategorySerializer(
+            self._ticket_categories(obj),
+            many=True,
+        ).data
+
+    def get_can_add_to_cart(
+        self,
+        obj: Event,
+    ) -> bool:
+        if obj.status not in {
+            Event.PUBLISHED,
+            Event.POSTPONED,
+        }:
+            return False
+
+        return any(
+            category.available_count > 0
+            for category in self._ticket_categories(obj)
+        )
 
 
 class FanCatalogEventQuerySerializer(serializers.Serializer):
