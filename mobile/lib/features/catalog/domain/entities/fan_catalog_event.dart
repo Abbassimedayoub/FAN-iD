@@ -157,5 +157,7 @@ class FanCatalogEvent {
     }
   }
 
+  bool get isComingSoon => status.toUpperCase() == 'DRAFT';
+
   bool get isPostponed => status.toUpperCase() == 'POSTPONED';
 }

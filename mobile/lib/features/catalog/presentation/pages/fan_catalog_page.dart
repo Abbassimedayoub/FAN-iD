@@ -5,6 +5,7 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/datasources/fan_catalog_remote_data_source.dart';
 import '../../domain/entities/fan_catalog_category.dart';
 import '../../domain/entities/fan_catalog_event.dart';
+import '../../domain/fan_catalog_filters.dart';
 
 typedef FanCategoriesLoader = Future<List<FanCatalogCategory>> Function();
 
@@ -15,11 +16,13 @@ class FanCatalogPage extends ConsumerStatefulWidget {
   const FanCatalogPage({
     this.loadCategories,
     this.loadEvents,
+    this.now,
     super.key,
   });
 
   final FanCategoriesLoader? loadCategories;
   final FanEventsLoader? loadEvents;
+  final DateTime Function()? now;
 
   @override
   ConsumerState<FanCatalogPage> createState() => _FanCatalogPageState();
@@ -30,6 +33,11 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
 
   FanCatalogCategory? _selectedCategory;
   Future<List<FanCatalogEvent>>? _events;
+
+  String? _venueFilter;
+  FanCatalogAvailabilityFilter _availabilityFilter =
+      FanCatalogAvailabilityFilter.all;
+  FanCatalogTimeFilter _timeFilter = FanCatalogTimeFilter.all;
 
   @override
   void initState() {
@@ -72,6 +80,7 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
       _categories = next;
       _selectedCategory = null;
       _events = null;
+      _resetFilters();
     });
 
     await next;
@@ -97,7 +106,196 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
     setState(() {
       _selectedCategory = category;
       _events = _loadEvents(category.id);
+      _resetFilters();
     });
+  }
+
+  DateTime _currentTime() {
+    return widget.now?.call() ?? DateTime.now();
+  }
+
+  void _resetFilters() {
+    _venueFilter = null;
+    _availabilityFilter = FanCatalogAvailabilityFilter.all;
+    _timeFilter = FanCatalogTimeFilter.all;
+  }
+
+  String _availabilityFilterLabel(
+    FanCatalogAvailabilityFilter filter,
+  ) {
+    return switch (filter) {
+      FanCatalogAvailabilityFilter.all => 'Tous',
+      FanCatalogAvailabilityFilter.available => 'Non complet (disponible)',
+      FanCatalogAvailabilityFilter.full => 'Complet',
+    };
+  }
+
+  String _timeFilterLabel(
+    FanCatalogTimeFilter filter,
+  ) {
+    return switch (filter) {
+      FanCatalogTimeFilter.all => 'Tous',
+      FanCatalogTimeFilter.upcoming => 'À venir',
+      FanCatalogTimeFilter.ongoing => 'En cours',
+      FanCatalogTimeFilter.finished => 'Terminé',
+    };
+  }
+
+  Widget _filtersPanel(
+    List<FanCatalogEvent> sourceEvents,
+    int filteredCount,
+  ) {
+    final venues = FanCatalogFilters.venues(
+      sourceEvents,
+    );
+
+    final hasActiveFilters = _venueFilter != null ||
+        _availabilityFilter != FanCatalogAvailabilityFilter.all ||
+        _timeFilter != FanCatalogTimeFilter.all;
+
+    return Card(
+      key: const ValueKey<String>(
+        'fan-catalog-filters',
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    'Filtres',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+                TextButton.icon(
+                  key: const ValueKey<String>(
+                    'fan-filter-reset',
+                  ),
+                  onPressed: hasActiveFilters
+                      ? () {
+                          setState(_resetFilters);
+                        }
+                      : null,
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text('Réinitialiser'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Lieu',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                ChoiceChip(
+                  key: const ValueKey<String>(
+                    'fan-filter-venue-all',
+                  ),
+                  label: const Text('Tous les lieux'),
+                  selected: _venueFilter == null,
+                  onSelected: (_) {
+                    setState(() {
+                      _venueFilter = null;
+                    });
+                  },
+                ),
+                ...venues.map(
+                  (venue) => ChoiceChip(
+                    key: ValueKey<String>(
+                      'fan-filter-venue-$venue',
+                    ),
+                    label: Text(venue),
+                    selected: _venueFilter == venue,
+                    onSelected: (_) {
+                      setState(() {
+                        _venueFilter = venue;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Disponibilité',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: FanCatalogAvailabilityFilter.values
+                  .map(
+                    (filter) => ChoiceChip(
+                      key: ValueKey<String>(
+                        'fan-filter-availability-'
+                        '${filter.name}',
+                      ),
+                      label: Text(
+                        _availabilityFilterLabel(
+                          filter,
+                        ),
+                      ),
+                      selected: _availabilityFilter == filter,
+                      onSelected: (_) {
+                        setState(() {
+                          _availabilityFilter = filter;
+                        });
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Période',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: FanCatalogTimeFilter.values
+                  .map(
+                    (filter) => ChoiceChip(
+                      key: ValueKey<String>(
+                        'fan-filter-time-'
+                        '${filter.name}',
+                      ),
+                      label: Text(
+                        _timeFilterLabel(filter),
+                      ),
+                      selected: _timeFilter == filter,
+                      onSelected: (_) {
+                        setState(() {
+                          _timeFilter = filter;
+                        });
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '$filteredCount / '
+              '${sourceEvents.length} événements',
+              key: const ValueKey<String>(
+                'fan-filter-result-count',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _formatDate(DateTime? value) {
@@ -324,7 +522,9 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    event.priceLabel,
+                    event.isComingSoon
+                        ? 'Billetterie bientôt disponible'
+                        : event.priceLabel,
                     key: ValueKey<String>(
                       'fan-event-price-${event.id}',
                     ),
@@ -447,13 +647,13 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
       );
     }
 
-    final events = (snapshot.data ?? const <FanCatalogEvent>[])
+    final sourceEvents = (snapshot.data ?? const <FanCatalogEvent>[])
         .where(
           (event) => event.status.toUpperCase() != 'ARCHIVED',
         )
         .toList(growable: false);
 
-    if (events.isEmpty) {
+    if (sourceEvents.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -465,6 +665,16 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
       );
     }
 
+    final events = FanCatalogFilters.apply(
+      sourceEvents,
+      venue: _venueFilter,
+      availability: _availabilityFilter,
+      time: _timeFilter,
+      now: _currentTime(),
+    );
+
+    final noResult = events.isEmpty;
+
     return RefreshIndicator(
       onRefresh: _refreshEvents,
       child: ListView.separated(
@@ -475,9 +685,33 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
           16,
           32,
         ),
-        itemCount: events.length,
+        itemCount: 1 + (noResult ? 1 : events.length),
         separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, index) => _eventCard(events[index]),
+        itemBuilder: (_, index) {
+          if (index == 0) {
+            return _filtersPanel(
+              sourceEvents,
+              events.length,
+            );
+          }
+
+          if (noResult) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(
+                vertical: 32,
+              ),
+              child: Text(
+                'Aucun événement ne correspond '
+                'aux filtres sélectionnés.',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
+          return _eventCard(
+            events[index - 1],
+          );
+        },
       ),
     );
   }
@@ -501,6 +735,7 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage> {
                   setState(() {
                     _selectedCategory = null;
                     _events = null;
+                    _resetFilters();
                   });
                 },
               ),
