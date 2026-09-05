@@ -23,6 +23,11 @@ if env_file.exists():
 # --- Sécurité / identité de service (critique, jamais de défaut) ---
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 APP_VERSION = env("APP_VERSION", default="0.0.0-dev")
+
+# --- Paiements ---
+PAYMENT_GATEWAY = env("PAYMENT_GATEWAY", default="fake").strip().lower()
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 COMMIT_SHA = env("COMMIT_SHA", default="unknown")
 ENVIRONMENT = env("OTEL_ENVIRONMENT", default="dev")
 

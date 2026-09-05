@@ -8,7 +8,7 @@ from django.db import IntegrityError, transaction
 from django.test import Client
 from django.utils import timezone
 
-from apps.core.adapters.payments import FakeGateway
+from apps.core.adapters.payments import FakeGateway, StripeGateway
 from apps.catalog.models import Category, Event, TicketCategory
 from apps.ordering.models import Order, StockHold
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
@@ -268,3 +268,45 @@ def test_successful_payment_retry_does_not_double_count_stock(
     assert first.id == second.id
     assert second.status == "SUCCEEDED"
     assert ticket_category.sold_count == 2
+
+
+def test_stripe_gateway_maps_payment_intent_without_network():
+    class PaymentIntents:
+        def create(self, *, params):
+            assert params["amount"] == 2400
+            assert params["currency"] == "eur"
+            assert params["automatic_payment_methods"] == {"enabled": True}
+            assert params["metadata"] == {"order_id": "order-123"}
+
+            class Result:
+                id = "pi_stripe_test"
+                amount = 2400
+                currency = "eur"
+                metadata = {"order_id": "order-123"}
+                client_secret = "pi_stripe_test_secret"
+
+            return Result()
+
+    class Client:
+        class v1:
+            payment_intents = PaymentIntents()
+
+    gateway = StripeGateway(
+        secret_key="sk_test_not_used",
+        webhook_secret="whsec_not_used",
+        client=Client(),
+    )
+
+    intent = gateway.create_intent(
+        amount_cents=2400,
+        currency="EUR",
+        metadata={"order_id": "order-123"},
+    )
+
+    assert intent == {
+        "id": "pi_stripe_test",
+        "amount_cents": 2400,
+        "currency": "EUR",
+        "metadata": {"order_id": "order-123"},
+        "client_secret": "pi_stripe_test_secret",
+    }

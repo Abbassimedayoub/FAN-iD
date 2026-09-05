@@ -100,7 +100,7 @@ def create_payment_intent(
 
     return PaymentIntent.objects.create(
         order=order,
-        provider="fake",
+        provider=getattr(gateway, "provider_name", "unknown"),
         provider_intent_id=provider_intent["id"],
         amount_cents=provider_intent["amount_cents"],
         currency=provider_intent["currency"],
