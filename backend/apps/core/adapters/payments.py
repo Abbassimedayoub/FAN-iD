@@ -37,6 +37,11 @@ class FakeGateway(PaymentGateway):
         raise LookupError(f"PaymentIntent {intent_id} introuvable (FakeGateway).")
 
 
+
+class StripeWebhookSignatureError(ValueError):
+    """La signature d'un webhook Stripe est absente ou invalide."""
+
+
 class StripeGateway(PaymentGateway):
     """
     Adaptateur Stripe : les clés sont uniquement lues depuis l'environnement.
@@ -80,11 +85,16 @@ class StripeGateway(PaymentGateway):
     def verify_webhook(self, payload: bytes, signature: str) -> Any:
         import stripe
 
-        return stripe.Webhook.construct_event(
-            payload,
-            signature,
-            self.webhook_secret,
-        )
+        try:
+            return stripe.Webhook.construct_event(
+                payload,
+                signature,
+                self.webhook_secret,
+            )
+        except (ValueError, stripe.error.SignatureVerificationError) as exc:
+            raise StripeWebhookSignatureError(
+                "Signature Stripe invalide.",
+            ) from exc
 
     def retrieve_intent(self, intent_id: str) -> Any:
         intent = self.client.v1.payment_intents.retrieve(intent_id)

@@ -8,7 +8,11 @@ from django.db import IntegrityError, transaction
 from django.test import Client
 from django.utils import timezone
 
-from apps.core.adapters.payments import FakeGateway, StripeGateway
+from apps.core.adapters.payments import (
+    FakeGateway,
+    StripeGateway,
+    StripeWebhookSignatureError,
+)
 from apps.catalog.models import Category, Event, TicketCategory
 from apps.ordering.models import Order, StockHold
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
@@ -310,3 +314,94 @@ def test_stripe_gateway_maps_payment_intent_without_network():
         "metadata": {"order_id": "order-123"},
         "client_secret": "pi_stripe_test_secret",
     }
+
+
+def test_stripe_webhook_confirms_paid_order(
+    reserved_order,
+    buyer,
+    monkeypatch,
+):
+    order, ticket_category = reserved_order
+    gateway = FakeGateway()
+    intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+
+    class VerifiedStripeGateway:
+        provider_name = "stripe"
+
+        def verify_webhook(self, payload, signature):
+            assert signature == "valid-signature"
+            return {
+                "type": "payment_intent.succeeded",
+                "data": {
+                    "object": {
+                        "id": intent.provider_intent_id,
+                    },
+                },
+            }
+
+    monkeypatch.setattr(
+        "apps.payments.views.get_payment_gateway",
+        lambda: VerifiedStripeGateway(),
+    )
+
+    client = Client()
+    response = client.post(
+        "/api/v1/payments/stripe/webhook",
+        data=b'{"test": true}',
+        content_type="application/json",
+        HTTP_STRIPE_SIGNATURE="valid-signature",
+    )
+
+    order.refresh_from_db()
+    order.stock_hold.refresh_from_db()
+    ticket_category.refresh_from_db()
+    intent.refresh_from_db()
+
+    assert response.status_code == 200, response.content
+    assert intent.status == "SUCCEEDED"
+    assert order.status == "PAID"
+    assert order.stock_hold.consumed is True
+    assert ticket_category.sold_count == 2
+
+
+def test_stripe_webhook_rejects_invalid_signature(monkeypatch):
+    class InvalidStripeGateway:
+        provider_name = "stripe"
+
+        def verify_webhook(self, payload, signature):
+            raise StripeWebhookSignatureError("Signature invalide.")
+
+    monkeypatch.setattr(
+        "apps.payments.views.get_payment_gateway",
+        lambda: InvalidStripeGateway(),
+    )
+
+    client = Client()
+    response = client.post(
+        "/api/v1/payments/stripe/webhook",
+        data=b'{}',
+        content_type="application/json",
+        HTTP_STRIPE_SIGNATURE="bad-signature",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"code": "INVALID_STRIPE_SIGNATURE"}
+
+
+def test_stripe_webhook_is_hidden_when_stripe_is_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "apps.payments.views.get_payment_gateway",
+        lambda: FakeGateway(),
+    )
+
+    response = Client().post(
+        "/api/v1/payments/stripe/webhook",
+        data=b"{}",
+        content_type="application/json",
+    )
+
+    assert response.status_code == 404
