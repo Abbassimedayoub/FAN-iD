@@ -408,6 +408,8 @@ def test_fan_catalog_exposes_status_details_without_organizer(
         "description",
         "starts_at",
         "ends_at",
+        "sales_starts_at",
+        "sales_ends_at",
         "postponed_from_starts_at",
         "postponed_from_ends_at",
         "postponed_to_starts_at",
@@ -419,8 +421,12 @@ def test_fan_catalog_exposes_status_details_without_organizer(
         "ticket_category_count",
         "available_ticket_category_count",
         "ticket_categories",
+        "sales_open",
+        "sold_out",
+        "catalog_status",
         "can_add_to_cart",
         "status",
+        "operational_status",
         "published_at",
         "lifecycle_reason",
         "lifecycle_changed_at",
@@ -678,10 +684,9 @@ def test_fan_catalog_cart_eligibility_respects_lifecycle(
             unit_price_cents=2500,
         )
 
-        expected[str(event.pk)] = event_status in {
-            Event.PUBLISHED,
-            Event.POSTPONED,
-        }
+        expected[str(event.pk)] = (
+            event_status == Event.PUBLISHED
+        )
 
         if event_status == Event.POSTPONED:
             assert event.postponed_to_starts_at is None
@@ -749,5 +754,192 @@ def test_fan_catalog_cart_rejects_fully_sold_out_event(
     item = response.data["results"][0]
 
     assert item["can_add_to_cart"] is False
+    assert item["sales_open"] is True
+    assert item["sold_out"] is True
+    assert item["catalog_status"] == "SOLD_OUT"
     assert item["available_ticket_category_count"] == 0
     assert item["ticket_categories"][0]["available_count"] == 0
+
+
+
+@pytest.mark.django_db
+def test_fan_catalog_future_sales_window_is_coming_soon(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="future-sales-window",
+    )
+
+    category = Category.objects.create(
+        name="Future sales window",
+    )
+
+    event = create_event(
+        organizer=organizer,
+        category=category,
+        name="Future sale",
+        event_status=Event.PUBLISHED,
+        days=3,
+    )
+
+    now = timezone.now()
+
+    event.sales_starts_at = (
+        now + datetime.timedelta(hours=4)
+    )
+    event.sales_ends_at = (
+        event.starts_at - datetime.timedelta(hours=1)
+    )
+    event.save(
+        update_fields=[
+            "sales_starts_at",
+            "sales_ends_at",
+        ]
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Standard",
+        quota=10,
+        sold_count=0,
+        unit_price_cents=2000,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["status"] == Event.PUBLISHED
+    assert item["operational_status"] == "COMING_SOON"
+    assert item["catalog_status"] == "COMING_SOON"
+    assert item["sales_open"] is False
+    assert item["sold_out"] is False
+    assert item["can_add_to_cart"] is False
+    assert item["sales_starts_at"] is not None
+    assert item["sales_ends_at"] is not None
+
+
+@pytest.mark.django_db
+def test_fan_catalog_postponed_without_new_date_is_not_sellable(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="postponed-unknown-date",
+    )
+
+    category = Category.objects.create(
+        name="Postponed unknown date",
+    )
+
+    event = create_event(
+        organizer=organizer,
+        category=category,
+        name="Postponed unknown",
+        event_status=Event.POSTPONED,
+        days=3,
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Standard",
+        quota=10,
+        sold_count=0,
+        unit_price_cents=2000,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["status"] == Event.POSTPONED
+    assert item["operational_status"] == "POSTPONED"
+    assert item["catalog_status"] == "POSTPONED"
+    assert item["sales_open"] is False
+    assert item["sold_out"] is False
+    assert item["can_add_to_cart"] is False
+
+
+@pytest.mark.django_db
+def test_fan_catalog_postponed_known_date_can_sell_again(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="postponed-known-date",
+    )
+
+    category = Category.objects.create(
+        name="Postponed known date",
+    )
+
+    event = create_event(
+        organizer=organizer,
+        category=category,
+        name="Postponed active",
+        event_status=Event.POSTPONED,
+        days=3,
+    )
+
+    now = timezone.now()
+
+    event.postponed_to_starts_at = event.starts_at
+    event.postponed_to_ends_at = event.ends_at
+    event.sales_starts_at = (
+        now - datetime.timedelta(hours=1)
+    )
+    event.sales_ends_at = (
+        event.starts_at - datetime.timedelta(hours=1)
+    )
+    event.save(
+        update_fields=[
+            "postponed_to_starts_at",
+            "postponed_to_ends_at",
+            "sales_starts_at",
+            "sales_ends_at",
+        ]
+    )
+
+    TicketCategory.objects.create(
+        event=event,
+        name="Standard",
+        quota=10,
+        sold_count=0,
+        unit_price_cents=2000,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["status"] == Event.POSTPONED
+    assert item["operational_status"] == "POSTPONED"
+    assert item["catalog_status"] == "SALE_OPEN"
+    assert item["sales_open"] is True
+    assert item["sold_out"] is False
+    assert item["can_add_to_cart"] is True

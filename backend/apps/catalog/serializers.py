@@ -70,6 +70,15 @@ class EventSerializer(serializers.Serializer):
     starts_at = serializers.DateTimeField(read_only=True)
     ends_at = serializers.DateTimeField(read_only=True)
 
+    sales_starts_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+    )
+    sales_ends_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+    )
+
     postponed_from_starts_at = serializers.DateTimeField(
         read_only=True,
         allow_null=True,
@@ -96,6 +105,7 @@ class EventSerializer(serializers.Serializer):
     image_url = serializers.SerializerMethodField()
 
     status = serializers.CharField(read_only=True)
+    operational_status = serializers.CharField(read_only=True)
     published_at = serializers.DateTimeField(
         read_only=True,
         allow_null=True,
@@ -181,6 +191,15 @@ class EventWriteSerializer(serializers.Serializer):
     starts_at = serializers.DateTimeField()
     ends_at = serializers.DateTimeField()
 
+    sales_starts_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+    sales_ends_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+
     venue = serializers.CharField(
         max_length=240,
         required=False,
@@ -210,6 +229,16 @@ class EventWriteSerializer(serializers.Serializer):
             getattr(event, "ends_at", None),
         )
 
+        sales_starts_at = attrs.get(
+            "sales_starts_at",
+            getattr(event, "sales_starts_at", None),
+        )
+
+        sales_ends_at = attrs.get(
+            "sales_ends_at",
+            getattr(event, "sales_ends_at", None),
+        )
+
         validate_start_date = not self.partial or "starts_at" in attrs
 
         if (
@@ -224,6 +253,48 @@ class EventWriteSerializer(serializers.Serializer):
         if starts_at is not None and ends_at is not None and ends_at <= starts_at:
             raise serializers.ValidationError(
                 {"ends_at": ("La fin doit être strictement " "postérieure au début.")}
+            )
+
+        if (
+            sales_starts_at is not None
+            and sales_ends_at is not None
+            and sales_ends_at <= sales_starts_at
+        ):
+            raise serializers.ValidationError(
+                {
+                    "sales_ends_at": (
+                        "La fin des ventes doit être strictement "
+                        "postérieure au début des ventes."
+                    )
+                }
+            )
+
+        if (
+            sales_starts_at is not None
+            and starts_at is not None
+            and sales_starts_at >= starts_at
+        ):
+            raise serializers.ValidationError(
+                {
+                    "sales_starts_at": (
+                        "Le début des ventes doit précéder "
+                        "le début de l’événement."
+                    )
+                }
+            )
+
+        if (
+            sales_ends_at is not None
+            and starts_at is not None
+            and sales_ends_at > starts_at
+        ):
+            raise serializers.ValidationError(
+                {
+                    "sales_ends_at": (
+                        "La fin des ventes doit être au plus tard "
+                        "au début de l’événement."
+                    )
+                }
             )
 
         if self.partial and not attrs:

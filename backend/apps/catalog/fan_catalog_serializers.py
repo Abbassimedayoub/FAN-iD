@@ -4,6 +4,10 @@ from rest_framework import serializers
 
 from apps.core.adapters.storage import build_object_storage
 
+from .lifecycle import (
+    event_catalog_status,
+    event_sales_open,
+)
 from .models import Category, Event, TicketCategory
 
 
@@ -46,6 +50,15 @@ class FanCatalogEventSerializer(serializers.Serializer):
     starts_at = serializers.DateTimeField(read_only=True)
     ends_at = serializers.DateTimeField(read_only=True)
 
+    sales_starts_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+    )
+    sales_ends_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+    )
+
     postponed_from_starts_at = serializers.DateTimeField(
         read_only=True,
         allow_null=True,
@@ -75,9 +88,14 @@ class FanCatalogEventSerializer(serializers.Serializer):
     ticket_category_count = serializers.SerializerMethodField()
     available_ticket_category_count = serializers.SerializerMethodField()
     ticket_categories = serializers.SerializerMethodField()
+
+    sales_open = serializers.SerializerMethodField()
+    sold_out = serializers.SerializerMethodField()
+    catalog_status = serializers.SerializerMethodField()
     can_add_to_cart = serializers.SerializerMethodField()
 
     status = serializers.CharField(read_only=True)
+    operational_status = serializers.CharField(read_only=True)
     published_at = serializers.DateTimeField(
         read_only=True,
         allow_null=True,
@@ -204,21 +222,41 @@ class FanCatalogEventSerializer(serializers.Serializer):
             many=True,
         ).data
 
+    def get_sales_open(
+        self,
+        obj: Event,
+    ) -> bool:
+        return event_sales_open(obj)
+
+    def get_sold_out(
+        self,
+        obj: Event,
+    ) -> bool:
+        total_categories = self._price_summary(obj)[1]
+        available_categories = self._price_summary(obj)[2]
+
+        return (
+            total_categories > 0
+            and available_categories == 0
+        )
+
+    def get_catalog_status(
+        self,
+        obj: Event,
+    ) -> str:
+        return event_catalog_status(
+            obj,
+            sold_out=self.get_sold_out(obj),
+        )
+
     def get_can_add_to_cart(
         self,
         obj: Event,
     ) -> bool:
-        if obj.status not in {
-            Event.PUBLISHED,
-            Event.POSTPONED,
-        }:
-            return False
-
-        return any(
-            category.available_count > 0
-            for category in self._ticket_categories(obj)
+        return (
+            self.get_sales_open(obj)
+            and not self.get_sold_out(obj)
         )
-
 
 class FanCatalogEventQuerySerializer(serializers.Serializer):
     category_id = serializers.UUIDField(required=True)

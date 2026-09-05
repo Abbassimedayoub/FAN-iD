@@ -15,7 +15,10 @@ from apps.catalog.lifecycle import (
     OPERATIONAL_SALE_CLOSED,
     OPERATIONAL_SALE_OPEN,
     OPERATIONAL_SUSPENDED,
+    event_catalog_status,
     event_operational_status,
+    event_sales_open,
+    event_sales_phase,
 )
 from apps.catalog.models import Category, Event
 
@@ -198,3 +201,86 @@ def test_database_rejects_inverted_sales_window():
                 sales_starts_at=now + datetime.timedelta(hours=3),
                 sales_ends_at=now + datetime.timedelta(hours=2),
             )
+
+
+
+@pytest.mark.django_db
+def test_postponed_without_new_date_is_not_sellable():
+    now = timezone.now()
+
+    event = make_event(
+        status=Event.POSTPONED,
+        now=now,
+        sales_starts_at=now - datetime.timedelta(hours=1),
+        sales_ends_at=now + datetime.timedelta(hours=2),
+    )
+
+    assert event.postponed_to_starts_at is None
+    assert (
+        event_sales_phase(event, at=now)
+        == OPERATIONAL_POSTPONED
+    )
+    assert event_sales_open(event, at=now) is False
+
+
+@pytest.mark.django_db
+def test_postponed_with_known_new_date_can_reopen_sales():
+    now = timezone.now()
+
+    event = make_event(
+        status=Event.POSTPONED,
+        now=now,
+        sales_starts_at=now - datetime.timedelta(hours=1),
+        sales_ends_at=now + datetime.timedelta(hours=2),
+    )
+
+    event.postponed_to_starts_at = event.starts_at
+    event.postponed_to_ends_at = event.ends_at
+
+    assert (
+        event_sales_phase(event, at=now)
+        == OPERATIONAL_SALE_OPEN
+    )
+    assert event_sales_open(event, at=now) is True
+
+
+@pytest.mark.django_db
+def test_catalog_status_becomes_sold_out_during_open_sale():
+    now = timezone.now()
+
+    event = make_event(
+        status=Event.PUBLISHED,
+        now=now,
+        sales_starts_at=now - datetime.timedelta(hours=1),
+        sales_ends_at=now + datetime.timedelta(hours=2),
+    )
+
+    assert event_catalog_status(
+        event,
+        sold_out=True,
+        at=now,
+    ) == "SOLD_OUT"
+
+    assert event_catalog_status(
+        event,
+        sold_out=False,
+        at=now,
+    ) == OPERATIONAL_SALE_OPEN
+
+
+@pytest.mark.django_db
+def test_sold_out_does_not_hide_coming_soon():
+    now = timezone.now()
+
+    event = make_event(
+        status=Event.PUBLISHED,
+        now=now,
+        sales_starts_at=now + datetime.timedelta(hours=1),
+        sales_ends_at=now + datetime.timedelta(hours=2),
+    )
+
+    assert event_catalog_status(
+        event,
+        sold_out=True,
+        at=now,
+    ) == OPERATIONAL_COMING_SOON

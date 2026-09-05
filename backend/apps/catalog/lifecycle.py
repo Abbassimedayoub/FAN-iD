@@ -18,6 +18,8 @@ OPERATIONAL_SUSPENDED: Final = "SUSPENDED"
 OPERATIONAL_CANCELLED: Final = "CANCELLED"
 OPERATIONAL_ARCHIVED: Final = "ARCHIVED"
 
+CATALOG_SOLD_OUT: Final = "SOLD_OUT"
+
 
 class EventLifecycleLike(Protocol):
     status: str
@@ -25,6 +27,7 @@ class EventLifecycleLike(Protocol):
     ends_at: datetime.datetime
     sales_starts_at: datetime.datetime | None
     sales_ends_at: datetime.datetime | None
+    postponed_to_starts_at: datetime.datetime | None
 
 
 STRUCTURAL_OPERATIONAL_STATUSES: Final[dict[str, str]] = {
@@ -94,3 +97,81 @@ def event_operational_status(
         return OPERATIONAL_SALE_CLOSED
 
     return OPERATIONAL_SALE_OPEN
+
+
+
+def event_sales_phase(
+    event: EventLifecycleLike,
+    *,
+    at: datetime.datetime | None = None,
+) -> str:
+    """
+    Phase commerciale utilisée par le catalogue et ordering.
+
+    PUBLISHED et POSTPONED avec nouvelle date connue utilisent la même
+    fenêtre de vente.
+
+    Un POSTPONED sans nouvelle programmation reste non vendable tant que
+    l'Organizer n'a pas défini sa nouvelle date.
+    """
+    if event.status == "POSTPONED":
+        if event.postponed_to_starts_at is None:
+            return OPERATIONAL_POSTPONED
+    elif event.status != "PUBLISHED":
+        return STRUCTURAL_OPERATIONAL_STATUSES.get(
+            event.status,
+            event.status,
+        )
+
+    moment = at or timezone.now()
+
+    if moment >= event.ends_at:
+        return OPERATIONAL_ENDED
+
+    if moment >= event.starts_at:
+        return OPERATIONAL_LIVE
+
+    if (
+        event.sales_starts_at is not None
+        and moment < event.sales_starts_at
+    ):
+        return OPERATIONAL_COMING_SOON
+
+    if (
+        event.sales_ends_at is not None
+        and moment >= event.sales_ends_at
+    ):
+        return OPERATIONAL_SALE_CLOSED
+
+    return OPERATIONAL_SALE_OPEN
+
+
+def event_sales_open(
+    event: EventLifecycleLike,
+    *,
+    at: datetime.datetime | None = None,
+) -> bool:
+    return (
+        event_sales_phase(
+            event,
+            at=at,
+        )
+        == OPERATIONAL_SALE_OPEN
+    )
+
+
+def event_catalog_status(
+    event: EventLifecycleLike,
+    *,
+    sold_out: bool,
+    at: datetime.datetime | None = None,
+) -> str:
+    phase = event_sales_phase(
+        event,
+        at=at,
+    )
+
+    if phase == OPERATIONAL_SALE_OPEN and sold_out:
+        return CATALOG_SOLD_OUT
+
+    return phase
