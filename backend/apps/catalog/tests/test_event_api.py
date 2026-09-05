@@ -595,3 +595,146 @@ def test_same_name_is_allowed_for_different_organizers(
         ).count()
         == 1
     )
+
+
+
+@pytest.mark.django_db
+def test_create_persists_sales_window(
+    client,
+    category,
+    roles,
+):
+    user, _ = make_organizer(
+        roles,
+        suffix="sales-window-create",
+        validation_status=ORGANIZER_APPROVED,
+    )
+
+    now = timezone.now()
+    event_start = now + datetime.timedelta(days=5)
+    sales_start = now + datetime.timedelta(hours=2)
+    sales_end = event_start - datetime.timedelta(hours=1)
+
+    body = event_payload(
+        category,
+        name="Event sales window",
+    )
+    body["starts_at"] = event_start.isoformat()
+    body["ends_at"] = (
+        event_start + datetime.timedelta(hours=2)
+    ).isoformat()
+    body["sales_starts_at"] = sales_start.isoformat()
+    body["sales_ends_at"] = sales_end.isoformat()
+
+    response = authenticate(
+        client,
+        user,
+    ).post(
+        EVENTS_URL,
+        body,
+        format="json",
+    )
+
+    assert response.status_code == 201, response.data
+
+    event = Event.objects.get(
+        pk=response.data["id"],
+    )
+
+    assert event.sales_starts_at == sales_start
+    assert event.sales_ends_at == sales_end
+
+    assert response.data["sales_starts_at"] is not None
+    assert response.data["sales_ends_at"] is not None
+    assert response.data["operational_status"] == Event.DRAFT
+
+
+@pytest.mark.django_db
+def test_update_persists_sales_window(
+    client,
+    category,
+    roles,
+):
+    user, organizer = make_organizer(
+        roles,
+        suffix="sales-window-update",
+        validation_status=ORGANIZER_APPROVED,
+    )
+
+    now = timezone.now()
+    event_start = now + datetime.timedelta(days=5)
+
+    event = Event.objects.create(
+        organizer=organizer,
+        category=category,
+        name="Sales update",
+        starts_at=event_start,
+        ends_at=event_start + datetime.timedelta(hours=2),
+    )
+
+    sales_start = now + datetime.timedelta(hours=1)
+    sales_end = now + datetime.timedelta(days=2)
+
+    response = authenticate(
+        client,
+        user,
+    ).patch(
+        f"{EVENTS_URL}/{event.pk}",
+        {
+            "sales_starts_at": sales_start.isoformat(),
+            "sales_ends_at": sales_end.isoformat(),
+        },
+        format="json",
+        HTTP_IF_MATCH='"1"',
+    )
+
+    assert response.status_code == 200, response.data
+    assert response["ETag"] == '"2"'
+
+    event.refresh_from_db()
+
+    assert event.sales_starts_at == sales_start
+    assert event.sales_ends_at == sales_end
+    assert event.version == 2
+
+
+@pytest.mark.django_db
+def test_create_rejects_sales_start_after_event_start(
+    client,
+    category,
+    roles,
+):
+    user, _ = make_organizer(
+        roles,
+        suffix="sales-window-invalid",
+        validation_status=ORGANIZER_APPROVED,
+    )
+
+    event_start = timezone.now() + datetime.timedelta(days=5)
+
+    body = event_payload(
+        category,
+        name="Invalid sales window",
+    )
+    body["starts_at"] = event_start.isoformat()
+    body["ends_at"] = (
+        event_start + datetime.timedelta(hours=2)
+    ).isoformat()
+    body["sales_starts_at"] = (
+        event_start + datetime.timedelta(hours=1)
+    ).isoformat()
+
+    response = authenticate(
+        client,
+        user,
+    ).post(
+        EVENTS_URL,
+        body,
+        format="json",
+    )
+
+    assert response.status_code == 400
+
+    assert not Event.objects.filter(
+        name="Invalid sales window",
+    ).exists()

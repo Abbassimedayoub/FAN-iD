@@ -10,6 +10,14 @@ export interface EventCategory {
 export type OrganizerEventStatus =
   "DRAFT" | "PUBLISHED" | "POSTPONED" | "SUSPENDED" | "CANCELLED" | "ARCHIVED";
 
+export type EventOperationalStatus =
+  | OrganizerEventStatus
+  | "COMING_SOON"
+  | "SALE_OPEN"
+  | "SALE_CLOSED"
+  | "LIVE"
+  | "ENDED";
+
 export interface OrganizerEvent {
   id: string;
   organizer_id: string;
@@ -18,6 +26,8 @@ export interface OrganizerEvent {
   description: string;
   starts_at: string;
   ends_at: string;
+  sales_starts_at?: string | null;
+  sales_ends_at?: string | null;
   postponed_from_starts_at: string | null;
   postponed_from_ends_at: string | null;
   postponed_to_starts_at: string | null;
@@ -26,6 +36,7 @@ export interface OrganizerEvent {
   capacity_total: number | null;
   image_url: string | null;
   status: OrganizerEventStatus;
+  operational_status?: EventOperationalStatus;
   published_at: string | null;
   lifecycle_reason: string;
   lifecycle_changed_at: string | null;
@@ -40,6 +51,8 @@ export interface EventDraftInput {
   description: string;
   starts_at: string;
   ends_at: string;
+  sales_starts_at: string | null;
+  sales_ends_at: string | null;
   venue: string;
   capacity_total: number | null;
 }

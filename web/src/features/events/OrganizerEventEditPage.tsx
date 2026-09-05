@@ -45,6 +45,29 @@ function localTime(value: string): string {
   return `${hours}:${minutes}`;
 }
 
+function localDateTime(
+  value: string | null | undefined,
+): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+
 function EventEditor({ event }: { event: OrganizerEvent }) {
   const minimumDate = minimumEventDate();
 
@@ -61,6 +84,14 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
   const [startTime, setStartTime] = useState(localTime(event.starts_at));
 
   const [endTime, setEndTime] = useState(localTime(event.ends_at));
+
+  const [salesStartsAt, setSalesStartsAt] = useState(
+    localDateTime(event.sales_starts_at),
+  );
+
+  const [salesEndsAt, setSalesEndsAt] = useState(
+    localDateTime(event.sales_ends_at),
+  );
 
   const endsNextDay = eventEndsNextDay(startTime, endTime);
 
@@ -110,6 +141,45 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
       return;
     }
 
+    const salesStart = salesStartsAt
+      ? new Date(salesStartsAt)
+      : null;
+
+    const salesEnd = salesEndsAt
+      ? new Date(salesEndsAt)
+      : null;
+
+    if (salesStart && Number.isNaN(salesStart.getTime())) {
+      setError("Le début des ventes est invalide.");
+      return;
+    }
+
+    if (salesEnd && Number.isNaN(salesEnd.getTime())) {
+      setError("La fin des ventes est invalide.");
+      return;
+    }
+
+    if (salesStart && salesStart >= schedule.start) {
+      setError(
+        "Le début des ventes doit précéder le début de l’événement.",
+      );
+      return;
+    }
+
+    if (salesEnd && salesEnd > schedule.start) {
+      setError(
+        "La fin des ventes doit être au plus tard au début de l’événement.",
+      );
+      return;
+    }
+
+    if (salesStart && salesEnd && salesEnd <= salesStart) {
+      setError(
+        "La fin des ventes doit être postérieure au début des ventes.",
+      );
+      return;
+    }
+
     let capacityTotal: number | null = null;
 
     if (capacity.trim() !== "") {
@@ -127,6 +197,12 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
       description: description.trim(),
       starts_at: schedule.start.toISOString(),
       ends_at: schedule.end.toISOString(),
+      sales_starts_at: salesStart
+        ? salesStart.toISOString()
+        : null,
+      sales_ends_at: salesEnd
+        ? salesEnd.toISOString()
+        : null,
       venue: venue.trim(),
       capacity_total: capacityTotal,
     };
@@ -307,6 +383,57 @@ function EventEditor({ event }: { event: OrganizerEvent }) {
                 J+1 · fin le lendemain
               </p>
             ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#e1e7ed] bg-[#fbfcfd] p-5">
+          <p className="text-sm font-semibold text-[#40556b]">
+            Période de vente
+          </p>
+
+          <p className="mt-1 text-xs leading-5 text-[#8491a0]">
+            Laissez le début vide pour ouvrir à la publication et la fin vide
+            pour vendre jusqu’au début de l’événement.
+          </p>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <label
+                htmlFor="edit-event-sales-start"
+                className="mb-2 block text-sm font-semibold text-[#40556b]"
+              >
+                Début des ventes (optionnel)
+              </label>
+
+              <Input
+                id="edit-event-sales-start"
+                type="datetime-local"
+                value={salesStartsAt}
+                onChange={(e) => {
+                  setSalesStartsAt(e.target.value);
+                }}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="edit-event-sales-end"
+                className="mb-2 block text-sm font-semibold text-[#40556b]"
+              >
+                Fin des ventes (optionnelle)
+              </label>
+
+              <Input
+                id="edit-event-sales-end"
+                type="datetime-local"
+                value={salesEndsAt}
+                onChange={(e) => {
+                  setSalesEndsAt(e.target.value);
+                }}
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
 

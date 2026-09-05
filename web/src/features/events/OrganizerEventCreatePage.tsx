@@ -37,6 +37,8 @@ const eventInformationSchema = z
     eventDate: z.string().min(1, "La date est requise."),
     startTime: z.string().min(1, "L’heure de début est requise."),
     endTime: z.string().min(1, "L’heure de fin est requise."),
+    salesStartsAt: z.string(),
+    salesEndsAt: z.string(),
     capacityTotal: z.string(),
     venue: z.string().max(240, "Le lieu est trop long."),
   })
@@ -65,6 +67,57 @@ const eventInformationSchema = z
           code: "custom",
           path: ["endTime"],
           message: "Les horaires de l’événement sont invalides.",
+        });
+        return;
+      }
+
+      const salesStart = values.salesStartsAt
+        ? new Date(values.salesStartsAt)
+        : null;
+
+      const salesEnd = values.salesEndsAt
+        ? new Date(values.salesEndsAt)
+        : null;
+
+      if (salesStart && Number.isNaN(salesStart.getTime())) {
+        context.addIssue({
+          code: "custom",
+          path: ["salesStartsAt"],
+          message: "Le début des ventes est invalide.",
+        });
+      } else if (salesStart && salesStart >= schedule.start) {
+        context.addIssue({
+          code: "custom",
+          path: ["salesStartsAt"],
+          message: "Le début des ventes doit précéder le début de l’événement.",
+        });
+      }
+
+      if (salesEnd && Number.isNaN(salesEnd.getTime())) {
+        context.addIssue({
+          code: "custom",
+          path: ["salesEndsAt"],
+          message: "La fin des ventes est invalide.",
+        });
+      } else if (salesEnd && salesEnd > schedule.start) {
+        context.addIssue({
+          code: "custom",
+          path: ["salesEndsAt"],
+          message: "La fin des ventes doit être au plus tard au début de l’événement.",
+        });
+      }
+
+      if (
+        salesStart &&
+        salesEnd &&
+        !Number.isNaN(salesStart.getTime()) &&
+        !Number.isNaN(salesEnd.getTime()) &&
+        salesEnd <= salesStart
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["salesEndsAt"],
+          message: "La fin des ventes doit être postérieure au début des ventes.",
         });
       }
     }
@@ -127,6 +180,12 @@ function toPayload(values: EventInformationValues): EventDraftInput {
     description: values.description.trim(),
     starts_at: schedule.start.toISOString(),
     ends_at: schedule.end.toISOString(),
+    sales_starts_at: values.salesStartsAt
+      ? new Date(values.salesStartsAt).toISOString()
+      : null,
+    sales_ends_at: values.salesEndsAt
+      ? new Date(values.salesEndsAt).toISOString()
+      : null,
     venue: values.venue.trim(),
     capacity_total: values.capacityTotal.trim() === "" ? null : Number(values.capacityTotal),
   };
@@ -207,6 +266,8 @@ export function OrganizerEventCreatePage() {
       eventDate: "",
       startTime: "",
       endTime: "",
+      salesStartsAt: "",
+      salesEndsAt: "",
       capacityTotal: "",
       venue: "",
     },
@@ -571,6 +632,60 @@ export function OrganizerEventCreatePage() {
                       ) : null}
 
                       <FieldError message={form.formState.errors.endTime?.message} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#e1e7ed] bg-[#fbfcfd] p-5">
+                    <div>
+                      <p className="text-[13px] font-semibold text-[#33465c]">
+                        Période de vente
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#8591a0]">
+                        Optionnelle. Sans date de début, la vente ouvre à la publication.
+                        Sans date de fin, elle reste ouverte jusqu’au début de l’événement.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 grid gap-5 md:grid-cols-2">
+                      <div>
+                        <label
+                          htmlFor="event-sales-start"
+                          className="mb-2 block text-[13px] font-semibold text-[#33465c]"
+                        >
+                          Début des ventes (optionnel)
+                        </label>
+
+                        <Input
+                          id="event-sales-start"
+                          type="datetime-local"
+                          className="w-full"
+                          {...form.register("salesStartsAt")}
+                        />
+
+                        <FieldError
+                          message={form.formState.errors.salesStartsAt?.message}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="event-sales-end"
+                          className="mb-2 block text-[13px] font-semibold text-[#33465c]"
+                        >
+                          Fin des ventes (optionnelle)
+                        </label>
+
+                        <Input
+                          id="event-sales-end"
+                          type="datetime-local"
+                          className="w-full"
+                          {...form.register("salesEndsAt")}
+                        />
+
+                        <FieldError
+                          message={form.formState.errors.salesEndsAt?.message}
+                        />
+                      </div>
                     </div>
                   </div>
 

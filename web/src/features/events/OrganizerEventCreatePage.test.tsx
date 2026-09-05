@@ -228,6 +228,24 @@ it("crée réellement un brouillon avec les informations saisies", async () => {
     },
   });
 
+  fireEvent.change(
+    screen.getByLabelText("Début des ventes (optionnel)"),
+    {
+      target: {
+        value: "2026-09-10T09:00",
+      },
+    },
+  );
+
+  fireEvent.change(
+    screen.getByLabelText("Fin des ventes (optionnelle)"),
+    {
+      target: {
+        value: "2026-09-20T17:00",
+      },
+    },
+  );
+
   fireEvent.change(screen.getByLabelText("Capacité totale"), {
     target: {
       value: "45000",
@@ -255,6 +273,15 @@ it("crée réellement un brouillon avec les informations saisies", async () => {
   expect(createdPayload?.["capacity_total"]).toBe(45000);
 
   expect(createdPayload?.["venue"]).toBe("Stade FANID");
+
+  expect(createdPayload?.["sales_starts_at"]).toBe(
+    new Date("2026-09-10T09:00").toISOString(),
+  );
+
+  expect(createdPayload?.["sales_ends_at"]).toBe(
+    new Date("2026-09-20T17:00").toISOString(),
+  );
+
 
   queryClient.clear();
 });
