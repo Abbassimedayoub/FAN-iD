@@ -242,4 +242,47 @@ void main() {
       reloaded.dispose();
     },
   );
+  test(
+    'retire les lignes devenues non achetables sans prolonger le TTL',
+    () async {
+      final storage = MemoryFanCartStorage();
+      final now = DateTime.utc(2026, 9, 4, 20);
+
+      final controller = FanCartController(
+        storage: storage,
+        now: () => now,
+        scheduleExpiryTimers: false,
+      );
+
+      await controller.ready;
+      await controller.addItem(makeItem());
+      await controller.addItem(
+        const FanCartItem(
+          eventId: 'event-2',
+          eventName: 'Concert',
+          ticketCategoryId: 'tariff-2',
+          ticketCategoryName: 'VIP',
+          unitPriceCents: 6000,
+          quantity: 1,
+          availableCount: 10,
+          eventCapacityTotal: 20,
+        ),
+      );
+
+      final initialExpiry = cartValue(controller.state).expiresAt;
+      final removedCount = await controller.removeItemsForUnavailableEvents(
+        <String>['event-1'],
+      );
+
+      expect(removedCount, 1);
+      expect(cartValue(controller.state).items, hasLength(1));
+      expect(
+        cartValue(controller.state).items.single.eventId,
+        'event-2',
+      );
+      expect(cartValue(controller.state).expiresAt, initialExpiry);
+
+      controller.dispose();
+    },
+  );
 }

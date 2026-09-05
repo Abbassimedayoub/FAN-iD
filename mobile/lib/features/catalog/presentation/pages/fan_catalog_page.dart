@@ -106,14 +106,60 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
 
   Future<List<FanCatalogEvent>> _loadEvents(
     String categoryId,
-  ) {
+  ) async {
     final injected = widget.loadEvents;
+    final events = injected != null
+        ? await injected(categoryId)
+        : await _remoteDataSource().fetchEvents(categoryId);
 
-    if (injected != null) {
-      return injected(categoryId);
+    if (mounted) {
+      await _revalidateCartWithEvents(events);
     }
 
-    return _remoteDataSource().fetchEvents(categoryId);
+    return events;
+  }
+
+  Future<void> _revalidateCartWithEvents(
+    List<FanCatalogEvent> events,
+  ) async {
+    final ownerKey = widget.cartOwnerKey;
+
+    if (ownerKey == null) {
+      return;
+    }
+
+    final unavailableEventIds = events
+        .where((event) => !event.canPurchaseTickets)
+        .map((event) => event.id)
+        .where((eventId) => eventId.isNotEmpty);
+
+    final removedCount = await ref
+        .read(
+          fanCartControllerProvider(ownerKey).notifier,
+        )
+        .removeItemsForUnavailableEvents(unavailableEventIds);
+
+    if (!mounted || removedCount == 0) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.hideCurrentMaterialBanner();
+    messenger.showMaterialBanner(
+      MaterialBanner(
+        content: Text(
+          '$removedCount billet(s) retiré(s) : '
+          'cet événement n’est plus disponible.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _refreshCategories() async {
@@ -448,7 +494,7 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
   Future<void> _selectTickets(
     FanCatalogEvent event,
   ) async {
-    if (widget.cartOwnerKey == null || !event.canAddToCart) {
+    if (widget.cartOwnerKey == null || !event.canPurchaseTickets) {
       return;
     }
 
@@ -704,9 +750,7 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    event.isComingSoon
-                        ? 'Billetterie bientôt disponible'
-                        : event.priceLabel,
+                    event.ticketingLabel,
                     key: ValueKey<String>(
                       'fan-event-price-${event.id}',
                     ),
@@ -717,7 +761,7 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
                 ),
               ],
             ),
-            if (event.canAddToCart && widget.cartOwnerKey != null) ...[
+            if (event.canPurchaseTickets && widget.cartOwnerKey != null) ...[
               const SizedBox(height: 16),
               FilledButton.icon(
                 key: ValueKey<String>(

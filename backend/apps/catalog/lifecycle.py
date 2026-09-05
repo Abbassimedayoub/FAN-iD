@@ -166,6 +166,12 @@ def event_catalog_status(
     sold_out: bool,
     at: datetime.datetime | None = None,
 ) -> str:
+    # Le catalogue Fan expose actuellement certains brouillons comme
+    # événements à venir. La traduction publique en COMING_SOON doit
+    # appartenir au Backend et non être devinée par le Mobile.
+    if event.status == "DRAFT":
+        return OPERATIONAL_COMING_SOON
+
     phase = event_sales_phase(
         event,
         at=at,

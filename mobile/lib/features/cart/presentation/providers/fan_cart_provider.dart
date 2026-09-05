@@ -123,6 +123,23 @@ class FanCartController extends StateNotifier<AsyncValue<FanCart>> {
     await _save(next);
   }
 
+  Future<int> removeItemsForUnavailableEvents(
+    Iterable<String> eventIds,
+  ) async {
+    final current = await _currentCart();
+    final ids = eventIds.toSet();
+
+    final next = current.removeItemsForEvents(ids);
+    final removedCount = current.items.length - next.items.length;
+
+    if (removedCount == 0) {
+      return 0;
+    }
+
+    await _save(next);
+    return removedCount;
+  }
+
   Future<void> clearCart() async {
     _expiryTimer?.cancel();
     _expiryTimer = null;

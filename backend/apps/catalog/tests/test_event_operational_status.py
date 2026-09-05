@@ -284,3 +284,22 @@ def test_sold_out_does_not_hide_coming_soon():
         sold_out=True,
         at=now,
     ) == OPERATIONAL_COMING_SOON
+
+
+
+@pytest.mark.django_db
+def test_catalog_status_maps_draft_to_public_coming_soon():
+    now = timezone.now()
+
+    event = make_event(
+        status=Event.DRAFT,
+        now=now,
+    )
+
+    assert event.operational_status == OPERATIONAL_DRAFT
+
+    assert event_catalog_status(
+        event,
+        sold_out=False,
+        at=now,
+    ) == OPERATIONAL_COMING_SOON

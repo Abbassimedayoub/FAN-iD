@@ -943,3 +943,45 @@ def test_fan_catalog_postponed_known_date_can_sell_again(
     assert item["sales_open"] is True
     assert item["sold_out"] is False
     assert item["can_add_to_cart"] is True
+
+
+
+@pytest.mark.django_db
+def test_fan_catalog_draft_has_explicit_coming_soon_catalog_status(
+    client,
+    roles,
+):
+    organizer = make_organizer(
+        roles,
+        suffix="draft-coming-soon",
+    )
+
+    category = Category.objects.create(
+        name="Draft coming soon",
+    )
+
+    create_event(
+        organizer=organizer,
+        category=category,
+        name="Public coming soon",
+        event_status=Event.DRAFT,
+        days=3,
+    )
+
+    response = client.get(
+        EVENTS_URL,
+        {
+            "category_id": str(category.pk),
+        },
+    )
+
+    assert response.status_code == 200
+
+    item = response.data["results"][0]
+
+    assert item["status"] == Event.DRAFT
+    assert item["operational_status"] == Event.DRAFT
+    assert item["catalog_status"] == "COMING_SOON"
+    assert item["sales_open"] is False
+    assert item["sold_out"] is False
+    assert item["can_add_to_cart"] is False

@@ -41,6 +41,72 @@ FanCatalogEvent eventFrom({
 }
 
 void main() {
+  test(
+    'catalog_status devient autoritaire pour la disponibilité',
+    () {
+      final comingSoon = FanCatalogEvent.fromJson(
+        <String, dynamic>{
+          'id': 'coming-soon',
+          'status': 'PUBLISHED',
+          'catalog_status': 'COMING_SOON',
+          'operational_status': 'COMING_SOON',
+          'sales_open': false,
+          'sold_out': false,
+          'can_add_to_cart': false,
+          'ticket_category_count': 1,
+          'available_ticket_category_count': 1,
+        },
+      );
+
+      final saleOpen = FanCatalogEvent.fromJson(
+        <String, dynamic>{
+          'id': 'sale-open',
+          'status': 'PUBLISHED',
+          'catalog_status': 'SALE_OPEN',
+          'operational_status': 'SALE_OPEN',
+          'sales_open': true,
+          'sold_out': false,
+          'can_add_to_cart': true,
+          'ticket_category_count': 1,
+          'available_ticket_category_count': 1,
+        },
+      );
+
+      final soldOut = FanCatalogEvent.fromJson(
+        <String, dynamic>{
+          'id': 'sold-out',
+          'status': 'PUBLISHED',
+          'catalog_status': 'SOLD_OUT',
+          'operational_status': 'SALE_OPEN',
+          'sales_open': true,
+          'sold_out': true,
+          'can_add_to_cart': false,
+          'ticket_category_count': 1,
+          'available_ticket_category_count': 0,
+        },
+      );
+
+      expect(
+        FanCatalogFilters.hasAvailableTickets(
+          comingSoon,
+        ),
+        isFalse,
+      );
+
+      expect(
+        FanCatalogFilters.hasAvailableTickets(
+          saleOpen,
+        ),
+        isTrue,
+      );
+
+      expect(
+        FanCatalogFilters.isFull(soldOut),
+        isTrue,
+      );
+    },
+  );
+
   final now = DateTime.utc(
     2026,
     9,

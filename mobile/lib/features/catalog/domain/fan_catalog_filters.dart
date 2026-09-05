@@ -21,34 +21,49 @@ enum FanCatalogTimeState {
 }
 
 abstract final class FanCatalogFilters {
-  static bool _saleLifecycleIsActive(
-    FanCatalogEvent event,
-  ) {
-    final status = event.status.toUpperCase();
-
-    return status == 'PUBLISHED' || status == 'POSTPONED';
-  }
-
   static bool hasAvailableTickets(
     FanCatalogEvent event,
   ) {
-    return _saleLifecycleIsActive(event) &&
+    if (event.hasCatalogLifecycle) {
+      return event.canAddToCart &&
+          event.salesOpen &&
+          !event.isSoldOut &&
+          event.availableTicketCategoryCount > 0;
+    }
+
+    // Fallback ancien contrat API.
+    final status = event.status.toUpperCase();
+
+    return (status == 'PUBLISHED' || status == 'POSTPONED') &&
         event.availableTicketCategoryCount > 0;
   }
 
   static bool isFull(
     FanCatalogEvent event,
   ) {
-    return _saleLifecycleIsActive(event) &&
-        event.ticketCategoryCount > 0 &&
-        event.availableTicketCategoryCount == 0;
+    return event.isSoldOut;
   }
 
   static FanCatalogTimeState timeStateAt(
     FanCatalogEvent event,
     DateTime now,
   ) {
-    if (event.isComingSoon) {
+    if (event.hasCatalogLifecycle) {
+      switch (event.effectiveCatalogStatus) {
+        case 'LIVE':
+          return FanCatalogTimeState.ongoing;
+
+        case 'ENDED':
+          return FanCatalogTimeState.finished;
+
+        case 'POSTPONED':
+        case 'SUSPENDED':
+        case 'CANCELLED':
+        case 'ARCHIVED':
+        case 'DRAFT':
+          return FanCatalogTimeState.unknown;
+      }
+    } else if (event.isComingSoon) {
       return FanCatalogTimeState.unknown;
     }
 

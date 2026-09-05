@@ -304,6 +304,33 @@ class FanCart {
     );
   }
 
+  FanCart removeItemsForEvents(
+    Set<String> eventIds,
+  ) {
+    if (eventIds.isEmpty) {
+      return this;
+    }
+
+    final nextItems = items
+        .where(
+          (item) => !eventIds.contains(item.eventId),
+        )
+        .toList(growable: false);
+
+    if (nextItems.length == items.length) {
+      return this;
+    }
+
+    if (nextItems.isEmpty) {
+      return FanCart.empty();
+    }
+
+    return FanCart(
+      items: nextItems,
+      expiresAt: expiresAt,
+    );
+  }
+
   DateTime _expiryForMutation(
     DateTime now,
   ) {

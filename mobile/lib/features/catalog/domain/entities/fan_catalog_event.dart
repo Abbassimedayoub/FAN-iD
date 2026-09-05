@@ -8,6 +8,8 @@ class FanCatalogEvent {
     required this.description,
     required this.startsAt,
     required this.endsAt,
+    this.salesStartsAt,
+    this.salesEndsAt,
     required this.postponedFromStartsAt,
     required this.postponedFromEndsAt,
     required this.postponedToStartsAt,
@@ -19,6 +21,10 @@ class FanCatalogEvent {
     this.ticketCategoryCount = 0,
     this.availableTicketCategoryCount = 0,
     this.ticketCategories = const <FanCatalogTicketCategory>[],
+    this.salesOpen = false,
+    this.soldOut = false,
+    this.catalogStatus = '',
+    this.operationalStatus = '',
     this.canAddToCart = false,
     required this.status,
     required this.publishedAt,
@@ -37,6 +43,12 @@ class FanCatalogEvent {
       ),
       endsAt: DateTime.tryParse(
         json['ends_at']?.toString() ?? '',
+      ),
+      salesStartsAt: DateTime.tryParse(
+        json['sales_starts_at']?.toString() ?? '',
+      ),
+      salesEndsAt: DateTime.tryParse(
+        json['sales_ends_at']?.toString() ?? '',
       ),
       postponedFromStartsAt: DateTime.tryParse(
         json['postponed_from_starts_at']?.toString() ?? '',
@@ -85,6 +97,10 @@ class FanCatalogEvent {
             ),
           )
           .toList(growable: false),
+      salesOpen: json['sales_open'] == true,
+      soldOut: json['sold_out'] == true,
+      catalogStatus: json['catalog_status']?.toString() ?? '',
+      operationalStatus: json['operational_status']?.toString() ?? '',
       canAddToCart: json['can_add_to_cart'] == true,
       status: json['status']?.toString() ?? '',
       publishedAt: DateTime.tryParse(
@@ -104,6 +120,9 @@ class FanCatalogEvent {
   final DateTime? startsAt;
   final DateTime? endsAt;
 
+  final DateTime? salesStartsAt;
+  final DateTime? salesEndsAt;
+
   final DateTime? postponedFromStartsAt;
   final DateTime? postponedFromEndsAt;
   final DateTime? postponedToStartsAt;
@@ -117,6 +136,11 @@ class FanCatalogEvent {
   final int ticketCategoryCount;
   final int availableTicketCategoryCount;
   final List<FanCatalogTicketCategory> ticketCategories;
+
+  final bool salesOpen;
+  final bool soldOut;
+  final String catalogStatus;
+  final String operationalStatus;
   final bool canAddToCart;
 
   final String status;
@@ -149,10 +173,51 @@ class FanCatalogEvent {
     return formatted;
   }
 
+  String get effectiveCatalogStatus {
+    final catalog = catalogStatus.trim().toUpperCase();
+
+    if (catalog.isNotEmpty) {
+      return catalog;
+    }
+
+    return status.trim().toUpperCase();
+  }
+
+  bool get hasCatalogLifecycle => catalogStatus.trim().isNotEmpty;
+
   String get statusLabel {
-    switch (status.toUpperCase()) {
-      case 'PUBLISHED':
-        return 'Publié';
+    switch (status.trim().toUpperCase()) {
+      case 'POSTPONED':
+        return 'Reporté';
+
+      case 'SUSPENDED':
+        return 'Suspendu';
+
+      case 'CANCELLED':
+        return 'Annulé';
+
+      case 'ARCHIVED':
+        return 'Archivé';
+    }
+
+    switch (effectiveCatalogStatus) {
+      case 'COMING_SOON':
+        return 'Coming soon';
+
+      case 'SALE_OPEN':
+        return 'Vente ouverte';
+
+      case 'SOLD_OUT':
+        return 'Complet';
+
+      case 'SALE_CLOSED':
+        return 'Vente fermée';
+
+      case 'LIVE':
+        return 'En cours';
+
+      case 'ENDED':
+        return 'Terminé';
 
       case 'POSTPONED':
         return 'Reporté';
@@ -166,15 +231,90 @@ class FanCatalogEvent {
       case 'ARCHIVED':
         return 'Archivé';
 
+      // Compatibilité avec un ancien Backend ne fournissant pas encore
+      // catalog_status.
       case 'DRAFT':
         return 'Coming soon';
 
+      case 'PUBLISHED':
+        return 'Publié';
+
       default:
-        return status.isEmpty ? 'Statut inconnu' : status;
+        return effectiveCatalogStatus.isEmpty
+            ? 'Statut inconnu'
+            : effectiveCatalogStatus;
     }
   }
 
-  bool get isComingSoon => status.toUpperCase() == 'DRAFT';
+  String get ticketingLabel {
+    switch (effectiveCatalogStatus) {
+      case 'COMING_SOON':
+      case 'DRAFT':
+        return 'Billetterie bientôt disponible';
+
+      case 'SOLD_OUT':
+        return 'Complet';
+
+      case 'SALE_CLOSED':
+        return 'Vente terminée';
+
+      case 'LIVE':
+        return 'Événement en cours';
+
+      case 'ENDED':
+        return 'Événement terminé';
+
+      case 'POSTPONED':
+        return 'Billetterie suspendue pendant le report';
+
+      case 'SUSPENDED':
+        return 'Billetterie suspendue';
+
+      case 'CANCELLED':
+        return 'Événement annulé';
+
+      default:
+        return priceLabel;
+    }
+  }
+
+  bool get isComingSoon {
+    if (effectiveCatalogStatus == 'COMING_SOON') {
+      return true;
+    }
+
+    // Fallback uniquement pour compatibilité avec l'ancien contrat.
+    return !hasCatalogLifecycle && status.toUpperCase() == 'DRAFT';
+  }
+
+  bool get isSoldOut {
+    if (soldOut || effectiveCatalogStatus == 'SOLD_OUT') {
+      return true;
+    }
+
+    // Compatibilité avec l'ancien contrat catalogue.
+    if (!hasCatalogLifecycle) {
+      final structural = status.toUpperCase();
+
+      return (structural == 'PUBLISHED' || structural == 'POSTPONED') &&
+          ticketCategoryCount > 0 &&
+          availableTicketCategoryCount == 0;
+    }
+
+    return false;
+  }
+
+  bool get isSaleOpen => salesOpen && effectiveCatalogStatus == 'SALE_OPEN';
+
+  bool get canPurchaseTickets {
+    if (hasCatalogLifecycle) {
+      return canAddToCart && isSaleOpen && !isSoldOut;
+    }
+
+    // Compatibilité uniquement avec un ancien contrat API ne fournissant
+    // pas encore catalog_status / sales_open.
+    return canAddToCart && !isSoldOut;
+  }
 
   bool get isPostponed => status.toUpperCase() == 'POSTPONED';
 }

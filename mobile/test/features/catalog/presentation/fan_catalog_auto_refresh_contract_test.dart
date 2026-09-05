@@ -63,6 +63,26 @@ void main() {
           'WidgetsBinding.instance.removeObserver(this)',
         ),
       );
+
+      expect(
+        source,
+        contains('_revalidateCartWithEvents(events)'),
+      );
+
+      expect(
+        source,
+        contains('removeItemsForUnavailableEvents'),
+      );
+
+      expect(
+        source,
+        contains('showMaterialBanner'),
+      );
+
+      expect(
+        source,
+        contains('hideCurrentMaterialBanner'),
+      );
     },
   );
 }

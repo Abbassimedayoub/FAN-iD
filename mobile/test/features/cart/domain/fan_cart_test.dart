@@ -273,4 +273,36 @@ void main() {
       expect(cart.totalCents, 0);
     },
   );
+  test(
+    'retire les lignes des événements devenus indisponibles',
+    () {
+      var cart = FanCart.empty();
+
+      cart = cart.addItem(
+        item(
+          tariffId: 'standard',
+          eventId: 'event-1',
+        ),
+        now: now,
+      );
+
+      cart = cart.addItem(
+        item(
+          tariffId: 'vip',
+          eventId: 'event-2',
+        ),
+        now: now,
+      );
+
+      final initialExpiry = cart.expiresAt;
+
+      cart = cart.removeItemsForEvents(
+        <String>{'event-1'},
+      );
+
+      expect(cart.items, hasLength(1));
+      expect(cart.items.single.eventId, 'event-2');
+      expect(cart.expiresAt, initialExpiry);
+    },
+  );
 }

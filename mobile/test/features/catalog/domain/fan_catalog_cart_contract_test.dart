@@ -56,15 +56,19 @@ void main() {
   );
 
   test(
-    'un report sans nouvelle date peut rester achetable',
+    'un report sans nouvelle date reste non achetable',
     () {
       final event = FanCatalogEvent.fromJson(
         <String, dynamic>{
           'id': 'postponed',
           'status': 'POSTPONED',
+          'operational_status': 'POSTPONED',
+          'catalog_status': 'POSTPONED',
+          'sales_open': false,
+          'sold_out': false,
           'postponed_to_starts_at': null,
           'postponed_to_ends_at': null,
-          'can_add_to_cart': true,
+          'can_add_to_cart': false,
           'ticket_categories': <Map<String, dynamic>>[
             <String, dynamic>{
               'id': 'standard',
@@ -78,7 +82,9 @@ void main() {
 
       expect(event.isPostponed, isTrue);
       expect(event.postponedToStartsAt, isNull);
-      expect(event.canAddToCart, isTrue);
+      expect(event.salesOpen, isFalse);
+      expect(event.catalogStatus, 'POSTPONED');
+      expect(event.canAddToCart, isFalse);
       expect(
         event.ticketCategories.single.isAvailable,
         isTrue,
