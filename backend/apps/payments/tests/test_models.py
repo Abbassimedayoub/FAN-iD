@@ -5,7 +5,7 @@ import json
 
 import pytest
 from django.db import IntegrityError, transaction
-from django.test import Client
+from django.test import Client, override_settings
 from django.utils import timezone
 
 from apps.core.adapters.payments import (
@@ -149,6 +149,7 @@ def test_payment_intent_service_rejects_expired_reservation(order, buyer):
     assert gateway.created_intents == []
 
 
+@override_settings(PAYMENT_GATEWAY="fake")
 def test_payment_intent_endpoint_returns_client_payment_data(order, buyer):
     client = Client()
     client.force_login(buyer)
@@ -171,6 +172,7 @@ def test_payment_intent_endpoint_returns_client_payment_data(order, buyer):
     assert payload["client_secret"].startswith("secret_")
 
 
+@override_settings(PAYMENT_GATEWAY="fake")
 def test_payment_intent_endpoint_replays_idempotency_key(order, buyer):
     client = Client()
     client.force_login(buyer)

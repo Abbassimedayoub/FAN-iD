@@ -5,6 +5,17 @@ from typing import Any
 
 from apps.core.interfaces import PaymentGateway
 
+def _metadata_to_dict(metadata: Any) -> dict[str, Any]:
+    if isinstance(metadata, dict):
+        return dict(metadata)
+
+    to_dict = getattr(metadata, "to_dict", None)
+    if callable(to_dict):
+        return dict(to_dict())
+
+    return {}
+
+
 
 class FakeGateway(PaymentGateway):
     """
@@ -78,7 +89,7 @@ class StripeGateway(PaymentGateway):
             "id": intent.id,
             "amount_cents": intent.amount,
             "currency": intent.currency.upper(),
-            "metadata": dict(intent.metadata),
+            "metadata": _metadata_to_dict(intent.metadata),
             "client_secret": intent.client_secret,
         }
 
@@ -102,7 +113,7 @@ class StripeGateway(PaymentGateway):
             "id": intent.id,
             "amount_cents": intent.amount,
             "currency": intent.currency.upper(),
-            "metadata": dict(intent.metadata),
+            "metadata": _metadata_to_dict(intent.metadata),
             "client_secret": intent.client_secret,
             "status": intent.status,
         }
