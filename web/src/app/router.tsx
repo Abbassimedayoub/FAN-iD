@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 
 import { AdminShell } from "@/components/AdminShell";
-import { LanguageSwitcher } from "@/features/i18n/LanguageSwitcher";
 import { BrandMark } from "@/components/BrandMark";
 import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { LoginForm } from "@/features/auth/LoginForm";
@@ -87,7 +86,7 @@ function LoginPage() {
         </aside>
 
         <div className="relative flex items-center justify-center px-5 py-12 sm:px-10 lg:px-14 xl:px-20">
-<div
+          <div
             className="pointer-events-none absolute right-[-120px] top-[-120px] h-80 w-80 rounded-full bg-cyan/5 blur-3xl"
             aria-hidden="true"
           />
@@ -145,8 +144,8 @@ function LoginPage() {
 
 function ForbiddenPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center p-6 text-center">
-<div>
+    <main className="flex min-h-screen items-center justify-center p-6 text-center">
+      <div>
         <h1 className="font-sora text-2xl font-bold text-navy">Accès refusé</h1>
         <p className="mt-2 text-navy/70">Votre rôle ne permet pas d’accéder à cet espace.</p>
       </div>
@@ -166,15 +165,7 @@ function HomeRedirect() {
 
 export function AppRoutes() {
   return (
-    <>
-      <div
-        data-testid="global-language-switcher"
-        className="fixed right-3 top-[88px] z-[150] sm:right-5 sm:top-[92px]"
-      >
-        <LanguageSwitcher />
-      </div>
-
-      <Routes>
+    <Routes>
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -306,7 +297,6 @@ export function AppRoutes() {
       />
 
       <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </>
+    </Routes>
   );
 }
