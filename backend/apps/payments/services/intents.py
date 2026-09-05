@@ -5,11 +5,22 @@ from uuid import UUID
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.exceptions import ConflictError, InvalidStateTransitionError, NotFoundBusinessError
+from apps.core.exceptions import (
+    ConflictError,
+    InvalidStateTransitionError,
+    NotFoundBusinessError,
+)
 from apps.core.interfaces import PaymentGateway
 from apps.ordering.models import ORDER_PAID, ORDER_PENDING, Order, StockHold
-from apps.ordering.services.confirmation import ReservationExpiredError
-from apps.payments.models import PAYMENT_INTENT_CREATED, PaymentIntent
+from apps.ordering.services.confirmation import (
+    ReservationExpiredError,
+    confirm_order_payment,
+)
+from apps.payments.models import (
+    PAYMENT_INTENT_CREATED,
+    PAYMENT_INTENT_SUCCEEDED,
+    PaymentIntent,
+)
 
 
 class OrderNotPayableError(ConflictError):
@@ -95,3 +106,42 @@ def create_payment_intent(
         currency=provider_intent["currency"],
         client_secret=provider_intent["client_secret"],
     )
+
+
+@transaction.atomic
+def mark_payment_intent_succeeded(
+    *,
+    provider_intent_id: str,
+    now=None,
+) -> PaymentIntent:
+    """
+    Finalise l'intent après validation par le fournisseur de paiement.
+
+    Les retries du fournisseur sont sûrs : un intent déjà réussi est renvoyé
+    sans incrémenter le stock une seconde fois.
+    """
+    try:
+        intent = PaymentIntent.objects.select_for_update().get(
+            provider_intent_id=provider_intent_id,
+        )
+    except PaymentIntent.DoesNotExist as exc:
+        raise NotFoundBusinessError(code="PAYMENT_INTENT_NOT_FOUND") from exc
+
+    if intent.status == PAYMENT_INTENT_SUCCEEDED:
+        return intent
+
+    if intent.status != PAYMENT_INTENT_CREATED:
+        raise InvalidStateTransitionError(
+            details={
+                "payment_intent_id": str(intent.id),
+                "status": intent.status,
+                "target_status": PAYMENT_INTENT_SUCCEEDED,
+            },
+        )
+
+    confirm_order_payment(order_id=intent.order_id, now=now)
+
+    intent.status = PAYMENT_INTENT_SUCCEEDED
+    intent.save(update_fields=["status"])
+
+    return intent

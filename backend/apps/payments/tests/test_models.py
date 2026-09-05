@@ -9,10 +9,15 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.core.adapters.payments import FakeGateway
+from apps.catalog.models import Category, Event, TicketCategory
 from apps.ordering.models import Order, StockHold
+from apps.ordering.services.reservations import ReservationLine, reserve_stock
 from apps.ordering.services.confirmation import ReservationExpiredError
 from apps.payments.models import PaymentIntent
-from apps.payments.services import create_payment_intent
+from apps.payments.services import (
+    create_payment_intent,
+    mark_payment_intent_succeeded,
+)
 
 
 @pytest.fixture
@@ -185,3 +190,81 @@ def test_payment_intent_endpoint_replays_idempotency_key(order, buyer):
     assert replay.headers["Idempotency-Replayed"] == "true"
     assert replay.json() == first.json()
     assert PaymentIntent.objects.filter(order=order).count() == 1
+
+
+@pytest.fixture
+def reserved_order(buyer):
+    category = Category.objects.create(name="Payment reservation category")
+    starts_at = timezone.now() + datetime.timedelta(days=7)
+    event = Event.objects.create(
+        category=category,
+        name="Payment reservation event",
+        starts_at=starts_at,
+        ends_at=starts_at + datetime.timedelta(hours=2),
+        capacity_total=10,
+        published_at=timezone.now(),
+        status="PUBLISHED",
+    )
+    ticket_category = TicketCategory.objects.create(
+        event=event,
+        name="Standard",
+        quota=10,
+        unit_price_cents=1200,
+    )
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(ticket_category.id, 2)],
+    )
+    return order, ticket_category
+
+
+def test_successful_payment_confirms_order_and_consumes_hold(
+    reserved_order,
+    buyer,
+):
+    order, ticket_category = reserved_order
+    gateway = FakeGateway()
+    intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+
+    succeeded = mark_payment_intent_succeeded(
+        provider_intent_id=intent.provider_intent_id,
+    )
+
+    order.refresh_from_db()
+    order.stock_hold.refresh_from_db()
+    ticket_category.refresh_from_db()
+
+    assert succeeded.status == "SUCCEEDED"
+    assert order.status == "PAID"
+    assert order.stock_hold.consumed is True
+    assert ticket_category.sold_count == 2
+
+
+def test_successful_payment_retry_does_not_double_count_stock(
+    reserved_order,
+    buyer,
+):
+    order, ticket_category = reserved_order
+    gateway = FakeGateway()
+    intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+
+    first = mark_payment_intent_succeeded(
+        provider_intent_id=intent.provider_intent_id,
+    )
+    second = mark_payment_intent_succeeded(
+        provider_intent_id=intent.provider_intent_id,
+    )
+
+    ticket_category.refresh_from_db()
+
+    assert first.id == second.id
+    assert second.status == "SUCCEEDED"
+    assert ticket_category.sold_count == 2
