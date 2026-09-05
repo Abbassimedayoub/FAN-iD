@@ -149,6 +149,24 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
         blank=True,
     )
 
+    # Fenêtre commerciale de vente.
+    #
+    # NULL conserve le comportement historique :
+    # - sales_starts_at NULL => vente possible dès publication ;
+    # - sales_ends_at NULL => vente possible jusqu'au début de l'événement.
+    #
+    # Les règles d'éligibilité réelles restent centralisées dans
+    # apps.catalog.lifecycle et seront utilisées par ordering.
+    sales_starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    sales_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     lifecycle_reason = models.TextField(
         blank=True,
     )
@@ -184,6 +202,16 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
                 condition=(models.Q(capacity_total__isnull=True) | models.Q(capacity_total__gt=0)),
                 name="ck_event_capacity_positive",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(sales_starts_at__isnull=True)
+                    | models.Q(sales_ends_at__isnull=True)
+                    | models.Q(
+                        sales_ends_at__gt=models.F("sales_starts_at")
+                    )
+                ),
+                name="ck_event_sales_window_coherent",
+            ),
         ]
         indexes = [
             models.Index(
@@ -199,6 +227,19 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
                 name="ix_event_organizer",
             ),
         ]
+
+    @property
+    def operational_status(self) -> str:
+        """
+        Phase métier calculée à l'instant courant.
+
+        `status` reste la source de vérité structurelle en base.
+        Les phases temporelles ne sont pas persistées afin d'éviter
+        des transitions cron inutiles et des états périmés.
+        """
+        from .lifecycle import event_operational_status
+
+        return event_operational_status(self)
 
     def __str__(self) -> str:
         return self.name
