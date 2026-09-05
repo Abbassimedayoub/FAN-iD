@@ -1,7 +1,9 @@
+from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import Order
 from .serializers import ReservationCreateSerializer
 from .services import ReservationLine, reserve_stock
 
@@ -41,4 +43,25 @@ class ReservationCreateView(APIView):
                 ],
             },
             status=201,
+        )
+
+
+
+class OrderStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        order = get_object_or_404(
+            Order.objects.select_related("stock_hold"),
+            pk=order_id,
+            user=request.user,
+        )
+
+        return Response(
+            {
+                "order_id": str(order.id),
+                "status": order.status,
+                "total_amount_cents": order.total_amount_cents,
+                "hold_expires_at": order.stock_hold.expires_at,
+            }
         )

@@ -311,3 +311,39 @@ def test_paid_confirmation_rejects_an_expired_hold(buyer, tariffs):
     assert order.status == "PENDING"
     assert order.stock_hold.consumed is False
     assert standard.sold_count == 0
+
+
+def test_order_status_endpoint_returns_owned_order(buyer, tariffs):
+    standard, _ = tariffs
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(standard.id, 2)],
+    )
+
+    client = Client()
+    client.force_login(buyer)
+
+    response = client.get(f"/api/v1/orders/{order.id}")
+
+    assert response.status_code == 200, response.content
+    assert response.json() == {
+        "order_id": str(order.id),
+        "status": "PENDING",
+        "total_amount_cents": standard.unit_price_cents * 2,
+        "hold_expires_at": order.stock_hold.expires_at.isoformat().replace(
+            "+00:00",
+            "Z",
+        ),
+    }
+
+
+def test_order_status_endpoint_requires_authentication(buyer, tariffs):
+    standard, _ = tariffs
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(standard.id, 1)],
+    )
+
+    response = Client().get(f"/api/v1/orders/{order.id}")
+
+    assert response.status_code == 401
