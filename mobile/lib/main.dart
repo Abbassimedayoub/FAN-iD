@@ -15,6 +15,7 @@ Future<void> main() async {
 
   if (_stripePublishableKey.isNotEmpty) {
     Stripe.publishableKey = _stripePublishableKey;
+    Stripe.urlScheme = 'fanid';
     await Stripe.instance.applySettings();
   }
 

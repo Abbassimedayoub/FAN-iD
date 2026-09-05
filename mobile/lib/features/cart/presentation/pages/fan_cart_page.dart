@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_stripe/flutter_stripe.dart' hide Card;
 
+import '../../../../core/errors/failure.dart';
+import '../../../checkout/presentation/providers/fan_checkout_provider.dart';
 import '../../domain/fan_cart.dart';
 import '../providers/fan_cart_provider.dart';
 
-class FanCartPage extends ConsumerWidget {
+class FanCartPage extends ConsumerStatefulWidget {
   const FanCartPage({
     required this.cartOwnerKey,
     super.key,
@@ -15,19 +18,25 @@ class FanCartPage extends ConsumerWidget {
   final String cartOwnerKey;
 
   @override
+  ConsumerState<FanCartPage> createState() => _FanCartPageState();
+}
+
+class _FanCartPageState extends ConsumerState<FanCartPage> {
+  bool _paymentInProgress = false;
+
+  @override
   Widget build(
     BuildContext context,
-    WidgetRef ref,
   ) {
     final cartState = ref.watch(
       fanCartControllerProvider(
-        cartOwnerKey,
+        widget.cartOwnerKey,
       ),
     );
 
     final controller = ref.read(
       fanCartControllerProvider(
-        cartOwnerKey,
+        widget.cartOwnerKey,
       ).notifier,
     );
 
@@ -126,6 +135,7 @@ class FanCartPage extends ConsumerWidget {
                     ),
                     child: _CartItemCard(
                       item: item,
+                      enabled: !_paymentInProgress,
                       onUpdateQuantity: (quantity) async {
                         try {
                           await controller.updateQuantity(
@@ -196,18 +206,28 @@ class FanCartPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: null,
-                  icon: const Icon(
-                    Icons.payment_outlined,
-                  ),
-                  label: const Text(
-                    'Continuer vers le paiement',
+                  key: const ValueKey<String>('fan-cart-pay'),
+                  onPressed:
+                      _paymentInProgress ? null : () => _startPayment(cart),
+                  icon: _paymentInProgress
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.payment_outlined),
+                  label: Text(
+                    _paymentInProgress
+                        ? 'Préparation du paiement…'
+                        : 'Continuer vers le paiement',
                   ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Le paiement sera branché '
-                  'dans la prochaine étape.',
+                  'Le paiement est confirmé par Stripe avant '
+                  'la validation de votre commande.',
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -216,6 +236,91 @@ class FanCartPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _startPayment(FanCart cart) async {
+    if (_paymentInProgress) {
+      return;
+    }
+
+    if (Stripe.publishableKey.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Le paiement Stripe n’est pas configuré dans cet APK.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _paymentInProgress = true;
+    });
+
+    final checkout = ref.read(fanCheckoutControllerProvider.notifier);
+    final cartController = ref.read(
+      fanCartControllerProvider(widget.cartOwnerKey).notifier,
+    );
+
+    try {
+      final session = await checkout.preparePayment(cart);
+
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          merchantDisplayName: 'FAN iD',
+          paymentIntentClientSecret: session.paymentIntentClientSecret,
+          primaryButtonLabel: 'Payer',
+          returnURL: 'fanid://stripe-redirect',
+        ),
+      );
+
+      await Stripe.instance.presentPaymentSheet();
+
+      await checkout.waitForPaid(session.orderId);
+      await cartController.clearCart();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Paiement confirmé. Votre commande est validée.',
+            ),
+          ),
+        );
+        await Navigator.of(context).maybePop();
+      }
+    } on StripeException catch (error) {
+      if (mounted) {
+        final message = error.error.localizedMessage ??
+            'Le paiement a été annulé ou refusé.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } on Failure catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Impossible de finaliser le paiement. Réessayez plus tard.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _paymentInProgress = false;
+        });
+      }
+    }
   }
 
   static String _formatCents(
@@ -363,11 +468,13 @@ class _FanCartCountdownState extends State<FanCartCountdown> {
 class _CartItemCard extends StatelessWidget {
   const _CartItemCard({
     required this.item,
+    required this.enabled,
     required this.onUpdateQuantity,
     required this.onRemove,
   });
 
   final FanCartItem item;
+  final bool enabled;
   final Future<void> Function(int quantity) onUpdateQuantity;
   final Future<void> Function() onRemove;
 
@@ -392,7 +499,7 @@ class _CartItemCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${item.ticketCategoryName} — '
-              '${FanCartPage._formatCents(
+              '${_FanCartPageState._formatCents(
                 item.unitPriceCents,
               )}',
             ),
@@ -411,7 +518,7 @@ class _CartItemCard extends StatelessWidget {
                     '${item.ticketCategoryId}',
                   ),
                   tooltip: 'Diminuer la quantité',
-                  onPressed: item.quantity > 1
+                  onPressed: enabled && item.quantity > 1
                       ? () {
                           onUpdateQuantity(
                             item.quantity - 1,
@@ -439,7 +546,7 @@ class _CartItemCard extends StatelessWidget {
                     '${item.ticketCategoryId}',
                   ),
                   tooltip: 'Augmenter la quantité',
-                  onPressed: item.quantity < item.availableCount
+                  onPressed: enabled && item.quantity < item.availableCount
                       ? () {
                           onUpdateQuantity(
                             item.quantity + 1,
@@ -455,7 +562,7 @@ class _CartItemCard extends StatelessWidget {
                     '${item.ticketCategoryId}',
                   ),
                   tooltip: 'Supprimer du panier',
-                  onPressed: onRemove,
+                  onPressed: enabled ? onRemove : null,
                   icon: const Icon(
                     Icons.delete_outline,
                   ),
@@ -467,7 +574,7 @@ class _CartItemCard extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: Text(
                 'Sous-total : '
-                '${FanCartPage._formatCents(
+                '${_FanCartPageState._formatCents(
                   item.lineTotalCents,
                 )}',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
