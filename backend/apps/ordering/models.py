@@ -70,6 +70,12 @@ class OrderLine(UUIDModel, TimeStampedModel):
         related_name="lines",
     )
 
+    ticket_category = models.ForeignKey(
+        "catalog.TicketCategory",
+        on_delete=models.PROTECT,
+        related_name="order_lines",
+    )
+
     label = models.CharField(max_length=200)
 
     quantity = models.PositiveIntegerField(default=1)
@@ -107,5 +113,53 @@ class StockHold(UUIDModel, TimeStampedModel):
             models.Index(
                 fields=["expires_at"],
                 name="ix_stock_hold_expiry",
+            ),
+        ]
+
+
+class StockHoldLine(UUIDModel, TimeStampedModel):
+    """
+    Quantité réservée pour un tarif donné dans un hold temporaire.
+
+    Le stock définitif reste dans TicketCategory.sold_count ; ces lignes
+    servent uniquement à calculer les réservations actives avant paiement.
+    """
+
+    stock_hold = models.ForeignKey(
+        StockHold,
+        on_delete=models.CASCADE,
+        related_name="lines",
+    )
+
+    ticket_category = models.ForeignKey(
+        "catalog.TicketCategory",
+        on_delete=models.PROTECT,
+        related_name="stock_hold_lines",
+    )
+
+    quantity = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = "ordering_stock_hold_line"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gt=0),
+                name="ck_stock_hold_line_quantity_positive",
+            ),
+            models.UniqueConstraint(
+                fields=[
+                    "stock_hold",
+                    "ticket_category",
+                ],
+                name="uq_stock_hold_line_hold_ticket",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=[
+                    "ticket_category",
+                    "stock_hold",
+                ],
+                name="ix_hold_line_ticket_hold",
             ),
         ]
