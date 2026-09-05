@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from datetime import timedelta
 import json
 import threading
 
@@ -242,3 +243,71 @@ def test_reservation_endpoint_replays_same_idempotency_key(buyer, tariffs):
         stock_hold__order__user=buyer,
         ticket_category=standard,
     ).count() == 1
+
+
+from apps.ordering.services.confirmation import (
+    ReservationExpiredError,
+    confirm_order_payment,
+)
+
+
+def test_paid_confirmation_consumes_hold_and_increments_stock(buyer, tariffs):
+    standard, _ = tariffs
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(standard.id, 2)],
+    )
+
+    confirmed = confirm_order_payment(order_id=order.id)
+
+    order.refresh_from_db()
+    order.stock_hold.refresh_from_db()
+    standard.refresh_from_db()
+
+    assert confirmed.id == order.id
+    assert order.status == "PAID"
+    assert order.stock_hold.consumed is True
+    assert standard.sold_count == 2
+
+
+def test_paid_confirmation_is_idempotent_and_never_double_counts_stock(
+    buyer,
+    tariffs,
+):
+    standard, _ = tariffs
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(standard.id, 2)],
+    )
+
+    first = confirm_order_payment(order_id=order.id)
+    second = confirm_order_payment(order_id=order.id)
+
+    standard.refresh_from_db()
+
+    assert first.id == second.id == order.id
+    assert standard.sold_count == 2
+
+
+def test_paid_confirmation_rejects_an_expired_hold(buyer, tariffs):
+    standard, _ = tariffs
+    reserved_at = timezone.now()
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(standard.id, 1)],
+        now=reserved_at,
+    )
+
+    with pytest.raises(ReservationExpiredError):
+        confirm_order_payment(
+            order_id=order.id,
+            now=reserved_at + timedelta(minutes=11),
+        )
+
+    order.refresh_from_db()
+    order.stock_hold.refresh_from_db()
+    standard.refresh_from_db()
+
+    assert order.status == "PENDING"
+    assert order.stock_hold.consumed is False
+    assert standard.sold_count == 0
