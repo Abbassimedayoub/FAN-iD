@@ -13,8 +13,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
 
-  if (_stripePublishableKey.isNotEmpty) {
-    Stripe.publishableKey = _stripePublishableKey;
+  final stripePublishableKey = _stripePublishableKey.trim();
+
+  if (stripePublishableKey.isNotEmpty) {
+    Stripe.publishableKey = stripePublishableKey;
     Stripe.urlScheme = 'fanid';
     await Stripe.instance.applySettings();
   }

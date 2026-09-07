@@ -24,6 +24,14 @@ class FanCartPage extends ConsumerStatefulWidget {
 class _FanCartPageState extends ConsumerState<FanCartPage> {
   bool _paymentInProgress = false;
 
+  bool get _stripeIsConfigured {
+    try {
+      return Stripe.publishableKey.trim().isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(
     BuildContext context,
@@ -33,6 +41,9 @@ class _FanCartPageState extends ConsumerState<FanCartPage> {
         widget.cartOwnerKey,
       ),
     );
+
+    // Empêche Riverpod de détruire le contrôleur pendant le paiement asynchrone.
+    ref.watch(fanCheckoutControllerProvider);
 
     final controller = ref.read(
       fanCartControllerProvider(
@@ -243,7 +254,7 @@ class _FanCartPageState extends ConsumerState<FanCartPage> {
       return;
     }
 
-    if (Stripe.publishableKey.trim().isEmpty) {
+    if (!_stripeIsConfigured) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -296,6 +307,16 @@ class _FanCartPageState extends ConsumerState<FanCartPage> {
             'Le paiement a été annulé ou refusé.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
+        );
+      }
+    } on StripeConfigException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La clé publique Stripe de cet APK est invalide ou absente.',
+            ),
+          ),
         );
       }
     } on Failure catch (error) {
