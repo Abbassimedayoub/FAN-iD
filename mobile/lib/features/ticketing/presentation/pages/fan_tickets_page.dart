@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/fan_ticket.dart';
+import 'fan_ticket_qr_page.dart';
 import '../providers/fan_tickets_provider.dart';
 
 class FanTicketsPage extends ConsumerWidget {
@@ -79,7 +80,18 @@ class FanTicketsPage extends ConsumerWidget {
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    return _FanTicketCard(ticket: items[index]);
+                    final ticket = items[index];
+
+                    return _FanTicketCard(
+                      ticket: ticket,
+                      onShowQr: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => FanTicketQrPage(ticket: ticket),
+                          ),
+                        );
+                      },
+                    );
                   },
                 ),
         ),
@@ -89,9 +101,13 @@ class FanTicketsPage extends ConsumerWidget {
 }
 
 class _FanTicketCard extends StatelessWidget {
-  const _FanTicketCard({required this.ticket});
+  const _FanTicketCard({
+    required this.ticket,
+    required this.onShowQr,
+  });
 
   final FanTicket ticket;
+  final VoidCallback onShowQr;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +146,12 @@ class _FanTicketCard extends StatelessWidget {
                   Chip(
                     label: Text(ticket.statusLabel),
                     visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: ticket.isValid ? onShowQr : null,
+                    icon: const Icon(Icons.qr_code_2_outlined),
+                    label: const Text('Afficher le QR dynamique'),
                   ),
                 ],
               ),

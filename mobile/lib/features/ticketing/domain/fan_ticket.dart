@@ -54,3 +54,31 @@ class FanTicket {
     }
   }
 }
+
+class FanTicketQr {
+  const FanTicketQr({
+    required this.token,
+    required this.expiresAt,
+    required this.refreshAfterSeconds,
+  });
+
+  final String token;
+  final DateTime expiresAt;
+  final int refreshAfterSeconds;
+
+  factory FanTicketQr.fromJson(Map<String, dynamic> json) {
+    final token = json['token']?.toString().trim() ?? '';
+    final expiresAtValue = json['expires_at']?.toString();
+    final refreshAfter = json['refresh_after_seconds'];
+
+    if (token.isEmpty || expiresAtValue == null || refreshAfter is! int) {
+      throw const FormatException('QR dynamique invalide.');
+    }
+
+    return FanTicketQr(
+      token: token,
+      expiresAt: DateTime.parse(expiresAtValue).toUtc(),
+      refreshAfterSeconds: refreshAfter,
+    );
+  }
+}
