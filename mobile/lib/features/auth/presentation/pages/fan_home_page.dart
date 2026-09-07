@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../cart/presentation/pages/fan_cart_page.dart';
 import '../../../catalog/presentation/pages/fan_catalog_page.dart';
+import '../../../ticketing/presentation/pages/fan_tickets_page.dart';
 import '../../domain/entities/login_session.dart';
 import '../controllers/auth_controller.dart';
 import 'account_page.dart';
@@ -107,14 +108,22 @@ class FanHomePage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              const Card(
+              Card(
+                key: const ValueKey<String>('fan-tickets-card'),
                 child: ListTile(
-                  leading: Icon(Icons.confirmation_number_outlined),
-                  title: Text('Mes billets'),
-                  subtitle: Text(
-                    'Le module billetterie sera disponible dans une prochaine étape.',
+                  leading: const Icon(Icons.confirmation_number_outlined),
+                  title: const Text('Mes billets'),
+                  subtitle: const Text(
+                    'Consulter vos billets confirmés.',
                   ),
-                  trailing: Icon(Icons.chevron_right),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const FanTicketsPage(),
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 12),
