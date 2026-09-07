@@ -18,6 +18,14 @@ class TicketAdmissionRemoteDataSource {
 
   final Dio _dio;
 
+  Future<void> sendHeartbeat() async {
+    try {
+      await _dio.post<void>('/api/v1/access/scanners/heartbeat');
+    } on DioException catch (error) {
+      throw mapDioExceptionToFailure(error);
+    }
+  }
+
   Future<ScannerAdmissionResult> admit(String token) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(

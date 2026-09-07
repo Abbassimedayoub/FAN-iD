@@ -121,3 +121,39 @@ export interface EventAdmissionStatus {
   opened_at: string | null;
   opened_by_id: string | null;
 }
+
+
+export interface EventLiveDashboard {
+  event_id: string;
+  event_name: string;
+  generated_at: string;
+  admission: {
+    is_open: boolean;
+    opened_at: string | null;
+  };
+  ticketing: {
+    sold_count: number;
+    remaining_count: number;
+    quota_total: number;
+  };
+  capacity: {
+    total: number | null;
+    entries_count: number;
+    entry_rate_percent: number;
+    capacity_rate_percent: number;
+  };
+  scanners: {
+    assigned_count: number;
+    present_count: number;
+    absent_count: number;
+    items: Array<{
+      scanner_id: string;
+      name: string;
+      email: string;
+      scan_count: number;
+      last_activity: string | null;
+      last_seen_at: string | null;
+      is_present: boolean;
+    }>;
+  };
+}

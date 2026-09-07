@@ -9,6 +9,7 @@ import { PasswordResetPage } from "@/features/auth/PasswordResetPage";
 import { OrganizerEventContinuePage } from "@/features/events/OrganizerEventContinuePage";
 import { OrganizerEventCreatePage } from "@/features/events/OrganizerEventCreatePage";
 import { OrganizerEventDetailPage } from "@/features/events/OrganizerEventDetailPage";
+import { OrganizerEventLiveDashboardPage } from "@/features/events/OrganizerEventLiveDashboardPage";
 import { OrganizerEventEditPage } from "@/features/events/OrganizerEventEditPage";
 import { OrganizerEventsPage } from "@/features/events/OrganizerEventsPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
@@ -214,6 +215,15 @@ export function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ORGANIZER"]}>
             <OrganizerEventContinuePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events/:eventId/live"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventLiveDashboardPage />
           </ProtectedRoute>
         }
       />

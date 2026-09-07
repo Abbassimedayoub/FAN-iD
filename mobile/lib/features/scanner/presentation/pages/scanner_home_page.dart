@@ -20,7 +20,8 @@ class ScannerHomePage extends ConsumerStatefulWidget {
   ConsumerState<ScannerHomePage> createState() => _ScannerHomePageState();
 }
 
-class _ScannerHomePageState extends ConsumerState<ScannerHomePage> {
+class _ScannerHomePageState extends ConsumerState<ScannerHomePage>
+    with WidgetsBindingObserver {
   late final MobileScannerController _scannerController;
 
   String? _lastCode;
@@ -28,10 +29,12 @@ class _ScannerHomePageState extends ConsumerState<ScannerHomePage> {
   bool _scanLocked = false;
   bool _validationInProgress = false;
   ScannerAdmissionResult? _admission;
+  Timer? _heartbeatTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _scannerController = MobileScannerController(
       facing: CameraFacing.back,
@@ -39,6 +42,29 @@ class _ScannerHomePageState extends ConsumerState<ScannerHomePage> {
       detectionSpeed: DetectionSpeed.noDuplicates,
       autoZoom: true,
     );
+
+    unawaited(_sendHeartbeat());
+    _heartbeatTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_sendHeartbeat()),
+    );
+  }
+
+  Future<void> _sendHeartbeat() async {
+    try {
+      await TicketAdmissionRemoteDataSource(
+        ref.read(authRuntimeProvider).dioClient.dio,
+      ).sendHeartbeat();
+    } catch (_) {
+      // Le scanner reste utilisable si le signal de présence échoue.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_sendHeartbeat());
+    }
   }
 
   void _onDetect(BarcodeCapture capture) {
@@ -112,6 +138,8 @@ class _ScannerHomePageState extends ConsumerState<ScannerHomePage> {
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_scannerController.dispose());
     super.dispose();
   }

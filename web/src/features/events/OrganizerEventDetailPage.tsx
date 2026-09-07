@@ -140,6 +140,15 @@ export function OrganizerEventDetailPage() {
                       </div>
                     ) : null}
 
+                    {event.status !== "DRAFT" ? (
+                      <Link
+                        to={`/organizer/events/${event.id}/live`}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[#b9cbe0] bg-white px-5 text-sm font-semibold text-[#405b78]"
+                      >
+                        Dashboard live
+                      </Link>
+                    ) : null}
+
                     <OrganizerEventImageEditor
                       event={event}
                       onUpdated={async (updated) => {

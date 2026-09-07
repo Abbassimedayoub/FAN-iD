@@ -57,6 +57,20 @@ class EventAdmissionSession(UUIDModel, TimeStampedModel):
         ]
 
 
+class ScannerPresence(UUIDModel, TimeStampedModel):
+    """Dernier signal reçu d'une application Scanner active."""
+
+    scanner = models.OneToOneField(
+        "organizing.Scanner",
+        on_delete=models.PROTECT,
+        related_name="access_presence",
+    )
+    last_seen_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "access_scanner_presence"
+
+
 class TicketAdmission(UUIDModel, TimeStampedModel):
     """Trace immuable de l'admission réussie d'un billet."""
 

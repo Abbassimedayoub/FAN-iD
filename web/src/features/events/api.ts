@@ -2,6 +2,7 @@ import { httpClient } from "@/lib/httpClient";
 
 import type {
   EventAdmissionStatus,
+  EventLiveDashboard,
   EventCancelInput,
   EventCategory,
   EventDraftInput,
@@ -293,6 +294,17 @@ export async function closeEventAdmission(
   const response = await httpClient.post<EventAdmissionStatus>(
     `/api/v1/access/events/${eventId}/admission/close`,
     {},
+  );
+
+  return response.data;
+}
+
+
+export async function fetchEventLiveDashboard(
+  eventId: string,
+): Promise<EventLiveDashboard> {
+  const response = await httpClient.get<EventLiveDashboard>(
+    `/api/v1/access/events/${eventId}/live-dashboard`,
   );
 
   return response.data;

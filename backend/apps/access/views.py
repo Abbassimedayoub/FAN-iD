@@ -12,6 +12,8 @@ from .services.admission_sessions import (
     open_event_admission,
 )
 from .services.admissions import admit_ticket_from_qr
+from .services.live_dashboard import event_live_dashboard
+from .services.scanner_presence import record_scanner_heartbeat
 
 
 def _owned_event(*, request, event_id):
@@ -87,5 +89,28 @@ class TicketAdmissionScanView(APIView):
                 "admission_id": str(admission.id),
                 "ticket_id": str(admission.ticket_id),
                 "admitted_at": admission.admitted_at,
+            }
+        )
+
+
+class EventLiveDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+        event = _owned_event(request=request, event_id=event_id)
+        return Response(event_live_dashboard(event=event))
+
+
+class ScannerHeartbeatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        presence = record_scanner_heartbeat(
+            scanner_user_id=request.user.pk,
+        )
+        return Response(
+            {
+                "status": "ONLINE",
+                "last_seen_at": presence.last_seen_at,
             }
         )

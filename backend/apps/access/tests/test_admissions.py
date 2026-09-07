@@ -6,7 +6,7 @@ import pytest
 from django.test import Client, override_settings
 from django.utils import timezone
 
-from apps.access.models import TicketAdmission
+from apps.access.models import ScannerPresence, TicketAdmission
 from apps.access.services.admission_sessions import (
     EventAdmissionClosedError,
     close_event_admission,
@@ -182,3 +182,46 @@ def test_admission_session_reopens_only_after_closure(ticket, buyer):
     assert closed is not None
     assert closed.closed_at is not None
     assert closed.closed_by_id == buyer.id
+
+
+def test_owner_reads_event_live_dashboard(ticket, buyer):
+    client = Client()
+    client.force_login(buyer)
+
+    response = client.get(
+        f"/api/v1/access/events/{ticket.event_id}/live-dashboard",
+    )
+
+    assert response.status_code == 200, response.content
+    payload = response.json()
+
+    assert payload["event_id"] == str(ticket.event_id)
+    assert payload["ticketing"]["sold_count"] == 1
+    assert payload["ticketing"]["remaining_count"] == 19
+    assert payload["capacity"]["entries_count"] == 0
+    assert payload["admission"]["is_open"] is False
+
+
+def test_scanner_heartbeat_marks_presence_in_dashboard(ticket, scanner, buyer):
+    EventScannerAssignment.objects.create(
+        event=ticket.event,
+        scanner_id=scanner.id,
+        assigned_by_id=buyer.id,
+    )
+
+    scanner_client = Client()
+    scanner_client.force_login(scanner.user)
+    heartbeat = scanner_client.post("/api/v1/access/scanners/heartbeat")
+
+    assert heartbeat.status_code == 200, heartbeat.content
+    assert ScannerPresence.objects.filter(scanner=scanner).exists()
+
+    organizer_client = Client()
+    organizer_client.force_login(buyer)
+    dashboard = organizer_client.get(
+        f"/api/v1/access/events/{ticket.event_id}/live-dashboard",
+    )
+
+    assert dashboard.status_code == 200, dashboard.content
+    assert dashboard.json()["scanners"]["present_count"] == 1
+    assert dashboard.json()["scanners"]["items"][0]["is_present"] is True
