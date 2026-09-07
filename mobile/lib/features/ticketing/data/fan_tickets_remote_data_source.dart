@@ -10,10 +10,17 @@ class FanTicketsRemoteDataSource {
 
   final Dio _dio;
 
-  Future<List<FanTicket>> fetchTickets() async {
+  Future<List<FanTicket>> fetchTickets({
+    required String accessToken,
+  }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/api/v1/tickets',
+        options: Options(
+          headers: <String, String>{
+            'Authorization': 'Bearer $accessToken',
+          },
+        ),
       );
 
       final results = response.data?['results'];
