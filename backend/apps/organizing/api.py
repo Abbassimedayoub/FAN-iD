@@ -29,6 +29,7 @@ __all__ = [
     "get_scanner_assignment_summary",
     "get_scanner_portal_context",
     "list_scanner_assignment_summaries",
+    "resolve_active_scanner_event_assignment",
     "resolve_organizer_context",
     "resolve_organizer_commercial_context",
 ]
@@ -374,3 +375,39 @@ def get_organizer_notification_summary(
         name=organizer.org_name,
         contact_email=organizer.contact_email,
     )
+
+
+def resolve_active_scanner_event_assignment(
+    *,
+    user_id: uuid.UUID,
+    event_id: uuid.UUID,
+) -> uuid.UUID | None:
+    """Retourne le scanner actif affecté à l'événement, sinon None."""
+    scanner_id = (
+        Scanner.objects.filter(
+            user_id=user_id,
+            user__is_active=True,
+            user__anonymized_at__isnull=True,
+            user__must_change_password=False,
+            status=SCANNER_ACTIVE,
+            removed_at__isnull=True,
+            archived_at__isnull=True,
+        )
+        .values_list("pk", flat=True)
+        .first()
+    )
+
+    if scanner_id is None:
+        return None
+
+    # Import local : organizing expose une primitive, sans importer
+    # catalog pendant le chargement du module.
+    from apps.catalog.models import EventScannerAssignment
+
+    assigned = EventScannerAssignment.objects.filter(
+        event_id=event_id,
+        scanner_id=scanner_id,
+        unassigned_at__isnull=True,
+    ).exists()
+
+    return scanner_id if assigned else None

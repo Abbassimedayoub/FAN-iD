@@ -1,9 +1,28 @@
-"""
-Bounded context 'access' — coquille vide au Sprint 0.
+from django.db import models
 
-Aucune table métier de ce contexte n'est créée au Sprint 0 (§44 master prompt).
-Les modèles seront introduits par le sprint qui possède ce contexte, cf.
-Source B / plan-dev-v2. Ce fichier existe pour que l'app Django soit valide
-dès maintenant et que la frontière du bounded context (ADR-S-01) soit visible
-dans le code depuis le premier commit.
-"""
+from apps.core.models import TimeStampedModel, UUIDModel
+
+
+class TicketAdmission(UUIDModel, TimeStampedModel):
+    """Trace immuable de l'admission réussie d'un billet."""
+
+    ticket = models.OneToOneField(
+        "ticketing.Ticket",
+        on_delete=models.PROTECT,
+        related_name="admission",
+    )
+    scanner = models.ForeignKey(
+        "organizing.Scanner",
+        on_delete=models.PROTECT,
+        related_name="ticket_admissions",
+    )
+    admitted_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "access_ticket_admission"
+        indexes = [
+            models.Index(
+                fields=["scanner", "admitted_at"],
+                name="ix_admission_scanner_time",
+            ),
+        ]
