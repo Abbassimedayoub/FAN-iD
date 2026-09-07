@@ -269,6 +269,7 @@ REFRESH_COOKIE_HTTPONLY = True
 
 # --- Jetons JWT ---
 JWT_SIGNING_KEY = env("JWT_SIGNING_KEY")
+QR_SIGNING_KEY = env("QR_SIGNING_KEY", default="")
 JWT_ALGORITHM = env("JWT_ALGORITHM", default="HS256")
 JWT_ISSUER = env("JWT_ISSUER", default="fanid-api")
 JWT_LEEWAY_SECONDS = env.int(
