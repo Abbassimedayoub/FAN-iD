@@ -108,4 +108,10 @@ def confirm_order_payment(*, order_id: UUID, now=None) -> Order:
     order.status = ORDER_PAID
     order.save(update_fields=["status"])
 
+    # Import local : ordering confirme le paiement, ticketing émet les billets.
+    # La transaction commune annule aussi la vente si l'émission échoue.
+    from apps.ticketing.services import issue_tickets_for_order
+
+    issue_tickets_for_order(order=order)
+
     return order

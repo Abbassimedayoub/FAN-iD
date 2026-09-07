@@ -1,0 +1,25 @@
+from rest_framework import serializers
+
+from .models import Ticket
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    event_id = serializers.UUIDField(read_only=True)
+    event_name = serializers.CharField(source="event.name", read_only=True)
+    event_starts_at = serializers.DateTimeField(source="event.starts_at", read_only=True)
+    ticket_category_name = serializers.CharField(
+        source="ticket_category.name",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Ticket
+        fields = (
+            "id",
+            "status",
+            "event_id",
+            "event_name",
+            "event_starts_at",
+            "ticket_category_name",
+            "created_at",
+        )
