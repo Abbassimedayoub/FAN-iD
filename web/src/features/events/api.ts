@@ -1,6 +1,7 @@
 import { httpClient } from "@/lib/httpClient";
 
 import type {
+  EventAdmissionStatus,
   EventCancelInput,
   EventCategory,
   EventDraftInput,
@@ -262,4 +263,37 @@ export async function assignEventScanner(
 
 export async function unassignEventScanner(eventId: string, scannerId: string): Promise<void> {
   await httpClient.delete(`/api/v1/events/${eventId}/scanners/${scannerId}`);
+}
+
+
+export async function fetchEventAdmissionStatus(
+  eventId: string,
+): Promise<EventAdmissionStatus> {
+  const response = await httpClient.get<EventAdmissionStatus>(
+    `/api/v1/access/events/${eventId}/admission`,
+  );
+
+  return response.data;
+}
+
+export async function openEventAdmission(
+  eventId: string,
+): Promise<EventAdmissionStatus> {
+  const response = await httpClient.post<EventAdmissionStatus>(
+    `/api/v1/access/events/${eventId}/admission/open`,
+    {},
+  );
+
+  return response.data;
+}
+
+export async function closeEventAdmission(
+  eventId: string,
+): Promise<EventAdmissionStatus> {
+  const response = await httpClient.post<EventAdmissionStatus>(
+    `/api/v1/access/events/${eventId}/admission/close`,
+    {},
+  );
+
+  return response.data;
 }

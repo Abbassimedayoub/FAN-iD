@@ -6,6 +6,7 @@ import { OrganizerShell } from "@/features/organizers/OrganizerShell";
 
 import { EventSchedule } from "./EventSchedule";
 import { fetchOrganizerEvent, fetchTicketCategories } from "./api";
+import { OrganizerEventAdmissionControl } from "./OrganizerEventAdmissionControl";
 import { OrganizerEventDeleteButton } from "./OrganizerEventDeleteButton";
 import { OrganizerEventLifecycleActions } from "./OrganizerEventLifecycleActions";
 import { OrganizerEventImageEditor } from "./OrganizerEventImageEditor";
@@ -204,6 +205,8 @@ export function OrganizerEventDetailPage() {
                   ) : null}
                 </Card>
               ) : null}
+
+              <OrganizerEventAdmissionControl event={event} />
 
               <OrganizerEventLifecycleActions
                 event={event}

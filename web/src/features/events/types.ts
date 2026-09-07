@@ -113,3 +113,11 @@ export interface EventScannerAssignment {
   scanner_version: number;
   assigned_at: string;
 }
+
+
+export interface EventAdmissionStatus {
+  event_id: string;
+  is_open: boolean;
+  opened_at: string | null;
+  opened_by_id: string | null;
+}

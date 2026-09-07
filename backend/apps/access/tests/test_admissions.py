@@ -7,6 +7,11 @@ from django.test import Client, override_settings
 from django.utils import timezone
 
 from apps.access.models import TicketAdmission
+from apps.access.services.admission_sessions import (
+    EventAdmissionClosedError,
+    close_event_admission,
+    open_event_admission,
+)
 from apps.access.services.admissions import (
     TicketAlreadyAdmittedError,
     admit_ticket_from_qr,
@@ -37,11 +42,21 @@ def buyer(db, django_user_model, roles):
 
 
 @pytest.fixture
-def ticket(buyer):
+def organizer(buyer):
+    return Organizer.objects.create(
+        user=buyer,
+        org_name="Admission organization",
+        contact_email="admission-org@example.test",
+    )
+
+
+@pytest.fixture
+def ticket(buyer, organizer):
     category = Category.objects.create(name="Admission category")
     starts_at = timezone.now() + datetime.timedelta(days=7)
     event = Event.objects.create(
         category=category,
+        organizer=organizer,
         name="Admission event",
         status=Event.PUBLISHED,
         published_at=timezone.now(),
@@ -64,18 +79,13 @@ def ticket(buyer):
 
 
 @pytest.fixture
-def scanner(buyer, django_user_model, roles):
+def scanner(organizer, buyer, django_user_model, roles):
     scanner_user = django_user_model.objects.create_user(
         email="admission-scanner@example.test",
         password="testpassword123",
         date_of_birth=datetime.date(1990, 1, 1),
         terms_accepted_at=timezone.now(),
         role=roles["SCANNER"],
-    )
-    organizer = Organizer.objects.create(
-        user=buyer,
-        org_name="Admission organization",
-        contact_email="admission-org@example.test",
     )
     return Scanner.objects.create(
         organizer=organizer,
@@ -93,6 +103,17 @@ def test_scanner_admits_ticket_once(ticket, scanner, buyer):
         assigned_by_id=buyer.id,
     )
     token = issue_dynamic_ticket_qr(ticket=ticket).token
+
+    with pytest.raises(EventAdmissionClosedError):
+        admit_ticket_from_qr(
+            token=token,
+            scanner_user_id=scanner.user_id,
+        )
+
+    open_event_admission(
+        event_id=ticket.event_id,
+        opened_by_id=buyer.id,
+    )
 
     admission = admit_ticket_from_qr(
         token=token,
@@ -119,6 +140,15 @@ def test_scan_endpoint_returns_admitted(ticket, scanner, buyer):
         scanner_id=scanner.id,
         assigned_by_id=buyer.id,
     )
+    organizer_client = Client()
+    organizer_client.force_login(buyer)
+
+    response = organizer_client.post(
+        f"/api/v1/access/events/{ticket.event_id}/admission/open",
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["is_open"] is True
+
     client = Client()
     client.force_login(scanner.user)
 
@@ -130,3 +160,25 @@ def test_scan_endpoint_returns_admitted(ticket, scanner, buyer):
 
     assert response.status_code == 200, response.content
     assert response.json()["status"] == "ADMITTED"
+
+
+def test_admission_session_reopens_only_after_closure(ticket, buyer):
+    first = open_event_admission(
+        event_id=ticket.event_id,
+        opened_by_id=buyer.id,
+    )
+    second = open_event_admission(
+        event_id=ticket.event_id,
+        opened_by_id=buyer.id,
+    )
+
+    assert first.id == second.id
+
+    closed = close_event_admission(
+        event_id=ticket.event_id,
+        closed_by_id=buyer.id,
+    )
+
+    assert closed is not None
+    assert closed.closed_at is not None
+    assert closed.closed_by_id == buyer.id

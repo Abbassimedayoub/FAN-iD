@@ -16,6 +16,8 @@ from apps.organizing.api import resolve_active_scanner_event_assignment
 from apps.ticketing.models import TICKET_VALID, TICKET_USED, Ticket
 from apps.ticketing.services.qr import QR_ISSUER, QR_TYPE
 
+from .admission_sessions import require_event_admission_open
+
 from ..models import TicketAdmission
 
 
@@ -60,6 +62,8 @@ def admit_ticket_from_qr(*, token: str, scanner_user_id: UUID) -> TicketAdmissio
         ticket = Ticket.objects.select_for_update().get(pk=ticket_id)
     except Ticket.DoesNotExist as exc:
         raise InvalidTicketQrError() from exc
+
+    require_event_admission_open(event_id=ticket.event_id)
 
     scanner_id = resolve_active_scanner_event_assignment(
         user_id=scanner_user_id,
