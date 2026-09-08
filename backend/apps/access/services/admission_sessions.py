@@ -107,3 +107,37 @@ def require_event_admission_open(*, event_id: UUID) -> None:
 
     if current_event_admission_session(event=event) is None:
         raise EventAdmissionClosedError()
+
+
+@transaction.atomic
+def close_event_admission_automatically(*, event_id: UUID, now=None):
+    """
+    Ferme une session lors de la clôture automatique de l'événement.
+
+    Aucun faux utilisateur n'est attribué : `closed_automatically` constitue
+    la trace d'audit explicite de cette fermeture système.
+    """
+    _locked_event(event_id)
+
+    active = (
+        EventAdmissionSession.objects.select_for_update()
+        .filter(
+            event_id=event_id,
+            closed_at__isnull=True,
+        )
+        .first()
+    )
+    if active is None:
+        return None
+
+    active.closed_at = now or timezone.now()
+    active.closed_by_id = None
+    active.closed_automatically = True
+    active.save(
+        update_fields=[
+            "closed_at",
+            "closed_by",
+            "closed_automatically",
+        ]
+    )
+    return active

@@ -12,6 +12,7 @@ CATALOG_EVENT_PUBLISHED: Final = "catalog.event.published"
 CATALOG_EVENT_POSTPONED: Final = "catalog.event.postponed"
 CATALOG_EVENT_SUSPENDED: Final = "catalog.event.suspended"
 CATALOG_EVENT_CANCELLED: Final = "catalog.event.cancelled"
+CATALOG_EVENT_COMPLETED: Final = "catalog.event.completed"
 CATALOG_EVENT_SCANNER_ASSIGNED: Final = "catalog.event.scanner_assigned"
 CATALOG_EVENT_SCANNER_UNASSIGNED: Final = "catalog.event.scanner_unassigned"
 

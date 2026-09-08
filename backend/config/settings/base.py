@@ -360,6 +360,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.idempotency.purge_expired",
         "schedule": 86400.0,
     },
+    "catalog-complete-elapsed-events": {
+        "task": "catalog.complete_elapsed_events",
+        "schedule": 60.0,
+    },
 }
 
 # --- Secrets ---

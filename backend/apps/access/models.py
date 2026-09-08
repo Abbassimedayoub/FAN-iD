@@ -37,6 +37,7 @@ class EventAdmissionSession(UUIDModel, TimeStampedModel):
         null=True,
         blank=True,
     )
+    closed_automatically = models.BooleanField(default=False)
 
     class Meta:
         db_table = "access_event_admission_session"
@@ -48,8 +49,21 @@ class EventAdmissionSession(UUIDModel, TimeStampedModel):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(closed_at__isnull=True, closed_by__isnull=True)
-                    | models.Q(closed_at__isnull=False, closed_by__isnull=False)
+                    models.Q(
+                        closed_at__isnull=True,
+                        closed_by__isnull=True,
+                        closed_automatically=False,
+                    )
+                    | models.Q(
+                        closed_at__isnull=False,
+                        closed_by__isnull=False,
+                        closed_automatically=False,
+                    )
+                    | models.Q(
+                        closed_at__isnull=False,
+                        closed_by__isnull=True,
+                        closed_automatically=True,
+                    )
                 ),
                 name="ck_admission_session_closure_trace",
             ),
