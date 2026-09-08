@@ -9,7 +9,12 @@ from apps.core.adapters.payments import StripeWebhookSignatureError
 
 from .gateways import get_payment_gateway
 from .serializers import PaymentIntentResponseSerializer
-from .services import create_payment_intent, mark_payment_intent_succeeded
+from .services import (
+    create_payment_intent,
+    mark_payment_intent_succeeded,
+    mark_payment_refund_failed,
+    mark_payment_refund_succeeded,
+)
 
 
 class PaymentIntentCreateView(APIView):
@@ -58,10 +63,23 @@ class StripeWebhookView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if _field(event, "type") == "payment_intent.succeeded":
-            payment_intent = _field(_field(event, "data"), "object")
+        event_type = _field(event, "type")
+        provider_object = _field(_field(event, "data"), "object")
+
+        if event_type == "payment_intent.succeeded":
             mark_payment_intent_succeeded(
-                provider_intent_id=_field(payment_intent, "id"),
+                provider_intent_id=_field(provider_object, "id"),
             )
+        elif event_type == "refund.updated":
+            refund_status = _field(provider_object, "status")
+            if refund_status == "succeeded":
+                mark_payment_refund_succeeded(
+                    provider_refund_id=_field(provider_object, "id"),
+                )
+            elif refund_status == "failed":
+                mark_payment_refund_failed(
+                    provider_refund_id=_field(provider_object, "id"),
+                    failure_reason="Stripe a signalé l’échec du remboursement.",
+                )
 
         return Response(status=status.HTTP_200_OK)

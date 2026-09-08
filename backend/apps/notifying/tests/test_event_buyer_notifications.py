@@ -127,3 +127,30 @@ def test_consumer_respects_notify_buyers(monkeypatch):
     assert deferred == [
         {"event_id": "00000000-0000-0000-0000-000000000001"}
     ]
+
+
+
+def test_refund_email_consumer_schedules_after_success(monkeypatch):
+    from apps.notifying.refund_notification_consumers import (
+        PaymentRefundNotificationConsumer,
+    )
+
+    scheduled = []
+    consumer = PaymentRefundNotificationConsumer()
+
+    monkeypatch.setattr(
+        "apps.notifying.refund_notification_consumers."
+        "send_refund_succeeded_email.delay",
+        lambda **kwargs: scheduled.append(kwargs),
+    )
+    monkeypatch.setattr(consumer, "defer", lambda callback: callback())
+
+    consumer.handle(
+        SimpleNamespace(
+            aggregate_id="00000000-0000-0000-0000-000000000001",
+        )
+    )
+
+    assert scheduled == [
+        {"refund_id": "00000000-0000-0000-0000-000000000001"},
+    ]

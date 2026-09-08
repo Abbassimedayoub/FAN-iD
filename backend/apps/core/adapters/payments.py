@@ -38,6 +38,29 @@ class FakeGateway(PaymentGateway):
         self.created_intents.append(intent)
         return intent
 
+    def create_refund(
+        self,
+        *,
+        payment_intent_id: str,
+        amount_cents: int,
+        idempotency_key: str,
+    ) -> Any:
+        if not hasattr(self, "_refunds_by_key"):
+            self._refunds_by_key = {}
+
+        existing = self._refunds_by_key.get(idempotency_key)
+        if existing is not None:
+            return existing
+
+        refund = {
+            "id": f"re_fake_{uuid.uuid4().hex[:16]}",
+            "payment_intent_id": payment_intent_id,
+            "amount_cents": amount_cents,
+            "status": "succeeded",
+        }
+        self._refunds_by_key[idempotency_key] = refund
+        return refund
+
     def verify_webhook(self, payload: bytes, signature: str) -> Any:
         return {"verified": True, "payload": payload}
 
@@ -91,6 +114,27 @@ class StripeGateway(PaymentGateway):
             "currency": intent.currency.upper(),
             "metadata": _metadata_to_dict(intent.metadata),
             "client_secret": intent.client_secret,
+        }
+
+    def create_refund(
+        self,
+        *,
+        payment_intent_id: str,
+        amount_cents: int,
+        idempotency_key: str,
+    ) -> Any:
+        refund = self.client.v1.refunds.create(
+            params={
+                "payment_intent": payment_intent_id,
+                "amount": amount_cents,
+            },
+            options={"idempotency_key": idempotency_key},
+        )
+        return {
+            "id": refund.id,
+            "payment_intent_id": payment_intent_id,
+            "amount_cents": refund.amount,
+            "status": refund.status,
         }
 
     def verify_webhook(self, payload: bytes, signature: str) -> Any:

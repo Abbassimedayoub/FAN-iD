@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from types import SimpleNamespace
 
 import pytest
 from django.db import IntegrityError, transaction
@@ -14,13 +15,17 @@ from apps.core.adapters.payments import (
     StripeWebhookSignatureError,
 )
 from apps.catalog.models import Category, Event, TicketCategory
+from apps.core.outbox.models import OutboxEvent
 from apps.ordering.models import Order, StockHold
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
 from apps.ordering.services.confirmation import ReservationExpiredError
-from apps.payments.models import PaymentIntent
+from apps.payments.models import PaymentIntent, PaymentRefund
+from apps.ticketing.models import TICKET_VOID, Ticket
 from apps.payments.services import (
     create_payment_intent,
+    execute_payment_refund,
     mark_payment_intent_succeeded,
+    request_event_refunds,
 )
 
 
@@ -407,3 +412,190 @@ def test_stripe_webhook_is_hidden_when_stripe_is_disabled(monkeypatch):
     )
 
     assert response.status_code == 404
+
+
+
+def test_event_refund_request_is_idempotent(reserved_order, buyer):
+    order, ticket_category = reserved_order
+    gateway = FakeGateway()
+    payment_intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+    mark_payment_intent_succeeded(
+        provider_intent_id=payment_intent.provider_intent_id,
+    )
+
+    first = request_event_refunds(event_id=ticket_category.event_id)
+    second = request_event_refunds(event_id=ticket_category.event_id)
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert first[0].id == second[0].id
+    assert first[0].payment_intent_id == payment_intent.id
+    assert first[0].event_id == ticket_category.event_id
+    assert first[0].amount_cents == 2400
+    assert first[0].status == "PENDING"
+    assert PaymentRefund.objects.count() == 1
+
+
+
+def test_stripe_gateway_maps_refund_without_network():
+    class Refunds:
+        def create(self, *, params, options):
+            assert params == {
+                "payment_intent": "pi_stripe_test",
+                "amount": 1200,
+            }
+            assert options == {
+                "idempotency_key": "refund-event-123-payment-456",
+            }
+
+            class Result:
+                id = "re_stripe_test"
+                amount = 1200
+                status = "succeeded"
+
+            return Result()
+
+    class Client:
+        class v1:
+            refunds = Refunds()
+
+    gateway = StripeGateway(
+        secret_key="sk_test_not_used",
+        webhook_secret="whsec_not_used",
+        client=Client(),
+    )
+
+    refund = gateway.create_refund(
+        payment_intent_id="pi_stripe_test",
+        amount_cents=1200,
+        idempotency_key="refund-event-123-payment-456",
+    )
+
+    assert refund == {
+        "id": "re_stripe_test",
+        "payment_intent_id": "pi_stripe_test",
+        "amount_cents": 1200,
+        "status": "succeeded",
+    }
+
+
+
+def test_successful_refund_voids_only_event_tickets(reserved_order, buyer):
+    order, ticket_category = reserved_order
+    gateway = FakeGateway()
+    payment_intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+    mark_payment_intent_succeeded(
+        provider_intent_id=payment_intent.provider_intent_id,
+    )
+    refund = request_event_refunds(event_id=ticket_category.event_id)[0]
+
+    completed = execute_payment_refund(
+        refund_id=refund.id,
+        gateway=gateway,
+    )
+
+    tickets = list(Ticket.objects.filter(order_line__order=order))
+
+    assert completed.status == "SUCCEEDED"
+    assert completed.provider_refund_id.startswith("re_fake_")
+    assert len(tickets) == 2
+    assert all(ticket.status == TICKET_VOID for ticket in tickets)
+
+
+
+def test_cancellation_refund_consumer_respects_refund_requested(monkeypatch):
+    from apps.payments.refund_consumers import EventCancellationRefundConsumer
+
+    scheduled = []
+    consumer = EventCancellationRefundConsumer()
+
+    monkeypatch.setattr(
+        "apps.payments.refund_consumers."
+        "process_cancelled_event_refunds.delay",
+        lambda **kwargs: scheduled.append(kwargs),
+    )
+    monkeypatch.setattr(
+        consumer,
+        "defer",
+        lambda callback: callback(),
+    )
+
+    event = SimpleNamespace(
+        aggregate_id="00000000-0000-0000-0000-000000000001",
+        payload={"refund_requested": False},
+    )
+    consumer.handle(event)
+    assert scheduled == []
+
+    event.payload = {"refund_requested": True}
+    consumer.handle(event)
+    assert scheduled == [
+        {"event_id": "00000000-0000-0000-0000-000000000001"},
+    ]
+
+
+
+def test_stripe_webhook_confirms_pending_refund(
+    reserved_order,
+    buyer,
+    monkeypatch,
+):
+    order, ticket_category = reserved_order
+    gateway = FakeGateway()
+    payment_intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+    mark_payment_intent_succeeded(
+        provider_intent_id=payment_intent.provider_intent_id,
+    )
+    refund = request_event_refunds(event_id=ticket_category.event_id)[0]
+    refund.provider_refund_id = "re_stripe_pending"
+    refund.save(update_fields=["provider_refund_id"])
+
+    class VerifiedStripeGateway:
+        provider_name = "stripe"
+
+        def verify_webhook(self, payload, signature):
+            assert signature == "valid-signature"
+            return {
+                "type": "refund.updated",
+                "data": {
+                    "object": {
+                        "id": "re_stripe_pending",
+                        "status": "succeeded",
+                    },
+                },
+            }
+
+    monkeypatch.setattr(
+        "apps.payments.views.get_payment_gateway",
+        lambda: VerifiedStripeGateway(),
+    )
+
+    response = Client().post(
+        "/api/v1/payments/stripe/webhook",
+        data=b'{"test": true}',
+        content_type="application/json",
+        HTTP_STRIPE_SIGNATURE="valid-signature",
+    )
+
+    refund.refresh_from_db()
+    tickets = Ticket.objects.filter(order_line__order=order)
+
+    assert response.status_code == 200, response.content
+    assert refund.status == "SUCCEEDED"
+    assert all(ticket.status == TICKET_VOID for ticket in tickets)
+    assert OutboxEvent.objects.filter(
+        event_type="payments.refund.succeeded",
+        aggregate_id=refund.id,
+    ).count() == 1
