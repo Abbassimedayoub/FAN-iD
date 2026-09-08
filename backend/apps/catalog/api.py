@@ -28,6 +28,8 @@ class EventNotificationSummary:
     status: str
     lifecycle_reason: str
     lifecycle_changed_at: datetime | None
+    postponed_to_starts_at: datetime | None
+    postponed_to_ends_at: datetime | None
 
 
 @dataclass(
@@ -70,6 +72,8 @@ def get_event_notification_summary(
             "status",
             "lifecycle_reason",
             "lifecycle_changed_at",
+            "postponed_to_starts_at",
+            "postponed_to_ends_at",
         )
         .first()
     )
@@ -87,6 +91,8 @@ def get_event_notification_summary(
         status=event.status,
         lifecycle_reason=event.lifecycle_reason,
         lifecycle_changed_at=event.lifecycle_changed_at,
+        postponed_to_starts_at=event.postponed_to_starts_at,
+        postponed_to_ends_at=event.postponed_to_ends_at,
     )
 
 
