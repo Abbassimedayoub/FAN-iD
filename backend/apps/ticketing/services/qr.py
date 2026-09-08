@@ -55,6 +55,7 @@ def issue_dynamic_ticket_qr(
         "typ": QR_TYPE,
         "iss": QR_ISSUER,
         "tid": str(ticket.id),
+        "qv": ticket.qr_version,
         "iat": int(moment.timestamp()),
         "exp": int(expires_at.timestamp()),
         "jti": secrets.token_urlsafe(16),

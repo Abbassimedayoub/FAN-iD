@@ -67,6 +67,11 @@ class FanTicket {
 
   DateTime get effectiveStartsAt => postponedToStartsAt ?? eventStartsAt;
 
+  bool get canTransfer =>
+      isValid &&
+      (eventStatus == 'PUBLISHED' || eventStatus == 'POSTPONED') &&
+      DateTime.now().isBefore(effectiveStartsAt);
+
   String get statusLabel {
     switch (status) {
       case 'VALID':

@@ -14,6 +14,7 @@ class NotifyingConfig(AppConfig):
         from .event_scanner_consumers import EventScannerNotificationConsumer
         from .refund_notification_consumers import PaymentRefundNotificationConsumer
         from .final_report_tasks import send_organizer_final_report_email
+        from .ticket_transfer_tasks import send_ticket_transfer_emails
 
         register_consumer(OrganizerDecisionEmailConsumer())
         register_consumer(EventBuyerNotificationConsumer())

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../../lib/features/ticketing/domain/fan_ticket.dart';
+import 'package:fanid_mobile/features/ticketing/domain/fan_ticket.dart';
 
 void main() {
   test('décode un billet retourné par l’API', () {

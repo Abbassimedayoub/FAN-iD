@@ -43,3 +43,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "ticket_category_name",
             "created_at",
         )
+
+
+class TicketTransferSerializer(serializers.Serializer):
+    recipient_email = serializers.EmailField()

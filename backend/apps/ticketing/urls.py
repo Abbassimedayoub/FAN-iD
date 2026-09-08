@@ -1,8 +1,13 @@
 from django.urls import path
 
-from .views import MyTicketsView, TicketDynamicQrView
+from .views import MyTicketsView, TicketDynamicQrView, TicketTransferView
 
 urlpatterns = [
+    path(
+        "tickets/<uuid:ticket_id>/transfer",
+        TicketTransferView.as_view(),
+        name="ticket-transfer",
+    ),
     path("tickets/<uuid:ticket_id>/qr", TicketDynamicQrView.as_view(), name="ticket-dynamic-qr"),
     path("tickets", MyTicketsView.as_view(), name="my-tickets"),
 ]

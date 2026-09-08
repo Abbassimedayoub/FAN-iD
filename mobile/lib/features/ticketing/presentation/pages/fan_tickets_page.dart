@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/failure.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/fan_ticket_transfer_remote_data_source.dart';
 import '../../domain/fan_ticket.dart';
 import 'fan_ticket_qr_page.dart';
 import '../providers/fan_tickets_provider.dart';
@@ -84,6 +88,13 @@ class FanTicketsPage extends ConsumerWidget {
 
                     return _FanTicketCard(
                       ticket: ticket,
+                      onTransfer: ticket.canTransfer
+                          ? () => _showTransferDialog(
+                                context: context,
+                                ref: ref,
+                                ticket: ticket,
+                              )
+                          : null,
                       onShowQr: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -98,16 +109,144 @@ class FanTicketsPage extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _showTransferDialog({
+    required BuildContext context,
+    required WidgetRef ref,
+    required FanTicket ticket,
+  }) async {
+    final emailController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var submitting = false;
+        String? error;
+
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> submit() async {
+              final recipientEmail = emailController.text.trim();
+              final session = ref.read(authControllerProvider).valueOrNull;
+
+              if (recipientEmail.isEmpty || !recipientEmail.contains('@')) {
+                setDialogState(() {
+                  error = 'Saisissez l’adresse e-mail FANID du destinataire.';
+                });
+                return;
+              }
+              if (session == null || session.access.trim().isEmpty) {
+                setDialogState(() {
+                  error = 'Votre session a expiré. Reconnectez-vous.';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                submitting = true;
+                error = null;
+              });
+
+              try {
+                final dio = ref.read(dioClientProvider).dio;
+                await FanTicketTransferRemoteDataSource(dio).transferTicket(
+                  ticketId: ticket.id,
+                  recipientEmail: recipientEmail,
+                  accessToken: session.access,
+                );
+                ref.invalidate(fanTicketsProvider);
+
+                if (!dialogContext.mounted) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Billet transféré avec succès.'),
+                  ),
+                );
+              } on Failure catch (exception) {
+                setDialogState(() {
+                  submitting = false;
+                  error = exception.message;
+                });
+              } catch (_) {
+                setDialogState(() {
+                  submitting = false;
+                  error = 'Impossible de transférer ce billet. Réessayez.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Transférer ce billet'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    'Le QR actuel sera invalidé. Le destinataire recevra '
+                    'un nouveau billet dans son compte FANID.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    enabled: !submitting,
+                    keyboardType: TextInputType.emailAddress,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'E-mail FANID du destinataire',
+                    ),
+                  ),
+                  if (error != null) ...<Widget>[
+                    const SizedBox(height: 10),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: submitting ? null : submit,
+                  child: submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Transférer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    emailController.dispose();
+  }
 }
 
 class _FanTicketCard extends StatelessWidget {
   const _FanTicketCard({
     required this.ticket,
     required this.onShowQr,
+    required this.onTransfer,
   });
 
   final FanTicket ticket;
   final VoidCallback onShowQr;
+  final VoidCallback? onTransfer;
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +295,12 @@ class _FanTicketCard extends StatelessWidget {
                     onPressed: ticket.isValid ? onShowQr : null,
                     icon: const Icon(Icons.qr_code_2_outlined),
                     label: const Text('Afficher le QR dynamique'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: onTransfer,
+                    icon: const Icon(Icons.send_outlined),
+                    label: const Text('Transférer ce billet'),
                   ),
                 ],
               ),

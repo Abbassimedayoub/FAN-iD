@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Ticket
-from .serializers import TicketSerializer
+from .serializers import TicketSerializer, TicketTransferSerializer
 from .services.qr import issue_dynamic_ticket_qr
+from .services.transfers import transfer_ticket
 
 
 class MyTicketsView(APIView):
@@ -30,7 +31,7 @@ class TicketDynamicQrView(APIView):
 
     def get(self, request, ticket_id):
         ticket = get_object_or_404(
-            Ticket.objects.only("id", "status"),
+            Ticket.objects.only("id", "status", "qr_version"),
             pk=ticket_id,
             user=request.user,
         )
@@ -43,3 +44,18 @@ class TicketDynamicQrView(APIView):
                 "refresh_after_seconds": 20,
             }
         )
+
+
+class TicketTransferView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ticket_id):
+        serializer = TicketTransferSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        ticket = transfer_ticket(
+            ticket_id=ticket_id,
+            owner_user_id=request.user.pk,
+            recipient_email=serializer.validated_data["recipient_email"],
+        )
+        return Response({"ticket": TicketSerializer(ticket).data})

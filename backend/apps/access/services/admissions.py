@@ -36,7 +36,7 @@ class ScannerNotAssignedError(PermissionBusinessError):
     default_message = "Ce scanner n'est pas autorisé pour cet événement."
 
 
-def _ticket_id_from_qr(token: str) -> UUID:
+def _ticket_qr_identity(token: str) -> tuple[UUID, int]:
     try:
         claims = jwt.decode(
             token,
@@ -47,7 +47,7 @@ def _ticket_id_from_qr(token: str) -> UUID:
         if claims.get("typ") != QR_TYPE:
             raise InvalidTicketQrError()
 
-        return UUID(str(claims["tid"]))
+        return UUID(str(claims["tid"])), int(claims["qv"])
     except InvalidTicketQrError:
         raise
     except (jwt.InvalidTokenError, KeyError, TypeError, ValueError) as exc:
@@ -56,12 +56,15 @@ def _ticket_id_from_qr(token: str) -> UUID:
 
 @transaction.atomic
 def admit_ticket_from_qr(*, token: str, scanner_user_id: UUID) -> TicketAdmission:
-    ticket_id = _ticket_id_from_qr(token)
+    ticket_id, qr_version = _ticket_qr_identity(token)
 
     try:
         ticket = Ticket.objects.select_for_update().get(pk=ticket_id)
     except Ticket.DoesNotExist as exc:
         raise InvalidTicketQrError() from exc
+
+    if ticket.qr_version != qr_version:
+        raise InvalidTicketQrError()
 
     require_event_admission_open(event_id=ticket.event_id)
 

@@ -6,7 +6,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
-import '../../../../core/network/dio_client.dart';
 import '../../data/fan_ticket_qr_remote_data_source.dart';
 import '../../domain/fan_ticket.dart';
 

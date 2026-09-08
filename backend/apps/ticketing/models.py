@@ -46,6 +46,10 @@ class Ticket(UUIDModel, TimeStampedModel):
         default=TICKET_VALID,
         choices=[(status, status) for status in TICKET_STATUSES],
     )
+    qr_version = models.PositiveIntegerField(
+        default=1,
+        help_text="Incrémente à chaque transfert pour invalider les QR déjà ouverts.",
+    )
 
     class Meta:
         db_table = "ticketing_ticket"
@@ -71,5 +75,34 @@ class Ticket(UUIDModel, TimeStampedModel):
             models.Index(
                 fields=["event", "status"],
                 name="ix_ticket_event_status",
+            ),
+        ]
+
+
+class TicketTransferAudit(UUIDModel, TimeStampedModel):
+    """Trace immuable d’un transfert de billet entre deux Fans."""
+
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.PROTECT,
+        related_name="transfer_audits",
+    )
+    previous_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ticket_transfers_sent",
+    )
+    recipient_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ticket_transfers_received",
+    )
+
+    class Meta:
+        db_table = "ticketing_ticket_transfer_audit"
+        indexes = [
+            models.Index(
+                fields=["ticket", "created_at"],
+                name="ix_ticket_transfer_ticket_time",
             ),
         ]
