@@ -102,6 +102,12 @@ def execute_payment_refund(*, refund_id: UUID, gateway) -> PaymentRefund:
     if refund.status == "SUCCEEDED":
         return refund
 
+    gateway_provider = getattr(gateway, "provider_name", None)
+    if refund.payment_intent.provider != gateway_provider:
+        raise PaymentRefundGatewayError(
+            "La passerelle de remboursement ne correspond pas au paiement."
+        )
+
     try:
         provider_refund = gateway.create_refund(
             payment_intent_id=refund.payment_intent.provider_intent_id,

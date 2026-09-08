@@ -20,7 +20,8 @@ from apps.ordering.models import Order, StockHold
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
 from apps.ordering.services.confirmation import ReservationExpiredError
 from apps.payments.models import PaymentIntent, PaymentRefund
-from apps.ticketing.models import TICKET_VOID, Ticket
+from apps.ticketing.models import TICKET_VALID, TICKET_VOID, Ticket
+from apps.payments.services.refunds import PaymentRefundGatewayError
 from apps.payments.services import (
     create_payment_intent,
     execute_payment_refund,
@@ -510,6 +511,41 @@ def test_successful_refund_voids_only_event_tickets(reserved_order, buyer):
     assert all(ticket.status == TICKET_VOID for ticket in tickets)
 
 
+
+
+def test_refund_rejects_gateway_different_from_payment_provider(
+    reserved_order,
+    buyer,
+):
+    order, ticket_category = reserved_order
+    fake_gateway = FakeGateway()
+    payment_intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=fake_gateway,
+    )
+    mark_payment_intent_succeeded(
+        provider_intent_id=payment_intent.provider_intent_id,
+    )
+
+    payment_intent.refresh_from_db()
+    payment_intent.provider = "stripe"
+    payment_intent.save(update_fields=["provider"])
+
+    refund = request_event_refunds(event_id=ticket_category.event_id)[0]
+
+    with pytest.raises(PaymentRefundGatewayError):
+        execute_payment_refund(
+            refund_id=refund.id,
+            gateway=fake_gateway,
+        )
+
+    refund.refresh_from_db()
+    tickets = Ticket.objects.filter(order_line__order=order)
+
+    assert refund.status == "PENDING"
+    assert refund.provider_refund_id is None
+    assert all(ticket.status == TICKET_VALID for ticket in tickets)
 
 def test_cancellation_refund_consumer_respects_refund_requested(monkeypatch):
     from apps.payments.refund_consumers import EventCancellationRefundConsumer
