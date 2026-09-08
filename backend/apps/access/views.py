@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from apps.catalog.models import Event
 
-from .models import EventAdmissionSession
+from .models import EventAdmissionSession, EventFinalReport
 from .serializers import TicketAdmissionScanSerializer
 from .services.admission_sessions import (
     close_event_admission,
@@ -32,6 +32,40 @@ def _admission_payload(*, event_id, session):
         "opened_at": session.opened_at if session else None,
         "opened_by_id": str(session.opened_by_id) if session else None,
     }
+
+
+def _final_report_payload(*, report):
+    return {
+        "event_id": str(report.event_id),
+        "generated_at": report.generated_at,
+        "tickets": {
+            "sold_count": report.tickets_sold_count,
+            "used_count": report.tickets_used_count,
+            "voided_count": report.tickets_voided_count,
+            "absent_count": report.tickets_absent_count,
+        },
+        "financials": {
+            "gross_revenue_cents": report.gross_revenue_cents,
+            "refunds_cents": report.refunds_cents,
+            "net_revenue_cents": report.net_revenue_cents,
+            "commission_rate": str(report.commission_rate),
+            "commission_cents": report.commission_cents,
+            "organizer_net_cents": report.organizer_net_cents,
+        },
+        "scanners": report.scanner_stats,
+    }
+
+
+class EventFinalReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+        _owned_event(request=request, event_id=event_id)
+        report = get_object_or_404(
+            EventFinalReport,
+            event_id=event_id,
+        )
+        return Response(_final_report_payload(report=report))
 
 
 class EventAdmissionStatusView(APIView):

@@ -10,5 +10,7 @@ class AccessConfig(AppConfig):
         from apps.core.outbox.relay import register_consumer
 
         from .completion_consumers import EventCompletionAdmissionConsumer
+        from .final_report_consumers import EventCompletionFinalReportConsumer
 
         register_consumer(EventCompletionAdmissionConsumer())
+        register_consumer(EventCompletionFinalReportConsumer())

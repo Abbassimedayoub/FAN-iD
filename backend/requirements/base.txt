@@ -63,3 +63,4 @@ PyJWT==2.13.0
 # --- Paiements Stripe ---
 
 stripe==15.6.0
+reportlab==5.0.1

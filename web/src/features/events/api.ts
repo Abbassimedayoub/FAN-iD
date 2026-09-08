@@ -3,6 +3,7 @@ import { httpClient } from "@/lib/httpClient";
 import type {
   EventAdmissionStatus,
   EventLiveDashboard,
+  EventFinalReport,
   EventCancelInput,
   EventCategory,
   EventDraftInput,
@@ -305,6 +306,17 @@ export async function fetchEventLiveDashboard(
 ): Promise<EventLiveDashboard> {
   const response = await httpClient.get<EventLiveDashboard>(
     `/api/v1/access/events/${eventId}/live-dashboard`,
+  );
+
+  return response.data;
+}
+
+
+export async function fetchEventFinalReport(
+  eventId: string,
+): Promise<EventFinalReport> {
+  const response = await httpClient.get<EventFinalReport>(
+    `/api/v1/access/events/${eventId}/final-report`,
   );
 
   return response.data;

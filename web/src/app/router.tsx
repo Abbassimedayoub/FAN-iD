@@ -10,6 +10,7 @@ import { OrganizerEventContinuePage } from "@/features/events/OrganizerEventCont
 import { OrganizerEventCreatePage } from "@/features/events/OrganizerEventCreatePage";
 import { OrganizerEventDetailPage } from "@/features/events/OrganizerEventDetailPage";
 import { OrganizerEventLiveDashboardPage } from "@/features/events/OrganizerEventLiveDashboardPage";
+import { OrganizerEventFinalReportPage } from "@/features/events/OrganizerEventFinalReportPage";
 import { OrganizerEventEditPage } from "@/features/events/OrganizerEventEditPage";
 import { OrganizerEventsPage } from "@/features/events/OrganizerEventsPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
@@ -224,6 +225,15 @@ export function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ORGANIZER"]}>
             <OrganizerEventLiveDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizer/events/:eventId/report"
+        element={
+          <ProtectedRoute allowedRoles={["ORGANIZER"]}>
+            <OrganizerEventFinalReportPage />
           </ProtectedRoute>
         }
       />

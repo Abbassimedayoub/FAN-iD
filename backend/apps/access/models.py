@@ -113,3 +113,47 @@ class TicketAdmission(UUIDModel, TimeStampedModel):
                 name="ix_admission_scanner_time",
             ),
         ]
+
+
+class EventFinalReport(UUIDModel, TimeStampedModel):
+    """
+    Snapshot financier et opérationnel immuable à la clôture d'un événement.
+
+    Les données sources peuvent évoluer techniquement après coup ; le rapport
+    final reste la trace de référence remise à l'Organizer.
+    """
+
+    event = models.OneToOneField(
+        "catalog.Event",
+        on_delete=models.PROTECT,
+        related_name="final_report",
+    )
+    generated_at = models.DateTimeField()
+
+    tickets_sold_count = models.PositiveIntegerField(default=0)
+    tickets_used_count = models.PositiveIntegerField(default=0)
+    tickets_voided_count = models.PositiveIntegerField(default=0)
+    tickets_absent_count = models.PositiveIntegerField(default=0)
+
+    gross_revenue_cents = models.PositiveIntegerField(default=0)
+    refunds_cents = models.PositiveIntegerField(default=0)
+    net_revenue_cents = models.PositiveIntegerField(default=0)
+
+    commission_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=0,
+    )
+    commission_cents = models.PositiveIntegerField(default=0)
+    organizer_net_cents = models.PositiveIntegerField(default=0)
+
+    scanner_stats = models.JSONField(default=list)
+
+    class Meta:
+        db_table = "access_event_final_report"
+        indexes = [
+            models.Index(
+                fields=["generated_at"],
+                name="ix_final_report_generated",
+            ),
+        ]

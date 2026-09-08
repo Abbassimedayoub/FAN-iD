@@ -150,6 +150,15 @@ export function OrganizerEventDetailPage() {
                       </Link>
                     ) : null}
 
+                    {event.status === "COMPLETED" ? (
+                      <Link
+                        to={`/organizer/events/${event.id}/report`}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-[#1769d2] px-5 text-sm font-semibold text-white"
+                      >
+                        Rapport final
+                      </Link>
+                    ) : null}
+
                     <OrganizerEventImageEditor
                       event={event}
                       onUpdated={async (updated) => {

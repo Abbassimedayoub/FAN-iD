@@ -253,6 +253,14 @@ class SmtpSender(NotificationSender):
         message.mixed_subtype = "related"
         message.attach(logo)
 
+        for attachment in kwargs.get("attachments", ()):
+            filename, content, mimetype = attachment
+            message.attach(
+                str(filename),
+                content,
+                str(mimetype),
+            )
+
         sent = message.send(fail_silently=False)
 
         if sent != 1:

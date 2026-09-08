@@ -4,6 +4,7 @@ from .views import (
     EventAdmissionCloseView,
     EventAdmissionOpenView,
     EventAdmissionStatusView,
+    EventFinalReportView,
     EventLiveDashboardView,
     ScannerHeartbeatView,
     TicketAdmissionScanView,
@@ -11,6 +12,11 @@ from .views import (
 
 
 urlpatterns = [
+    path(
+        "access/events/<uuid:event_id>/final-report",
+        EventFinalReportView.as_view(),
+        name="event-final-report",
+    ),
     path(
         "access/events/<uuid:event_id>/live-dashboard",
         EventLiveDashboardView.as_view(),

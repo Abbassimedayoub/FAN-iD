@@ -157,3 +157,30 @@ export interface EventLiveDashboard {
     }>;
   };
 }
+
+
+export interface EventFinalReport {
+  event_id: string;
+  generated_at: string;
+  tickets: {
+    sold_count: number;
+    used_count: number;
+    voided_count: number;
+    absent_count: number;
+  };
+  financials: {
+    gross_revenue_cents: number;
+    refunds_cents: number;
+    net_revenue_cents: number;
+    commission_rate: string;
+    commission_cents: number;
+    organizer_net_cents: number;
+  };
+  scanners: Array<{
+    scanner_id: string;
+    name: string;
+    email: string;
+    scan_count: number;
+    last_scan_at: string | null;
+  }>;
+}
