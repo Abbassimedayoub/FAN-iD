@@ -42,6 +42,10 @@ const STATUS_CONTENT: Record<
     label: "Annulé",
     className: "bg-red-50 text-red-700",
   },
+  COMPLETED: {
+    label: "Terminé",
+    className: "bg-violet-50 text-violet-700",
+  },
   ARCHIVED: {
     label: "Archivé",
     className: "bg-slate-100 text-slate-600",

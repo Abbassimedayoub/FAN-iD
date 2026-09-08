@@ -20,6 +20,7 @@ const EVENT_STATUS_LABELS: Record<OrganizerEventStatus, string> = {
   POSTPONED: "Reporté",
   SUSPENDED: "Suspendu",
   CANCELLED: "Annulé",
+  COMPLETED: "Terminé",
   ARCHIVED: "Archivé",
 };
 

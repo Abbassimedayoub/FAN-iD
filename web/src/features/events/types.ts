@@ -8,7 +8,7 @@ export interface EventCategory {
 }
 
 export type OrganizerEventStatus =
-  "DRAFT" | "PUBLISHED" | "POSTPONED" | "SUSPENDED" | "CANCELLED" | "ARCHIVED";
+  "DRAFT" | "PUBLISHED" | "POSTPONED" | "SUSPENDED" | "CANCELLED" | "COMPLETED" | "ARCHIVED";
 
 export type EventOperationalStatus =
   | OrganizerEventStatus
