@@ -5,6 +5,10 @@ class FanTicket {
     required this.eventId,
     required this.eventName,
     required this.eventStartsAt,
+    required this.eventStatus,
+    required this.postponementReason,
+    required this.postponedFromStartsAt,
+    required this.postponedToStartsAt,
     required this.ticketCategoryName,
     required this.issuedAt,
   });
@@ -14,6 +18,10 @@ class FanTicket {
   final String eventId;
   final String eventName;
   final DateTime eventStartsAt;
+  final String eventStatus;
+  final String? postponementReason;
+  final DateTime? postponedFromStartsAt;
+  final DateTime? postponedToStartsAt;
   final String ticketCategoryName;
   final DateTime issuedAt;
 
@@ -28,18 +36,36 @@ class FanTicket {
       return value;
     }
 
+    String? optionalString(String key) {
+      final value = json[key]?.toString().trim();
+      return value == null || value.isEmpty ? null : value;
+    }
+
+    DateTime? optionalDate(String key) {
+      final value = optionalString(key);
+      return value == null ? null : DateTime.parse(value);
+    }
+
     return FanTicket(
       id: requiredString('id'),
       status: requiredString('status').toUpperCase(),
       eventId: requiredString('event_id'),
       eventName: requiredString('event_name'),
       eventStartsAt: DateTime.parse(requiredString('event_starts_at')),
+      eventStatus:
+          (optionalString('event_status') ?? 'PUBLISHED').toUpperCase(),
+      postponementReason: optionalString('postponement_reason'),
+      postponedFromStartsAt: optionalDate('postponed_from_starts_at'),
+      postponedToStartsAt: optionalDate('postponed_to_starts_at'),
       ticketCategoryName: requiredString('ticket_category_name'),
       issuedAt: DateTime.parse(requiredString('created_at')),
     );
   }
 
   bool get isValid => status == 'VALID';
+  bool get isPostponed => eventStatus == 'POSTPONED';
+
+  DateTime get effectiveStartsAt => postponedToStartsAt ?? eventStartsAt;
 
   String get statusLabel {
     switch (status) {

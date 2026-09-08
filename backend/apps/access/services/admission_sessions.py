@@ -38,6 +38,21 @@ def _locked_event(event_id: UUID) -> Event:
     return event
 
 
+def current_event_admission_session(*, event: Event):
+    """
+    Retourne uniquement une session encore valable pour la programmation
+    actuelle. Un report rend donc automatiquement l'ancienne session inactive.
+    """
+    if not _event_can_open_admission(event):
+        return None
+
+    return EventAdmissionSession.objects.filter(
+        event=event,
+        closed_at__isnull=True,
+        scheduled_starts_at=event.starts_at,
+    ).first()
+
+
 @transaction.atomic
 def open_event_admission(*, event_id: UUID, opened_by_id: UUID, now=None):
     event = _locked_event(event_id)
@@ -45,16 +60,27 @@ def open_event_admission(*, event_id: UUID, opened_by_id: UUID, now=None):
     if not _event_can_open_admission(event):
         raise EventAdmissionUnavailableError()
 
-    active = EventAdmissionSession.objects.filter(
-        event=event,
-        closed_at__isnull=True,
-    ).first()
-    if active is not None:
+    moment = now or timezone.now()
+    active = (
+        EventAdmissionSession.objects.select_for_update()
+        .filter(event=event, closed_at__isnull=True)
+        .first()
+    )
+
+    if active is not None and active.scheduled_starts_at == event.starts_at:
         return active
+
+    # Une session d'une ancienne programmation est invalidée, avec une trace
+    # explicite, avant l'ouverture de la session de la nouvelle date.
+    if active is not None:
+        active.closed_at = moment
+        active.closed_by_id = opened_by_id
+        active.save(update_fields=["closed_at", "closed_by"])
 
     return EventAdmissionSession.objects.create(
         event=event,
-        opened_at=now or timezone.now(),
+        opened_at=moment,
+        scheduled_starts_at=event.starts_at,
         opened_by_id=opened_by_id,
     )
 
@@ -77,10 +103,7 @@ def close_event_admission(*, event_id: UUID, closed_by_id: UUID, now=None):
 
 
 def require_event_admission_open(*, event_id: UUID) -> None:
-    _locked_event(event_id)
+    event = _locked_event(event_id)
 
-    if not EventAdmissionSession.objects.filter(
-        event_id=event_id,
-        closed_at__isnull=True,
-    ).exists():
+    if current_event_admission_session(event=event) is None:
         raise EventAdmissionClosedError()

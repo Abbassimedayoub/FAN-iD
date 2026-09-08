@@ -9,6 +9,7 @@ from .models import EventAdmissionSession
 from .serializers import TicketAdmissionScanSerializer
 from .services.admission_sessions import (
     close_event_admission,
+    current_event_admission_session,
     open_event_admission,
 )
 from .services.admissions import admit_ticket_from_qr
@@ -37,11 +38,8 @@ class EventAdmissionStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, event_id):
-        _owned_event(request=request, event_id=event_id)
-        session = EventAdmissionSession.objects.filter(
-            event_id=event_id,
-            closed_at__isnull=True,
-        ).first()
+        event = _owned_event(request=request, event_id=event_id)
+        session = current_event_admission_session(event=event)
         return Response(_admission_payload(event_id=event_id, session=session))
 
 

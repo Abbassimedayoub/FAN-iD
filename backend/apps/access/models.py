@@ -16,6 +16,11 @@ class EventAdmissionSession(UUIDModel, TimeStampedModel):
         related_name="admission_sessions",
     )
     opened_at = models.DateTimeField()
+    scheduled_starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date de début de la programmation pour laquelle la session a été ouverte.",
+    )
     opened_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

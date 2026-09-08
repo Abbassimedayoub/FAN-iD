@@ -10,6 +10,7 @@ from apps.access.models import ScannerPresence, TicketAdmission
 from apps.access.services.admission_sessions import (
     EventAdmissionClosedError,
     close_event_admission,
+    require_event_admission_open,
     open_event_admission,
 )
 from apps.access.services.admissions import (
@@ -225,3 +226,46 @@ def test_scanner_heartbeat_marks_presence_in_dashboard(ticket, scanner, buyer):
     assert dashboard.status_code == 200, dashboard.content
     assert dashboard.json()["scanners"]["present_count"] == 1
     assert dashboard.json()["scanners"]["items"][0]["is_present"] is True
+
+
+def test_report_invalidates_the_previous_admission_session(ticket, buyer):
+    first = open_event_admission(
+        event_id=ticket.event_id,
+        opened_by_id=buyer.id,
+    )
+
+    event = ticket.event
+    new_start = event.starts_at + datetime.timedelta(days=14)
+    event.status = Event.POSTPONED
+    event.postponed_from_starts_at = event.starts_at
+    event.postponed_from_ends_at = event.ends_at
+    event.postponed_to_starts_at = new_start
+    event.postponed_to_ends_at = new_start + datetime.timedelta(hours=2)
+    event.starts_at = new_start
+    event.ends_at = new_start + datetime.timedelta(hours=2)
+    event.save(
+        update_fields=[
+            "status",
+            "postponed_from_starts_at",
+            "postponed_from_ends_at",
+            "postponed_to_starts_at",
+            "postponed_to_ends_at",
+            "starts_at",
+            "ends_at",
+        ]
+    )
+
+    with pytest.raises(EventAdmissionClosedError):
+        require_event_admission_open(event_id=event.id)
+
+    second = open_event_admission(
+        event_id=event.id,
+        opened_by_id=buyer.id,
+    )
+
+    first.refresh_from_db()
+    assert first.closed_at is not None
+    assert first.closed_by_id == buyer.id
+    assert second.id != first.id
+
+    require_event_admission_open(event_id=event.id)

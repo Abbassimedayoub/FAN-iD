@@ -104,3 +104,43 @@ def test_authenticated_user_reads_only_own_tickets(buyer, tariff, django_user_mo
 
     client.force_login(other_user)
     assert client.get("/api/v1/tickets").json()["results"] == []
+
+
+def test_ticket_listing_exposes_postponement_information(buyer, tariff):
+    order = reserve_stock(
+        user=buyer,
+        lines=[ReservationLine(tariff.id, 1)],
+    )
+    confirm_order_payment(order_id=order.id)
+
+    event = tariff.event
+    original_start = event.starts_at
+    new_start = original_start + datetime.timedelta(days=14)
+
+    event.status = Event.POSTPONED
+    event.lifecycle_reason = "Report pour conditions météorologiques."
+    event.postponed_from_starts_at = original_start
+    event.postponed_from_ends_at = event.ends_at
+    event.postponed_to_starts_at = new_start
+    event.postponed_to_ends_at = new_start + datetime.timedelta(hours=2)
+    event.save(
+        update_fields=[
+            "status",
+            "lifecycle_reason",
+            "postponed_from_starts_at",
+            "postponed_from_ends_at",
+            "postponed_to_starts_at",
+            "postponed_to_ends_at",
+        ]
+    )
+
+    client = Client()
+    client.force_login(buyer)
+
+    ticket = client.get("/api/v1/tickets").json()["results"][0]
+
+    assert ticket["status"] == TICKET_VALID
+    assert ticket["event_status"] == Event.POSTPONED
+    assert ticket["postponement_reason"] == event.lifecycle_reason
+    assert ticket["postponed_from_starts_at"] is not None
+    assert ticket["postponed_to_starts_at"] is not None

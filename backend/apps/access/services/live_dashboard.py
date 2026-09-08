@@ -10,8 +10,9 @@ from apps.organizing.constants import SCANNER_ACTIVE
 from apps.organizing.models import Scanner
 from apps.ticketing.models import TICKET_VOID, Ticket
 
+from .admission_sessions import current_event_admission_session
+
 from ..models import (
-    EventAdmissionSession,
     ScannerPresence,
     TicketAdmission,
 )
@@ -40,10 +41,7 @@ def event_live_dashboard(*, event) -> dict:
         ticket__event_id=event_id,
     ).count()
 
-    active_session = EventAdmissionSession.objects.filter(
-        event_id=event_id,
-        closed_at__isnull=True,
-    ).first()
+    active_session = current_event_admission_session(event=event)
 
     scanner_ids = list(
         EventScannerAssignment.objects.filter(

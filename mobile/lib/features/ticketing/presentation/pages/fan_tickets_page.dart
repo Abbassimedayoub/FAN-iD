@@ -141,7 +141,11 @@ class _FanTicketCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(ticket.ticketCategoryName),
                   const SizedBox(height: 6),
-                  Text(_formatDate(ticket.eventStartsAt)),
+                  Text(_formatDate(ticket.effectiveStartsAt)),
+                  if (ticket.isPostponed) ...<Widget>[
+                    const SizedBox(height: 12),
+                    _PostponementNotice(ticket: ticket),
+                  ],
                   const SizedBox(height: 10),
                   Chip(
                     label: Text(ticket.statusLabel),
@@ -154,6 +158,76 @@ class _FanTicketCard extends StatelessWidget {
                     label: const Text('Afficher le QR dynamique'),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatDate(DateTime value) {
+    final date = value.toLocal();
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year} à '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _PostponementNotice extends StatelessWidget {
+  const _PostponementNotice({required this.ticket});
+
+  final FanTicket ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasNewDate = ticket.postponedToStartsAt != null;
+    final scheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(
+              Icons.event_repeat_outlined,
+              color: scheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: DefaultTextStyle(
+                style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                      color: scheme.onTertiaryContainer,
+                    ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Événement reporté',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasNewDate
+                          ? 'Nouvelle date : ${_formatDate(ticket.postponedToStartsAt!)}. '
+                              'Votre billet et son QR restent valides.'
+                          : 'Nouvelle date à venir. Votre billet est conservé ; '
+                              'les entrées restent fermées jusque-là.',
+                    ),
+                    if (ticket.postponementReason != null) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text('Motif : ${ticket.postponementReason}'),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
