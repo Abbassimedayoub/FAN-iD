@@ -150,7 +150,9 @@ async function withCrossTabRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   const owner = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   try {
-    while (true) {
+    let lockAcquired = false;
+
+    while (!lockAcquired) {
       const now = Date.now();
       const current = storage.getItem(CROSS_TAB_REFRESH_LOCK_KEY);
 
@@ -172,7 +174,7 @@ async function withCrossTabRefreshLock<T>(task: () => Promise<T>): Promise<T> {
       await delay(0);
 
       if (storage.getItem(CROSS_TAB_REFRESH_LOCK_KEY)?.startsWith(`${owner}|`)) {
-        break;
+        lockAcquired = true;
       }
 
       await delay(CROSS_TAB_REFRESH_RETRY_MS);

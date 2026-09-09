@@ -1,6 +1,6 @@
 import { httpClient } from "@/lib/httpClient";
 
-import type { Organizer, OrganizerFilters, OrganizerPage } from "./types";
+import type { AdminFinancialDashboard, Organizer, OrganizerFilters, OrganizerPage } from "./types";
 
 function organizerActionHeaders(version: number) {
   return {
@@ -65,6 +65,15 @@ export async function suspendOrganizer(organizerId: string, version: number): Pr
     {
       headers: organizerActionHeaders(version),
     },
+  );
+
+  return response.data;
+}
+
+
+export async function fetchAdminFinancialDashboard(): Promise<AdminFinancialDashboard> {
+  const response = await httpClient.get<AdminFinancialDashboard>(
+    "/api/v1/admin/dashboard",
   );
 
   return response.data;

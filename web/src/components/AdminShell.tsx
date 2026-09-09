@@ -51,7 +51,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-[#e3eaf1] bg-white/95 backdrop-blur">
         <div className="mx-auto flex min-h-[72px] max-w-[1500px] items-center gap-5 px-5 sm:px-8">
           <NavLink
-            to="/admin/organizers"
+            to="/admin"
             aria-label="Accueil administrateur FANID"
             className="shrink-0"
           >
@@ -59,6 +59,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </NavLink>
 
           <nav aria-label="Navigation administrateur" className="hidden items-center gap-1 md:flex">
+            <NavLink to="/admin" end className={navClass}>
+              Accueil
+            </NavLink>
+
             <NavLink to="/admin/organizers" className={navClass}>
               Organisateurs
             </NavLink>
@@ -103,6 +107,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
           aria-label="Navigation administrateur mobile"
           className="flex gap-1 overflow-x-auto border-t border-[#eef2f6] px-4 py-2 md:hidden"
         >
+          <NavLink to="/admin" end className={navClass}>
+            Accueil
+          </NavLink>
+
           <NavLink to="/admin/organizers" className={navClass}>
             Organisateurs
           </NavLink>

@@ -7,6 +7,7 @@ import '../../../auth/presentation/pages/account_page.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/datasources/scanner_events_remote_data_source.dart';
 import '../../domain/entities/scanner_assigned_event.dart';
+import '../../domain/scanner_assigned_event_filters.dart';
 import 'scanner_home_page.dart';
 
 typedef ScannerAssignedEventsLoader = Future<List<ScannerAssignedEvent>>
@@ -28,6 +29,8 @@ class ScannerPortalPage extends ConsumerStatefulWidget {
 
 class _ScannerPortalPageState extends ConsumerState<ScannerPortalPage> {
   late Future<List<ScannerAssignedEvent>> _events;
+  ScannerEventDateFilter _dateFilter = ScannerEventDateFilter.all;
+  ScannerEventStatusFilter _statusFilter = ScannerEventStatusFilter.all;
 
   @override
   void initState() {
@@ -303,7 +306,12 @@ class _ScannerPortalPageState extends ConsumerState<ScannerPortalPage> {
       );
     }
 
-    final events = snapshot.data ?? const <ScannerAssignedEvent>[];
+    final assignedEvents = snapshot.data ?? const <ScannerAssignedEvent>[];
+    final events = filterAndSortScannerEvents(
+      assignedEvents,
+      dateFilter: _dateFilter,
+      statusFilter: _statusFilter,
+    );
 
     if (events.isEmpty) {
       return ListView(
@@ -362,6 +370,66 @@ class _ScannerPortalPageState extends ConsumerState<ScannerPortalPage> {
               const Text(
                 'Les changements de statut sont '
                 'récupérés depuis FAN-iD.',
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  ChoiceChip(
+                    label: const Text('Tous'),
+                    selected: _dateFilter == ScannerEventDateFilter.all,
+                    onSelected: (_) => setState(
+                      () => _dateFilter = ScannerEventDateFilter.all,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('À venir'),
+                    selected: _dateFilter == ScannerEventDateFilter.upcoming,
+                    onSelected: (_) => setState(
+                      () => _dateFilter = ScannerEventDateFilter.upcoming,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Passés'),
+                    selected: _dateFilter == ScannerEventDateFilter.past,
+                    onSelected: (_) => setState(
+                      () => _dateFilter = ScannerEventDateFilter.past,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Statut : À l’heure'),
+                    selected:
+                        _statusFilter == ScannerEventStatusFilter.published,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = ScannerEventStatusFilter.published,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Reportés'),
+                    selected:
+                        _statusFilter == ScannerEventStatusFilter.postponed,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = ScannerEventStatusFilter.postponed,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Suspendus'),
+                    selected:
+                        _statusFilter == ScannerEventStatusFilter.suspended,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = ScannerEventStatusFilter.suspended,
+                    ),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Annulés'),
+                    selected:
+                        _statusFilter == ScannerEventStatusFilter.cancelled,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = ScannerEventStatusFilter.cancelled,
+                    ),
+                  ),
+                ],
               ),
             ],
           );

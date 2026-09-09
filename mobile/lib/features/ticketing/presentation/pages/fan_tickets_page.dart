@@ -6,14 +6,23 @@ import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/fan_ticket_transfer_remote_data_source.dart';
 import '../../domain/fan_ticket.dart';
+import '../../domain/fan_ticket_filters.dart';
 import 'fan_ticket_qr_page.dart';
 import '../providers/fan_tickets_provider.dart';
 
-class FanTicketsPage extends ConsumerWidget {
+class FanTicketsPage extends ConsumerStatefulWidget {
   const FanTicketsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FanTicketsPage> createState() => _FanTicketsPageState();
+}
+
+class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
+  FanTicketDateFilter _dateFilter = FanTicketDateFilter.all;
+  FanTicketStatusFilter _statusFilter = FanTicketStatusFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
     final tickets = ref.watch(fanTicketsProvider);
 
     return Scaffold(
@@ -50,62 +59,129 @@ class FanTicketsPage extends ConsumerWidget {
             ),
           ),
         ),
-        data: (items) => RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(fanTicketsProvider);
-            await ref.read(fanTicketsProvider.future);
-          },
-          child: items.isEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(24),
-                  children: const <Widget>[
-                    SizedBox(height: 96),
-                    Icon(
-                      Icons.confirmation_number_outlined,
-                      size: 64,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Vous n’avez pas encore de billet.',
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Vos billets apparaîtront ici après confirmation du paiement.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                )
-              : ListView.separated(
-                  key: const ValueKey<String>('fan-tickets-list'),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final ticket = items[index];
+        data: (items) {
+          final filteredItems = filterAndSortFanTickets(
+            items,
+            dateFilter: _dateFilter,
+            statusFilter: _statusFilter,
+          );
 
-                    return _FanTicketCard(
-                      ticket: ticket,
-                      onTransfer: ticket.canTransfer
-                          ? () => _showTransferDialog(
-                                context: context,
-                                ref: ref,
-                                ticket: ticket,
-                              )
-                          : null,
-                      onShowQr: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => FanTicketQrPage(ticket: ticket),
-                          ),
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(fanTicketsProvider);
+              await ref.read(fanTicketsProvider.future);
+            },
+            child: filteredItems.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(24),
+                    children: const <Widget>[
+                      SizedBox(height: 96),
+                      Icon(
+                        Icons.confirmation_number_outlined,
+                        size: 64,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Vous n’avez pas encore de billet.',
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Vos billets apparaîtront ici après confirmation du paiement.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  )
+                : ListView.separated(
+                    key: const ValueKey<String>('fan-tickets-list'),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredItems.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            ChoiceChip(
+                              label: const Text('Tous'),
+                              selected: _dateFilter == FanTicketDateFilter.all,
+                              onSelected: (_) => setState(
+                                () => _dateFilter = FanTicketDateFilter.all,
+                              ),
+                            ),
+                            ChoiceChip(
+                              label: const Text('À venir'),
+                              selected:
+                                  _dateFilter == FanTicketDateFilter.upcoming,
+                              onSelected: (_) => setState(
+                                () =>
+                                    _dateFilter = FanTicketDateFilter.upcoming,
+                              ),
+                            ),
+                            ChoiceChip(
+                              label: const Text('Passés'),
+                              selected: _dateFilter == FanTicketDateFilter.past,
+                              onSelected: (_) => setState(
+                                () => _dateFilter = FanTicketDateFilter.past,
+                              ),
+                            ),
+                            ChoiceChip(
+                              label: const Text('Valides'),
+                              selected:
+                                  _statusFilter == FanTicketStatusFilter.valid,
+                              onSelected: (_) => setState(
+                                () =>
+                                    _statusFilter = FanTicketStatusFilter.valid,
+                              ),
+                            ),
+                            ChoiceChip(
+                              label: const Text('Utilisés'),
+                              selected:
+                                  _statusFilter == FanTicketStatusFilter.used,
+                              onSelected: (_) => setState(
+                                () =>
+                                    _statusFilter = FanTicketStatusFilter.used,
+                              ),
+                            ),
+                            ChoiceChip(
+                              label: const Text('Annulés'),
+                              selected:
+                                  _statusFilter == FanTicketStatusFilter.voided,
+                              onSelected: (_) => setState(
+                                () => _statusFilter =
+                                    FanTicketStatusFilter.voided,
+                              ),
+                            ),
+                          ],
                         );
-                      },
-                    );
-                  },
-                ),
-        ),
+                      }
+
+                      final ticket = filteredItems[index - 1];
+
+                      return _FanTicketCard(
+                        ticket: ticket,
+                        onTransfer: ticket.canTransfer
+                            ? () => _showTransferDialog(
+                                  context: context,
+                                  ref: ref,
+                                  ticket: ticket,
+                                )
+                            : null,
+                        onShowQr: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => FanTicketQrPage(ticket: ticket),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          );
+        },
       ),
     );
   }

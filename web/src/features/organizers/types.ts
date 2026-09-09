@@ -36,3 +36,17 @@ export interface OrganizerFilters {
   page: number;
   validationStatus: OrganizerStatus | undefined;
 }
+
+
+export interface AdminFinancialOrganizer {
+  organizer_id: string;
+  org_name: string;
+  net_revenue_cents: number;
+  completed_events_count: number;
+}
+
+export interface AdminFinancialDashboard {
+  confirmed_commission_cents: number;
+  organizer_count: number;
+  organizers: AdminFinancialOrganizer[];
+}

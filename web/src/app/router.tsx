@@ -17,6 +17,7 @@ import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { useAuth } from "@/features/auth/AuthContext";
 import type { AuthUser, UserRole } from "@/features/auth/types";
 import { AdminOrganizerDetailPage } from "@/features/organizers/AdminOrganizerDetailPage";
+import { AdminFinancialDashboardPage } from "@/features/organizers/AdminFinancialDashboardPage";
 import { AdminOrganizersPage } from "@/features/organizers/AdminOrganizersPage";
 import { OrganizerHomePage } from "@/features/organizers/OrganizerHomePage";
 import { OrganizerRegistrationPage } from "@/features/organizers/OrganizerRegistrationPage";
@@ -25,7 +26,7 @@ import { OrganizerScannersPage } from "@/features/organizers/OrganizerScannersPa
 import { SessionsPage } from "@/features/sessions/SessionsPage";
 
 const HOME_BY_ROLE: Record<UserRole, string> = {
-  ADMIN: "/admin/organizers",
+  ADMIN: "/admin",
   ORGANIZER: "/organizer",
   FAN: "/forbidden",
   SCANNER: "/forbidden",
@@ -279,6 +280,17 @@ export function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["ORGANIZER"]}>
             <PasswordChangePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminShell>
+              <AdminFinancialDashboardPage />
+            </AdminShell>
           </ProtectedRoute>
         }
       />
