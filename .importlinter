@@ -18,6 +18,9 @@ forbidden_modules =
     apps.access
     apps.notifying
     apps.realtime
+ignore_imports =
+    # Integration tests may compose bounded contexts; production code may not.
+    apps.core.tests.** -> apps.**
 
 # Les contextes SANS communication synchrone restent mutuellement independants.
 # `organizing` puis `catalog` en sont retires lorsqu ils portent une
@@ -33,6 +36,30 @@ modules =
     apps.access
     apps.notifying
     apps.realtime
+ignore_imports =
+    # Integration tests may compose bounded contexts; production code may not.
+    apps.*.tests.** -> apps.**
+
+    # Explicit public boundaries. Internal models, services and tasks remain forbidden.
+    apps.access.admin_dashboard_views -> apps.identity.api
+    apps.access.services.admissions -> apps.ticketing.api
+    apps.access.services.live_dashboard -> apps.ticketing.api
+    apps.access.services.final_reports -> apps.ordering.api
+    apps.access.services.final_reports -> apps.payments.api
+    apps.access.services.final_reports -> apps.ticketing.api
+    apps.ordering.services.confirmation -> apps.ticketing.api
+    apps.payments.services.intents -> apps.ordering.api
+    apps.payments.services.refunds -> apps.ordering.api
+    apps.payments.services.refunds -> apps.ticketing.api
+    apps.ticketing.services.issuance -> apps.ordering.api
+    apps.notifying.event_buyer_tasks -> apps.ticketing.api
+    apps.notifying.refund_notification_consumers -> apps.payments.events
+    apps.notifying.refund_notification_tasks -> apps.payments.api
+    apps.notifying.final_report_consumers -> apps.access.events
+    apps.notifying.final_report_tasks -> apps.access.api
+    apps.ticketing.services.transfers -> apps.identity.api
+    apps.notifying.ticket_transfer_consumers -> apps.ticketing.events
+    apps.notifying.ticket_transfer_tasks -> apps.ticketing.api
 
 # ADR-S1-05 : le sens de la dependance suit le domaine. Un compte existe sans
 # organisateur ; l inverse est impossible. `identity` ignore donc totalement
@@ -77,6 +104,8 @@ forbidden_modules =
     apps.realtime
 ignore_imports =
     apps.organizing.** -> apps.identity.api
+    # Integration tests may compose bounded contexts; production code may not.
+    apps.organizing.tests.** -> apps.**
 
 # Sprint 2 : catalog a besoin de deux collaborations synchrones explicites :
 # - identity.api pour la politique d autorisation ;
@@ -102,3 +131,5 @@ forbidden_modules =
 ignore_imports =
     apps.catalog.** -> apps.identity.api
     apps.catalog.** -> apps.organizing.api
+    # Integration tests may compose bounded contexts; production code may not.
+    apps.catalog.tests.** -> apps.**

@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 
 from .models import Event, EventScannerAssignment
 
@@ -116,6 +117,19 @@ def list_active_scanner_ids_for_event(
     )
 
 
+def is_scanner_assigned_to_event(
+    *,
+    scanner_id: uuid.UUID,
+    event_id: uuid.UUID,
+) -> bool:
+    """Return whether the scanner has an active assignment to the event."""
+    return EventScannerAssignment.objects.filter(
+        event_id=event_id,
+        scanner_id=scanner_id,
+        unassigned_at__isnull=True,
+    ).exists()
+
+
 def list_scanner_portal_events(
     *,
     scanner_id: uuid.UUID,
@@ -149,7 +163,10 @@ def list_scanner_portal_events(
             assignment_id=assignment.pk,
             assigned_at=assignment.created_at,
             id=assignment.event.pk,
-            organizer_id=assignment.event.organizer_id,
+            organizer_id=cast(
+                uuid.UUID,
+                assignment.event.organizer_id,
+            ),
             name=assignment.event.name,
             starts_at=assignment.event.starts_at,
             ends_at=assignment.event.ends_at,

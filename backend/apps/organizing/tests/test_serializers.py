@@ -64,9 +64,7 @@ def test_apply_serializer_does_not_expose_privileged_model_fields():
         "vat_number": None,
     }
 
-    assert serializer.validated_data[
-        "proposed_commission_rate"
-    ] == Decimal("0.1200")
+    assert serializer.validated_data["proposed_commission_rate"] == Decimal("0.1200")
     assert "validation_status" not in serializer.validated_data
     assert "commission_rate" not in serializer.validated_data
     assert "validated_by" not in serializer.validated_data

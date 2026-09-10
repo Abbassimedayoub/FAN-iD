@@ -8,23 +8,11 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.core.exceptions import ConflictError
-from apps.organizing.api import (
-    resolve_organizer_commercial_context,
-)
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    ORGANIZER_PENDING,
-)
-from apps.organizing.models import (
-    Organizer,
-    OrganizerCommissionProposal,
-)
-from apps.organizing.services.commissions import (
-    OrganizerCommissionService,
-)
-from apps.organizing.services.onboarding import (
-    OrganizerOnboardingService,
-)
+from apps.organizing.api import resolve_organizer_commercial_context
+from apps.organizing.constants import ORGANIZER_APPROVED, ORGANIZER_PENDING
+from apps.organizing.models import Organizer, OrganizerCommissionProposal
+from apps.organizing.services.commissions import OrganizerCommissionService
+from apps.organizing.services.onboarding import OrganizerOnboardingService
 
 User = get_user_model()
 
@@ -84,12 +72,10 @@ def test_initial_proposal_does_not_open_account(
         "initial",
     )
 
-    proposal = (
-        OrganizerCommissionService.create_initial_proposal(
-            organizer_id=organizer.pk,
-            actor_id=owner.pk,
-            rate=Decimal("0.1200"),
-        )
+    proposal = OrganizerCommissionService.create_initial_proposal(
+        organizer_id=organizer.pk,
+        actor_id=owner.pk,
+        rate=Decimal("0.1200"),
     )
 
     organizer.refresh_from_db()
@@ -112,12 +98,10 @@ def test_admin_can_open_account_without_accepting_commission(
         "open-only",
     )
 
-    proposal = (
-        OrganizerCommissionService.create_initial_proposal(
-            organizer_id=organizer.pk,
-            actor_id=owner.pk,
-            rate=Decimal("0.1200"),
-        )
+    proposal = OrganizerCommissionService.create_initial_proposal(
+        organizer_id=organizer.pk,
+        actor_id=owner.pk,
+        rate=Decimal("0.1200"),
     )
 
     organizer = OrganizerOnboardingService.approve(
@@ -182,10 +166,7 @@ def test_negotiation_continues_after_account_is_open(
         )
     )
 
-    assert [
-        item.proposer_role
-        for item in proposals
-    ] == [
+    assert [item.proposer_role for item in proposals] == [
         "ORGANIZER",
         "ADMIN",
     ]
@@ -329,19 +310,13 @@ def test_multiple_counters_keep_complete_history_after_opening(
         )
     )
 
-    assert [
-        item.sequence
-        for item in proposals
-    ] == [
+    assert [item.sequence for item in proposals] == [
         1,
         2,
         3,
     ]
 
-    assert [
-        item.proposer_role
-        for item in proposals
-    ] == [
+    assert [item.proposer_role for item in proposals] == [
         "ORGANIZER",
         "ADMIN",
         "ORGANIZER",

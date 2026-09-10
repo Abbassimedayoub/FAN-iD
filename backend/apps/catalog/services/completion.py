@@ -7,13 +7,8 @@ from django.utils import timezone
 
 from apps.core.outbox.publisher import publish_event
 
-from ..events import (
-    AGGREGATE_EVENT,
-    CATALOG_EVENT_COMPLETED,
-    event_lifecycle_payload,
-)
+from ..events import AGGREGATE_EVENT, CATALOG_EVENT_COMPLETED, event_lifecycle_payload
 from ..models import Event
-
 
 AUTO_COMPLETION_REASON = "Clôturé automatiquement à la fin de l’événement."
 
@@ -25,10 +20,7 @@ def _can_be_completed(event: Event, *, now) -> bool:
     if event.status == Event.PUBLISHED:
         return True
 
-    return (
-        event.status == Event.POSTPONED
-        and event.postponed_to_ends_at is not None
-    )
+    return event.status == Event.POSTPONED and event.postponed_to_ends_at is not None
 
 
 @transaction.atomic
@@ -40,11 +32,7 @@ def complete_event_if_elapsed(
     """Clôture un événement terminé, une seule fois, avec outbox atomique."""
     moment = now or timezone.now()
 
-    event = (
-        Event.objects.select_for_update()
-        .filter(pk=event_id)
-        .first()
-    )
+    event = Event.objects.select_for_update().filter(pk=event_id).first()
     if event is None or not _can_be_completed(event, now=moment):
         return False
 

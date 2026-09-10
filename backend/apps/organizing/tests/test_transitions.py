@@ -22,7 +22,7 @@ from apps.organizing.constants import (
     ORGANIZER_REJECTED,
     ORGANIZER_SUSPENDED,
 )
-from apps.organizing.events import ORGANIZER_APPROVED_EVENT, ORGANIZER_REJECTED_EVENT
+from apps.organizing.events import AGGREGATE_ORGANIZER, ORGANIZER_APPROVED_EVENT, ORGANIZER_REJECTED_EVENT
 from apps.organizing.models import Organizer
 from apps.organizing.services import OrganizerOnboardingService
 
@@ -77,7 +77,10 @@ def test_pending_can_be_approved(applicant, admin_user):
     assert result.validated_at is not None
     assert result.rejection_reason is None
 
-    event = OutboxEvent.objects.get()
+    event = OutboxEvent.objects.get(
+        aggregate_type=AGGREGATE_ORGANIZER,
+        aggregate_id=organizer.pk,
+    )
     assert event.event_type == ORGANIZER_APPROVED_EVENT
     assert event.aggregate_id == organizer.pk
     assert event.actor_id == admin_user.pk
@@ -100,7 +103,10 @@ def test_pending_can_be_rejected(applicant, admin_user):
     assert result.validated_by_id == admin_user.pk
     assert result.validated_at is not None
 
-    event = OutboxEvent.objects.get()
+    event = OutboxEvent.objects.get(
+        aggregate_type=AGGREGATE_ORGANIZER,
+        aggregate_id=organizer.pk,
+    )
     assert event.event_type == ORGANIZER_REJECTED_EVENT
     assert event.payload == {"status": ORGANIZER_REJECTED}
 
@@ -117,7 +123,10 @@ def test_approved_can_be_suspended_and_emits_outbox_event(applicant, admin_user)
     assert result.validation_status == ORGANIZER_SUSPENDED
     assert result.version == 2
 
-    event = OutboxEvent.objects.get()
+    event = OutboxEvent.objects.get(
+        aggregate_type=AGGREGATE_ORGANIZER,
+        aggregate_id=organizer.pk,
+    )
     assert event.event_type == "organizing.organizer.suspended"
     assert event.aggregate_id == organizer.pk
     assert event.actor_id == admin_user.pk
@@ -166,7 +175,10 @@ def test_every_forbidden_transition_is_fail_closed(
     organizer.refresh_from_db()
     assert organizer.validation_status == initial_state
     assert organizer.version == original_version
-    assert OutboxEvent.objects.count() == 0
+    assert not OutboxEvent.objects.filter(
+        aggregate_type=AGGREGATE_ORGANIZER,
+        aggregate_id=organizer.pk,
+    ).exists()
 
 
 def test_reject_requires_a_non_blank_reason(applicant, admin_user):
@@ -183,4 +195,7 @@ def test_reject_requires_a_non_blank_reason(applicant, admin_user):
     organizer.refresh_from_db()
     assert organizer.validation_status == ORGANIZER_PENDING
     assert organizer.version == 1
-    assert OutboxEvent.objects.count() == 0
+    assert not OutboxEvent.objects.filter(
+        aggregate_type=AGGREGATE_ORGANIZER,
+        aggregate_id=organizer.pk,
+    ).exists()

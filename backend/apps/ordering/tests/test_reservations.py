@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import datetime
-from datetime import timedelta
 import json
 import threading
+from datetime import timedelta
 
 import pytest
 from django.db import connections
@@ -13,6 +13,7 @@ from django.utils import timezone
 from apps.catalog.models import Category, Event, TicketCategory
 from apps.core.idempotency.middleware import REPLAYED_MARKER_HEADER
 from apps.ordering.models import Order, StockHoldLine
+from apps.ordering.services.confirmation import ReservationExpiredError, confirm_order_payment
 from apps.ordering.services.reservations import (
     ReservationLine,
     SaleUnavailableError,
@@ -46,10 +47,16 @@ def tariffs(db):
     )
     return (
         TicketCategory.objects.create(
-            event=event, name="Standard", quota=5, unit_price_cents=1200,
+            event=event,
+            name="Standard",
+            quota=5,
+            unit_price_cents=1200,
         ),
         TicketCategory.objects.create(
-            event=event, name="VIP", quota=5, unit_price_cents=2500,
+            event=event,
+            name="VIP",
+            quota=5,
+            unit_price_cents=2500,
         ),
     )
 
@@ -201,10 +208,13 @@ def test_reservation_endpoint_creates_order_and_hold(buyer, tariffs):
 
     order = Order.objects.get(pk=payload["order_id"])
     assert order.user == buyer
-    assert StockHoldLine.objects.get(
-        stock_hold__order=order,
-        ticket_category=standard,
-    ).quantity == 2
+    assert (
+        StockHoldLine.objects.get(
+            stock_hold__order=order,
+            ticket_category=standard,
+        ).quantity
+        == 2
+    )
 
 
 def test_reservation_endpoint_replays_same_idempotency_key(buyer, tariffs):
@@ -239,16 +249,13 @@ def test_reservation_endpoint_replays_same_idempotency_key(buyer, tariffs):
     assert replay.headers.get(REPLAYED_MARKER_HEADER) == "true"
     assert replay.json() == first.json()
     assert Order.objects.filter(user=buyer).count() == 1
-    assert StockHoldLine.objects.filter(
-        stock_hold__order__user=buyer,
-        ticket_category=standard,
-    ).count() == 1
-
-
-from apps.ordering.services.confirmation import (
-    ReservationExpiredError,
-    confirm_order_payment,
-)
+    assert (
+        StockHoldLine.objects.filter(
+            stock_hold__order__user=buyer,
+            ticket_category=standard,
+        ).count()
+        == 1
+    )
 
 
 def test_paid_confirmation_consumes_hold_and_increments_stock(buyer, tariffs):

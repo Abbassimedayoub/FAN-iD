@@ -8,10 +8,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.organizing.constants import ORGANIZER_PENDING
-from apps.organizing.models import (
-    Organizer,
-    OrganizerCommissionProposal,
-)
+from apps.organizing.models import Organizer, OrganizerCommissionProposal
 
 User = get_user_model()
 

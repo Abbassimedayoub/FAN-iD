@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -209,9 +211,7 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
                 condition=(
                     models.Q(sales_starts_at__isnull=True)
                     | models.Q(sales_ends_at__isnull=True)
-                    | models.Q(
-                        sales_ends_at__gt=models.F("sales_starts_at")
-                    )
+                    | models.Q(sales_ends_at__gt=models.F("sales_starts_at"))
                 ),
                 name="ck_event_sales_window_coherent",
             ),
@@ -240,9 +240,9 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
         Les phases temporelles ne sont pas persistées afin d'éviter
         des transitions cron inutiles et des états périmés.
         """
-        from .lifecycle import event_operational_status
+        from .lifecycle import EventLifecycleLike, event_operational_status
 
-        return event_operational_status(self)
+        return event_operational_status(cast(EventLifecycleLike, self))
 
     def __str__(self) -> str:
         return self.name

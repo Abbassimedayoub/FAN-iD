@@ -12,11 +12,13 @@ class NotifyingConfig(AppConfig):
         from .consumers import OrganizerDecisionEmailConsumer
         from .event_buyer_consumers import EventBuyerNotificationConsumer
         from .event_scanner_consumers import EventScannerNotificationConsumer
+        from .final_report_consumers import FinalReportNotificationConsumer
         from .refund_notification_consumers import PaymentRefundNotificationConsumer
-        from .final_report_tasks import send_organizer_final_report_email
-        from .ticket_transfer_tasks import send_ticket_transfer_emails
+        from .ticket_transfer_consumers import TicketTransferNotificationConsumer
 
         register_consumer(OrganizerDecisionEmailConsumer())
         register_consumer(EventBuyerNotificationConsumer())
         register_consumer(EventScannerNotificationConsumer())
+        register_consumer(FinalReportNotificationConsumer())
         register_consumer(PaymentRefundNotificationConsumer())
+        register_consumer(TicketTransferNotificationConsumer())

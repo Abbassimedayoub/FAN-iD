@@ -13,20 +13,10 @@ from apps.core.adapters.notifications import InMemorySender
 from apps.identity.api import USER_PHONE_CHANGED
 from apps.identity.models import User
 from apps.organizing import scanner_consumers
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-    SCANNER_ACTIVE,
-)
-from apps.organizing.models import (
-    Organizer,
-    Scanner,
-)
-from apps.organizing.scanner_consumers import (
-    ScannerLifecycleConsumer,
-)
-from apps.organizing.scanner_tasks import (
-    send_scanner_phone_changed_organizer_email,
-)
+from apps.organizing.constants import ORGANIZER_APPROVED, SCANNER_ACTIVE
+from apps.organizing.models import Organizer, Scanner
+from apps.organizing.scanner_consumers import ScannerLifecycleConsumer
+from apps.organizing.scanner_tasks import send_scanner_phone_changed_organizer_email
 
 
 @pytest.fixture
@@ -51,19 +41,12 @@ def scanner_context(
     organizer = Organizer.objects.create(
         user=owner,
         org_name="Phone Notification Org",
-        contact_email=(
-            "organizer-phone@example.test"
-        ),
-        validation_status=(
-            ORGANIZER_APPROVED
-        ),
+        contact_email=("organizer-phone@example.test"),
+        validation_status=(ORGANIZER_APPROVED),
     )
 
     scanner_user = User(
-        email=(
-            "scanner-phone-notify"
-            "@example.test"
-        ),
+        email=("scanner-phone-notify" "@example.test"),
         first_name="Amine",
         last_name="Scanner",
         phone="+216 20 000 000",
@@ -84,9 +67,7 @@ def scanner_context(
         invited_by=owner,
         invited_first_name="Amine",
         invited_last_name="Scanner",
-        invited_email=(
-            scanner_user.email
-        ),
+        invited_email=(scanner_user.email),
         status=SCANNER_ACTIVE,
         activated_at=timezone.now(),
     )
@@ -124,27 +105,20 @@ def test_organizer_receives_changed_scanner_phone(
         first_record=False,
     )
 
-    assert len(
-        sender.emails_sent,
-    ) == 1
+    assert (
+        len(
+            sender.emails_sent,
+        )
+        == 1
+    )
 
     email = sender.emails_sent[0]
 
-    assert email["to"] == (
-        organizer.contact_email
-    )
+    assert email["to"] == (organizer.contact_email)
 
-    assert email["subject"] == (
-        "[FANID] Numéro de téléphone "
-        "du scanner modifié"
-    )
+    assert email["subject"] == ("[FANID] Numéro de téléphone " "du scanner modifié")
 
-    assert (
-        "Le numéro de téléphone de "
-        "Amine Scanner est devenu "
-        "+216 20 000 000."
-        in email["body"]
-    )
+    assert "Le numéro de téléphone de " "Amine Scanner est devenu " "+216 20 000 000." in email["body"]
 
 
 @pytest.mark.django_db
@@ -175,15 +149,10 @@ def test_organizer_receives_first_scanner_phone_wording(
 
     email = sender.emails_sent[0]
 
-    assert email["to"] == (
-        organizer.contact_email
-    )
+    assert email["to"] == (organizer.contact_email)
 
     assert (
-        "Le numéro de téléphone de "
-        "Amine Scanner a été enregistré : "
-        "+216 20 000 000."
-        in email["body"]
+        "Le numéro de téléphone de " "Amine Scanner a été enregistré : " "+216 20 000 000." in email["body"]
     )
 
 
@@ -199,13 +168,10 @@ def test_phone_event_dispatches_organizer_notification(
         scanner,
     ) = scanner_context
 
-    delayed: list[
-        dict[str, object]
-    ] = []
+    delayed: list[dict[str, object]] = []
 
     monkeypatch.setattr(
-        scanner_consumers
-        .send_scanner_phone_changed_organizer_email,
+        scanner_consumers.send_scanner_phone_changed_organizer_email,
         "delay",
         lambda **kwargs: delayed.append(
             kwargs,
@@ -250,9 +216,7 @@ def test_organizer_web_api_reads_current_scanner_phone(
         scanner,
     ) = scanner_context
 
-    scanner.user.phone = (
-        "+216 21 111 111"
-    )
+    scanner.user.phone = "+216 21 111 111"
     scanner.user.save(
         update_fields=[
             "phone",
@@ -265,20 +229,14 @@ def test_organizer_web_api_reads_current_scanner_phone(
         user=owner,
     )
 
-    response = client.get(
-        "/api/v1/organizers/me/scanners"
-    )
+    response = client.get("/api/v1/organizers/me/scanners")
 
     assert response.status_code == 200
     assert response.data["count"] == 1
 
-    scanner_data = (
-        response.data["results"][0]
-    )
+    scanner_data = response.data["results"][0]
 
     assert scanner_data["id"] == str(
         scanner.pk,
     )
-    assert scanner_data["phone"] == (
-        "+216 21 111 111"
-    )
+    assert scanner_data["phone"] == ("+216 21 111 111")

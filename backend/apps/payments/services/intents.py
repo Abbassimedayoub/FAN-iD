@@ -5,22 +5,10 @@ from uuid import UUID
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    InvalidStateTransitionError,
-    NotFoundBusinessError,
-)
+from apps.core.exceptions import ConflictError, InvalidStateTransitionError, NotFoundBusinessError
 from apps.core.interfaces import PaymentGateway
-from apps.ordering.models import ORDER_PAID, ORDER_PENDING, Order, StockHold
-from apps.ordering.services.confirmation import (
-    ReservationExpiredError,
-    confirm_order_payment,
-)
-from apps.payments.models import (
-    PAYMENT_INTENT_CREATED,
-    PAYMENT_INTENT_SUCCEEDED,
-    PaymentIntent,
-)
+from apps.ordering.api import ReservationExpiredError, confirm_order_payment, lock_order_for_payment_intent
+from apps.payments.models import PAYMENT_INTENT_CREATED, PAYMENT_INTENT_SUCCEEDED, PaymentIntent
 
 
 class OrderNotPayableError(ConflictError):
@@ -45,42 +33,55 @@ def create_payment_intent(
     """
     moment = now or timezone.now()
 
-    try:
-        order = Order.objects.select_for_update().get(
-            pk=order_id,
-            user=user,
+    order = lock_order_for_payment_intent(
+        order_id=order_id,
+        user_id=user.id,
+    )
+    if order is None:
+        raise NotFoundBusinessError(
+            code="ORDER_NOT_FOUND",
         )
-    except Order.DoesNotExist as exc:
-        raise NotFoundBusinessError(code="ORDER_NOT_FOUND") from exc
 
-    if order.status == ORDER_PAID:
+    if order.is_paid:
         raise OrderNotPayableError(
-            details={"order_id": str(order.id), "status": order.status},
+            details={
+                "order_id": str(order.id),
+                "status": order.status,
+            },
         )
 
-    if order.status != ORDER_PENDING:
+    if not order.is_pending:
         raise InvalidStateTransitionError(
-            details={"order_id": str(order.id), "status": order.status},
+            details={
+                "order_id": str(order.id),
+                "status": order.status,
+            },
         )
 
-    try:
-        hold = StockHold.objects.select_for_update().get(order=order)
-    except StockHold.DoesNotExist as exc:
+    if order.hold is None:
         raise OrderNotPayableError(
-            details={"order_id": str(order.id), "reason": "stock_hold_missing"},
-        ) from exc
-
-    if hold.consumed:
-        raise OrderNotPayableError(
-            details={"order_id": str(order.id), "reason": "stock_hold_consumed"},
+            details={
+                "order_id": str(order.id),
+                "reason": "stock_hold_missing",
+            },
         )
 
-    if hold.expires_at <= moment:
-        raise ReservationExpiredError(details={"order_id": str(order.id)})
+    if order.hold.consumed:
+        raise OrderNotPayableError(
+            details={
+                "order_id": str(order.id),
+                "reason": "stock_hold_consumed",
+            },
+        )
+
+    if order.hold.expires_at <= moment:
+        raise ReservationExpiredError(
+            details={"order_id": str(order.id)},
+        )
 
     existing = (
         PaymentIntent.objects.filter(
-            order=order,
+            order_id=order.id,
             status=PAYMENT_INTENT_CREATED,
         )
         .order_by("-created_at")
@@ -99,7 +100,7 @@ def create_payment_intent(
     )
 
     return PaymentIntent.objects.create(
-        order=order,
+        order_id=order.id,
         provider=getattr(gateway, "provider_name", "unknown"),
         provider_intent_id=provider_intent["id"],
         amount_cents=provider_intent["amount_cents"],

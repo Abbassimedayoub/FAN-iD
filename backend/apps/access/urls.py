@@ -10,7 +10,6 @@ from .views import (
     TicketAdmissionScanView,
 )
 
-
 urlpatterns = [
     path(
         "access/events/<uuid:event_id>/final-report",

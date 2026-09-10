@@ -259,6 +259,7 @@ def send_password_changed_email(
         "sent": True,
     }
 
+
 @shared_task(
     name="identity.send_phone_changed_email",
 )
@@ -288,17 +289,10 @@ def send_phone_changed_email(
         return
 
     if first_record:
-        subject = (
-            "[FANID] Numéro de téléphone enregistré"
-        )
-        body = (
-            "Votre numéro de téléphone a été enregistré : "
-            f"{phone}."
-        )
+        subject = "[FANID] Numéro de téléphone enregistré"
+        body = "Votre numéro de téléphone a été enregistré : " f"{phone}."
     else:
-        subject = (
-            "[FANID] Numéro de téléphone modifié"
-        )
+        subject = "[FANID] Numéro de téléphone modifié"
         body = (
             "Votre numéro de téléphone est désormais "
             f"{phone}. "

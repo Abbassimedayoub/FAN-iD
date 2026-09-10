@@ -2,23 +2,16 @@ from __future__ import annotations
 
 from uuid import UUID
 
-import jwt
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.exceptions import (
-    ConflictError,
-    PermissionBusinessError,
-    ValidationBusinessError,
-)
-from apps.organizing.api import resolve_active_scanner_event_assignment
-from apps.ticketing.models import TICKET_VALID, TICKET_USED, Ticket
-from apps.ticketing.services.qr import QR_ISSUER, QR_TYPE
-
-from .admission_sessions import require_event_admission_open
+from apps.catalog.api import is_scanner_assigned_to_event
+from apps.core.exceptions import ConflictError, PermissionBusinessError, ValidationBusinessError
+from apps.organizing.api import resolve_active_scanner_id
+from apps.ticketing.api import lock_ticket_for_admission, mark_ticket_used, parse_ticket_qr_identity
 
 from ..models import TicketAdmission
+from .admission_sessions import require_event_admission_open
 
 
 class InvalidTicketQrError(ValidationBusinessError):
@@ -36,58 +29,48 @@ class ScannerNotAssignedError(PermissionBusinessError):
     default_message = "Ce scanner n'est pas autorisé pour cet événement."
 
 
-def _ticket_qr_identity(token: str) -> tuple[UUID, int]:
-    try:
-        claims = jwt.decode(
-            token,
-            settings.QR_SIGNING_KEY,
-            algorithms=["HS256"],
-            issuer=QR_ISSUER,
-        )
-        if claims.get("typ") != QR_TYPE:
-            raise InvalidTicketQrError()
-
-        return UUID(str(claims["tid"])), int(claims["qv"])
-    except InvalidTicketQrError:
-        raise
-    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError) as exc:
-        raise InvalidTicketQrError() from exc
-
-
 @transaction.atomic
 def admit_ticket_from_qr(*, token: str, scanner_user_id: UUID) -> TicketAdmission:
-    ticket_id, qr_version = _ticket_qr_identity(token)
-
-    try:
-        ticket = Ticket.objects.select_for_update().get(pk=ticket_id)
-    except Ticket.DoesNotExist as exc:
-        raise InvalidTicketQrError() from exc
-
-    if ticket.qr_version != qr_version:
+    ticket_identity = parse_ticket_qr_identity(
+        token=token,
+    )
+    if ticket_identity is None:
         raise InvalidTicketQrError()
 
-    require_event_admission_open(event_id=ticket.event_id)
+    ticket_id, qr_version = ticket_identity
+    ticket = lock_ticket_for_admission(
+        ticket_id=ticket_id,
+    )
+    if ticket is None or ticket.qr_version != qr_version:
+        raise InvalidTicketQrError()
 
-    scanner_id = resolve_active_scanner_event_assignment(
-        user_id=scanner_user_id,
+    require_event_admission_open(
         event_id=ticket.event_id,
     )
-    if scanner_id is None:
+
+    scanner_id = resolve_active_scanner_id(
+        user_id=scanner_user_id,
+    )
+    if scanner_id is None or not is_scanner_assigned_to_event(
+        scanner_id=scanner_id,
+        event_id=ticket.event_id,
+    ):
         raise ScannerNotAssignedError()
 
-    if ticket.status == TICKET_USED:
+    if ticket.is_used:
         raise TicketAlreadyAdmittedError()
 
-    if ticket.status != TICKET_VALID:
+    if not ticket.is_valid:
         raise InvalidTicketQrError()
 
     admission = TicketAdmission.objects.create(
-        ticket=ticket,
+        ticket_id=ticket.id,
         scanner_id=scanner_id,
         admitted_at=timezone.now(),
     )
 
-    ticket.status = TICKET_USED
-    ticket.save(update_fields=["status"])
+    mark_ticket_used(
+        ticket_id=ticket.id,
+    )
 
     return admission

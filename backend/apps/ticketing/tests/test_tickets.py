@@ -52,9 +52,7 @@ def test_paid_order_issues_one_ticket_per_quantity(buyer, tariff):
 
     confirm_order_payment(order_id=order.id)
 
-    tickets = list(
-        Ticket.objects.filter(order_line__order=order).order_by("sequence")
-    )
+    tickets = list(Ticket.objects.filter(order_line__order=order).order_by("sequence"))
 
     assert [ticket.sequence for ticket in tickets] == [1, 2]
     assert all(ticket.user_id == buyer.id for ticket in tickets)

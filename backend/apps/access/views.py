@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from apps.catalog.models import Event
 
-from .models import EventAdmissionSession, EventFinalReport
+from .models import EventFinalReport
 from .serializers import TicketAdmissionScanSerializer
 from .services.admission_sessions import (
     close_event_admission,

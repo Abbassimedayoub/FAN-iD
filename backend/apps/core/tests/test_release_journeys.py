@@ -3,22 +3,13 @@ from __future__ import annotations
 import datetime
 
 import jwt
-
 import pytest
 from django.utils import timezone
 
 from apps.access.services.admission_sessions import open_event_admission
-from apps.access.services.admissions import (
-    TicketAlreadyAdmittedError,
-    admit_ticket_from_qr,
-)
+from apps.access.services.admissions import TicketAlreadyAdmittedError, admit_ticket_from_qr
 from apps.access.services.final_reports import build_event_final_report
-from apps.catalog.models import (
-    Category,
-    Event,
-    EventScannerAssignment,
-    TicketCategory,
-)
+from apps.catalog.models import Category, Event, EventScannerAssignment, TicketCategory
 from apps.catalog.services.completion import complete_elapsed_events
 from apps.core.adapters.payments import FakeGateway
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
@@ -111,9 +102,7 @@ def _paid_event_with_tickets(*, context, quantity: int) -> tuple[Event, list[Tic
     mark_payment_intent_succeeded(
         provider_intent_id=intent.provider_intent_id,
     )
-    tickets = list(
-        Ticket.objects.filter(order_line__order=order).order_by("sequence")
-    )
+    tickets = list(Ticket.objects.filter(order_line__order=order).order_by("sequence"))
     return event, tickets
 
 

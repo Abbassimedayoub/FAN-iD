@@ -7,10 +7,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import resolve
 from django.utils import timezone
-from rest_framework.test import (
-    APIRequestFactory,
-    force_authenticate,
-)
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.organizing.constants import (
     ORGANIZER_APPROVED,
@@ -19,16 +16,8 @@ from apps.organizing.constants import (
     ORGANIZER_COMMISSION_NEGOTIATING,
     ORGANIZER_REJECTED,
 )
-from apps.organizing.models import (
-    Organizer,
-    OrganizerCommissionProposal,
-)
-from apps.organizing.services.commissions import (
-    OrganizerCommissionService,
-)
-from apps.organizing.services.onboarding import (
-    OrganizerOnboardingService,
-)
+from apps.organizing.models import Organizer, OrganizerCommissionProposal
+from apps.organizing.services.commissions import OrganizerCommissionService
 from apps.organizing.views import (
     AdminOrganizerCommissionAcceptView,
     AdminOrganizerCommissionNegotiationView,
@@ -352,9 +341,7 @@ def test_organizer_accept_auto_approves_pending_account(
 
     assert response.status_code == 200, response.data
     assert response.data["validation_status"] == ORGANIZER_APPROVED
-    assert response.data["commission_status"] == (
-        ORGANIZER_COMMISSION_AGREED
-    )
+    assert response.data["commission_status"] == (ORGANIZER_COMMISSION_AGREED)
     assert response.data["agreed_rate"] == "0.0800"
 
     organizer.refresh_from_db()
@@ -401,9 +388,7 @@ def test_admin_accept_requires_step_up(
 
     assert accepted.status_code == 200, accepted.data
     assert accepted.data["validation_status"] == ORGANIZER_APPROVED
-    assert accepted.data["commission_status"] == (
-        ORGANIZER_COMMISSION_AGREED
-    )
+    assert accepted.data["commission_status"] == (ORGANIZER_COMMISSION_AGREED)
     assert accepted.data["agreed_rate"] == "0.1200"
 
     organizer.refresh_from_db()

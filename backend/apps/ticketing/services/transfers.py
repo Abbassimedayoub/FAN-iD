@@ -7,9 +7,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.exceptions import ConflictError, PermissionBusinessError, ValidationBusinessError
-from apps.identity.constants import ROLE_FAN
-from apps.identity.models import User
+from apps.core.outbox.publisher import publish_event
+from apps.identity.api import resolve_fan_user_id_by_email
 
+from ..events import AGGREGATE_TICKET_TRANSFER, TICKET_TRANSFERRED_EVENT
 from ..models import TICKET_VALID, Ticket, TicketTransferAudit
 
 
@@ -41,25 +42,15 @@ def transfer_ticket(
     now: datetime | None = None,
 ) -> Ticket:
     """Transfère un billet de manière atomique et invalide ses QR existants."""
-    ticket = (
-        Ticket.objects.select_for_update()
-        .select_related("event")
-        .get(pk=ticket_id)
-    )
+    ticket = Ticket.objects.select_for_update().select_related("event").get(pk=ticket_id)
 
     if ticket.user_id != owner_user_id:
         raise TicketTransferForbiddenError()
 
-    recipient = (
-        User.objects.select_related("role")
-        .filter(
-            email__iexact=recipient_email.strip(),
-            role__name=ROLE_FAN,
-            anonymized_at__isnull=True,
-        )
-        .first()
+    recipient_user_id = resolve_fan_user_id_by_email(
+        email=recipient_email,
     )
-    if recipient is None or recipient.pk == ticket.user_id:
+    if recipient_user_id is None or recipient_user_id == ticket.user_id:
         raise TicketTransferRecipientError()
 
     moment = now or timezone.now()
@@ -71,25 +62,21 @@ def transfer_ticket(
         raise TicketTransferUnavailableError()
 
     previous_user_id = ticket.user_id
-    ticket.user_id = recipient.id
+    ticket.user_id = recipient_user_id
     ticket.qr_version += 1
     ticket.save(update_fields=["user", "qr_version", "updated_at"])
 
     audit = TicketTransferAudit.objects.create(
         ticket=ticket,
         previous_user_id=previous_user_id,
-        recipient_user=recipient,
+        recipient_user_id=recipient_user_id,
     )
 
-    # L'e-mail ne part qu'après la validation définitive de la transaction.
-    from apps.notifying.ticket_transfer_tasks import (
-        send_ticket_transfer_emails,
-    )
-
-    audit_id = str(audit.id)
-    transaction.on_commit(
-        lambda: send_ticket_transfer_emails.delay(
-            transfer_audit_id=audit_id,
-        )
+    publish_event(
+        event_type=TICKET_TRANSFERRED_EVENT,
+        aggregate_type=AGGREGATE_TICKET_TRANSFER,
+        aggregate_id=audit.id,
+        payload={},
+        actor_id=owner_user_id,
     )
     return ticket

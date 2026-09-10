@@ -13,7 +13,6 @@ from apps.core.exceptions import ConflictError
 
 from ..models import TICKET_VALID, Ticket
 
-
 QR_TTL_SECONDS = 30
 QR_ISSUER = "fanid-ticketing"
 QR_TYPE = "fanid.ticket_qr.v1"

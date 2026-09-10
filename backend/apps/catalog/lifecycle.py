@@ -5,7 +5,6 @@ from typing import Final, Protocol
 
 from django.utils import timezone
 
-
 OPERATIONAL_DRAFT: Final = "DRAFT"
 OPERATIONAL_COMING_SOON: Final = "COMING_SOON"
 OPERATIONAL_SALE_OPEN: Final = "SALE_OPEN"
@@ -85,20 +84,13 @@ def event_operational_status(
     if moment >= event.starts_at:
         return OPERATIONAL_LIVE
 
-    if (
-        event.sales_starts_at is not None
-        and moment < event.sales_starts_at
-    ):
+    if event.sales_starts_at is not None and moment < event.sales_starts_at:
         return OPERATIONAL_COMING_SOON
 
-    if (
-        event.sales_ends_at is not None
-        and moment >= event.sales_ends_at
-    ):
+    if event.sales_ends_at is not None and moment >= event.sales_ends_at:
         return OPERATIONAL_SALE_CLOSED
 
     return OPERATIONAL_SALE_OPEN
-
 
 
 def event_sales_phase(
@@ -132,16 +124,10 @@ def event_sales_phase(
     if moment >= event.starts_at:
         return OPERATIONAL_LIVE
 
-    if (
-        event.sales_starts_at is not None
-        and moment < event.sales_starts_at
-    ):
+    if event.sales_starts_at is not None and moment < event.sales_starts_at:
         return OPERATIONAL_COMING_SOON
 
-    if (
-        event.sales_ends_at is not None
-        and moment >= event.sales_ends_at
-    ):
+    if event.sales_ends_at is not None and moment >= event.sales_ends_at:
         return OPERATIONAL_SALE_CLOSED
 
     return OPERATIONAL_SALE_OPEN

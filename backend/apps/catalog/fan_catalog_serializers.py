@@ -4,12 +4,8 @@ from rest_framework import serializers
 
 from apps.core.adapters.storage import build_object_storage
 
-from .lifecycle import (
-    event_catalog_status,
-    event_sales_open,
-)
-from .models import Category, Event, TicketCategory
-
+from .lifecycle import event_catalog_status, event_sales_open
+from .models import Event, TicketCategory
 
 EVENT_IMAGE_URL_TTL_SECONDS = 300
 
@@ -173,18 +169,11 @@ class FanCatalogEventSerializer(serializers.Serializer):
             return cached
 
         categories = self._ticket_categories(obj)
-        available = [
-            category
-            for category in categories
-            if category.sold_count < category.quota
-        ]
+        available = [category for category in categories if category.sold_count < category.quota]
 
         summary = (
             min(
-                (
-                    category.unit_price_cents
-                    for category in available
-                ),
+                (category.unit_price_cents for category in available),
                 default=None,
             ),
             len(categories),
@@ -235,10 +224,7 @@ class FanCatalogEventSerializer(serializers.Serializer):
         total_categories = self._price_summary(obj)[1]
         available_categories = self._price_summary(obj)[2]
 
-        return (
-            total_categories > 0
-            and available_categories == 0
-        )
+        return total_categories > 0 and available_categories == 0
 
     def get_catalog_status(
         self,
@@ -253,10 +239,8 @@ class FanCatalogEventSerializer(serializers.Serializer):
         self,
         obj: Event,
     ) -> bool:
-        return (
-            self.get_sales_open(obj)
-            and not self.get_sold_out(obj)
-        )
+        return self.get_sales_open(obj) and not self.get_sold_out(obj)
+
 
 class FanCatalogEventQuerySerializer(serializers.Serializer):
     category_id = serializers.UUIDField(required=True)

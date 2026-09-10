@@ -160,6 +160,7 @@ def user_profile_updated_payload(
         "changed_fields": sorted(set(changed_fields)),
     }
 
+
 USER_PHONE_CHANGED: Final = "identity.user.phone_changed"
 
 

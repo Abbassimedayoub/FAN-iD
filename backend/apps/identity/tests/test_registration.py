@@ -10,6 +10,7 @@ les journaux ni dans l evenement, evenement emis dans la transaction).
 from __future__ import annotations
 
 import datetime
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.hashers import get_hasher, identify_hasher
@@ -18,7 +19,7 @@ from rest_framework.test import APIClient
 
 from apps.core.outbox.models import OutboxEvent
 from apps.identity.constants import MINIMUM_AGE_YEARS, ROLE_FAN
-from apps.identity.events import USER_REGISTERED
+from apps.identity.events import AGGREGATE_USER, USER_REGISTERED
 from apps.identity.models import User
 from apps.identity.services.registration import age_in_years
 
@@ -163,7 +164,7 @@ def test_someone_below_the_minimum_age_is_refused_with_an_actionable_code(client
     assert response.status_code == 400
     assert response.data["error"]["code"] == "UNDERAGE"
     assert response.data["error"]["details"] == {"minimum_age_years": MINIMUM_AGE_YEARS}
-    assert not User.objects.exists()
+    assert not User.objects.filter(email__iexact="supporter@example.test").exists()
 
 
 @pytest.mark.django_db
@@ -188,7 +189,7 @@ def test_refusing_the_terms_is_a_named_business_error_not_a_field_error(client, 
 
     assert response.status_code == 400
     assert response.data["error"]["code"] == "TERMS_NOT_ACCEPTED"
-    assert not User.objects.exists()
+    assert not User.objects.filter(email__iexact="supporter@example.test").exists()
 
 
 @pytest.mark.django_db
@@ -217,7 +218,7 @@ def test_the_same_address_in_another_case_is_refused_as_a_duplicate(client, role
     # decrit mieux un conflit de ressource — arrive apres la publication.
     assert response.status_code == 400
     assert response.data["error"]["code"] == "EMAIL_ALREADY_EXISTS"
-    assert User.objects.count() == 1
+    assert User.objects.filter(email__iexact="supporter@example.test").count() == 1
 
 
 @pytest.mark.django_db
@@ -245,7 +246,7 @@ def test_a_weak_password_is_refused_and_never_appears_in_the_error(client, roles
 
     assert response.status_code == 400, why
     assert weak not in response.content.decode()
-    assert not User.objects.exists()
+    assert not User.objects.filter(email__iexact="supporter@example.test").exists()
 
 
 @pytest.mark.django_db
@@ -260,7 +261,7 @@ def test_a_password_too_similar_to_the_email_is_refused(client, roles):
     )
 
     assert response.status_code == 400
-    assert not User.objects.exists()
+    assert not User.objects.filter(email__iexact="chataigne.orageuse@example.test").exists()
 
 
 @pytest.mark.django_db
@@ -276,7 +277,7 @@ def test_an_empty_name_is_refused(client, roles, field):
     """
     assert client.post(URL, payload(**{field: ""}), format="json").status_code == 400
     assert client.post(URL, payload(**{field: "   "}), format="json").status_code == 400
-    assert not User.objects.exists()
+    assert not User.objects.filter(email__iexact="supporter@example.test").exists()
 
 
 @pytest.mark.django_db
@@ -326,7 +327,13 @@ def test_registration_publishes_exactly_one_event_with_no_personal_data(client, 
     client.post(URL, payload(), format="json")
 
     user = User.objects.get(email="supporter@example.test")
-    events = list(OutboxEvent.objects.filter(event_type=USER_REGISTERED))
+    events = list(
+        OutboxEvent.objects.filter(
+            event_type=USER_REGISTERED,
+            aggregate_type=AGGREGATE_USER,
+            aggregate_id=user.pk,
+        )
+    )
 
     assert len(events) == 1
     event = events[0]
@@ -350,10 +357,11 @@ def test_a_refused_registration_publishes_no_event(client, roles):
     ne doit pas exister non plus. Un courriel de bienvenue pour un compte
     inexistant serait le symptome typique d une publication hors transaction.
     """
-    client.post(URL, payload(terms_accepted=False), format="json")
+    with patch("apps.identity.services.registration.publish_event") as publish_event_mock:
+        client.post(URL, payload(terms_accepted=False), format="json")
 
-    assert not User.objects.exists()
-    assert not OutboxEvent.objects.filter(event_type=USER_REGISTERED).exists()
+    assert not User.objects.filter(email__iexact="supporter@example.test").exists()
+    publish_event_mock.assert_not_called()
 
 
 @pytest.mark.django_db

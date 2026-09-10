@@ -55,20 +55,17 @@ from .permissions import (
     EventCollectionPermission,
     EventImagePermission,
     EventPostponePermission,
-    IsCommissionAgreedOrganizer,
     EventPublishPermission,
     EventResourcePermission,
     EventScannerAssignmentPermission,
     EventSuspendPermission,
     EventUnarchivePermission,
+    IsCommissionAgreedOrganizer,
     TicketCategoryCollectionPermission,
     TicketCategoryResourcePermission,
 )
 from .serializers import (
     EVENT_START_MINIMUM_ERROR,
-    event_start_date_is_allowed,
-)
-from .serializers import (
     CategorySerializer,
     CategoryWriteSerializer,
     EventCancelSerializer,
@@ -80,6 +77,7 @@ from .serializers import (
     EventWriteSerializer,
     TicketCategorySerializer,
     TicketCategoryWriteSerializer,
+    event_start_date_is_allowed,
 )
 
 logger = logging.getLogger("fanid.catalog")

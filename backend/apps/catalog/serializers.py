@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
-
 from typing import Any
 
 from django.utils import timezone
-
 from rest_framework import serializers
 
 from apps.core.adapters.storage import build_object_storage
@@ -241,60 +239,31 @@ class EventWriteSerializer(serializers.Serializer):
 
         validate_start_date = not self.partial or "starts_at" in attrs
 
-        if (
-            starts_at is not None
-            and validate_start_date
-            and not event_start_date_is_allowed(starts_at)
-        ):
-            raise serializers.ValidationError(
-                {"starts_at": EVENT_START_MINIMUM_ERROR}
-            )
+        if starts_at is not None and validate_start_date and not event_start_date_is_allowed(starts_at):
+            raise serializers.ValidationError({"starts_at": EVENT_START_MINIMUM_ERROR})
 
         if starts_at is not None and ends_at is not None and ends_at <= starts_at:
             raise serializers.ValidationError(
                 {"ends_at": ("La fin doit être strictement " "postérieure au début.")}
             )
 
-        if (
-            sales_starts_at is not None
-            and sales_ends_at is not None
-            and sales_ends_at <= sales_starts_at
-        ):
+        if sales_starts_at is not None and sales_ends_at is not None and sales_ends_at <= sales_starts_at:
             raise serializers.ValidationError(
                 {
                     "sales_ends_at": (
-                        "La fin des ventes doit être strictement "
-                        "postérieure au début des ventes."
+                        "La fin des ventes doit être strictement " "postérieure au début des ventes."
                     )
                 }
             )
 
-        if (
-            sales_starts_at is not None
-            and starts_at is not None
-            and sales_starts_at >= starts_at
-        ):
+        if sales_starts_at is not None and starts_at is not None and sales_starts_at >= starts_at:
             raise serializers.ValidationError(
-                {
-                    "sales_starts_at": (
-                        "Le début des ventes doit précéder "
-                        "le début de l’événement."
-                    )
-                }
+                {"sales_starts_at": ("Le début des ventes doit précéder " "le début de l’événement.")}
             )
 
-        if (
-            sales_ends_at is not None
-            and starts_at is not None
-            and sales_ends_at > starts_at
-        ):
+        if sales_ends_at is not None and starts_at is not None and sales_ends_at > starts_at:
             raise serializers.ValidationError(
-                {
-                    "sales_ends_at": (
-                        "La fin des ventes doit être au plus tard "
-                        "au début de l’événement."
-                    )
-                }
+                {"sales_ends_at": ("La fin des ventes doit être au plus tard " "au début de l’événement.")}
             )
 
         if self.partial and not attrs:
@@ -392,9 +361,7 @@ class EventPostponeSerializer(serializers.Serializer):
             )
 
         if starts_at is not None and not event_start_date_is_allowed(starts_at):
-            raise serializers.ValidationError(
-                {"starts_at": EVENT_START_MINIMUM_ERROR}
-            )
+            raise serializers.ValidationError({"starts_at": EVENT_START_MINIMUM_ERROR})
 
         if starts_at is not None and ends_at is not None and ends_at <= starts_at:
             raise serializers.ValidationError(

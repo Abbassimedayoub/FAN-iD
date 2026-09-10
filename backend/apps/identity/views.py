@@ -65,11 +65,7 @@ from .serializers import (
 from .services.authentication import AuthenticationService, LoginCommand, RefreshCommand
 from .services.device_reset import DeviceResetService
 from .services.password_reset import PasswordResetService
-from .services.phone_change import (
-    PhoneChangeService,
-    clean_phone,
-    same_phone,
-)
+from .services.phone_change import PhoneChangeService, clean_phone, same_phone
 from .services.profile import ProfileService
 from .services.registration import RegistrationService
 from .services.step_up import StepUpService
@@ -843,10 +839,7 @@ class MeView(APIView):
                 changes.get("phone") or "",
             ).strip()
 
-            if (
-                role_name == "SCANNER"
-                and user.must_change_password
-            ):
+            if role_name == "SCANNER" and user.must_change_password:
                 raise ValidationError(
                     {
                         "phone": [
@@ -859,12 +852,9 @@ class MeView(APIView):
                 )
 
             if current_phone:
-                if (
-                    requested_phone
-                    and same_phone(
-                        current_phone,
-                        requested_phone,
-                    )
+                if requested_phone and same_phone(
+                    current_phone,
+                    requested_phone,
                 ):
                     changes.pop(
                         "phone",
@@ -885,14 +875,7 @@ class MeView(APIView):
             elif not requested_phone:
                 if role_name == "SCANNER":
                     raise ValidationError(
-                        {
-                            "phone": [
-                                (
-                                    "Le numéro de téléphone est obligatoire "
-                                    "pour un compte scanner."
-                                )
-                            ]
-                        }
+                        {"phone": ["Le numéro de téléphone est obligatoire " "pour un compte scanner."]}
                     )
 
                 changes.pop(
@@ -1067,6 +1050,7 @@ class DeviceMeView(APIView):
             status=status.HTTP_200_OK,
         )
 
+
 class PhoneChangeRequestView(APIView):
     """
     Demande un OTP pour remplacer un téléphone déjà enregistré.
@@ -1089,12 +1073,9 @@ class PhoneChangeRequestView(APIView):
         self,
         request: Request,
     ) -> User:
-        user = (
-            User.objects.select_related(
-                "role",
-            )
-            .get(pk=request.user.pk)
-        )
+        user = User.objects.select_related(
+            "role",
+        ).get(pk=request.user.pk)
         self.check_object_permissions(
             request,
             user,
@@ -1103,16 +1084,10 @@ class PhoneChangeRequestView(APIView):
 
     @extend_schema(
         operation_id="auth_phone_change_request",
-        summary=(
-            "Demander le code de changement de téléphone"
-        ),
+        summary=("Demander le code de changement de téléphone"),
         request=PhoneChangeRequestSerializer,
         responses={
-            200: OpenApiResponse(
-                description=(
-                    "Challenge envoyé par e-mail"
-                )
-            ),
+            200: OpenApiResponse(description=("Challenge envoyé par e-mail")),
             400: ERROR_RESPONSE,
             401: ERROR_RESPONSE,
             403: ERROR_RESPONSE,
@@ -1127,10 +1102,7 @@ class PhoneChangeRequestView(APIView):
             request,
         )
 
-        if (
-            str(user.role.name) == "SCANNER"
-            and user.must_change_password
-        ):
+        if str(user.role.name) == "SCANNER" and user.must_change_password:
             raise ValidationError(
                 {
                     "phone": [
@@ -1166,34 +1138,18 @@ class PhoneChangeRequestView(APIView):
             raise_exception=True,
         )
 
-        target_phone = (
-            serializer.validated_data[
-                "phone"
-            ]
-        )
+        target_phone = serializer.validated_data["phone"]
 
         if same_phone(
             current_phone,
             target_phone,
         ):
-            raise ValidationError(
-                {
-                    "phone": [
-                        (
-                            "Le nouveau numéro doit être "
-                            "différent du numéro actuel."
-                        )
-                    ]
-                }
-            )
+            raise ValidationError({"phone": ["Le nouveau numéro doit être " "différent du numéro actuel."]})
 
-        result = (
-            build_phone_change_service()
-            .request(
-                user=user,
-                session_id=request.session_id,
-                phone=target_phone,
-            )
+        result = build_phone_change_service().request(
+            user=user,
+            session_id=request.session_id,
+            phone=target_phone,
         )
 
         return Response(
@@ -1229,12 +1185,9 @@ class PhoneChangeConfirmView(APIView):
         self,
         request: Request,
     ) -> User:
-        user = (
-            User.objects.select_related(
-                "role",
-            )
-            .get(pk=request.user.pk)
-        )
+        user = User.objects.select_related(
+            "role",
+        ).get(pk=request.user.pk)
         self.check_object_permissions(
             request,
             user,
@@ -1243,9 +1196,7 @@ class PhoneChangeConfirmView(APIView):
 
     @extend_schema(
         operation_id="auth_phone_change_confirm",
-        summary=(
-            "Confirmer le changement de téléphone"
-        ),
+        summary=("Confirmer le changement de téléphone"),
         request=PhoneChangeConfirmSerializer,
         responses={
             200: UserMeSerializer,
@@ -1270,27 +1221,12 @@ class PhoneChangeConfirmView(APIView):
             raise_exception=True,
         )
 
-        result = (
-            build_phone_change_service()
-            .confirm(
-                user=user,
-                session_id=request.session_id,
-                challenge_id=(
-                    serializer.validated_data[
-                        "challenge_id"
-                    ]
-                ),
-                phone=(
-                    serializer.validated_data[
-                        "phone"
-                    ]
-                ),
-                code=(
-                    serializer.validated_data[
-                        "code"
-                    ]
-                ),
-            )
+        result = build_phone_change_service().confirm(
+            user=user,
+            session_id=request.session_id,
+            challenge_id=(serializer.validated_data["challenge_id"]),
+            phone=(serializer.validated_data["phone"]),
+            code=(serializer.validated_data["code"]),
         )
 
         response = Response(

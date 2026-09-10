@@ -9,9 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.catalog.models import Category, Event
-from apps.catalog.permissions import (
-    IsCommissionAgreedOrganizer,
-)
+from apps.catalog.permissions import IsCommissionAgreedOrganizer
 from apps.catalog.views import (
     EventArchiveView,
     EventCancelView,
@@ -27,16 +25,10 @@ from apps.catalog.views import (
     TicketCategoryDetailView,
     TicketCategoryListCreateView,
 )
-from apps.organizing.constants import (
-    ORGANIZER_APPROVED,
-)
+from apps.organizing.constants import ORGANIZER_APPROVED
 from apps.organizing.models import Organizer
-from apps.organizing.services.commissions import (
-    OrganizerCommissionService,
-)
-from apps.organizing.services.onboarding import (
-    OrganizerOnboardingService,
-)
+from apps.organizing.services.commissions import OrganizerCommissionService
+from apps.organizing.services.onboarding import OrganizerOnboardingService
 
 User = get_user_model()
 

@@ -56,10 +56,13 @@ def test_published_before_sales_window_is_coming_soon():
         sales_ends_at=now + datetime.timedelta(hours=3),
     )
 
-    assert event_operational_status(
-        event,
-        at=now,
-    ) == OPERATIONAL_COMING_SOON
+    assert (
+        event_operational_status(
+            event,
+            at=now,
+        )
+        == OPERATIONAL_COMING_SOON
+    )
 
 
 @pytest.mark.django_db
@@ -73,10 +76,13 @@ def test_published_inside_sales_window_is_sale_open():
         sales_ends_at=now + datetime.timedelta(hours=2),
     )
 
-    assert event_operational_status(
-        event,
-        at=now,
-    ) == OPERATIONAL_SALE_OPEN
+    assert (
+        event_operational_status(
+            event,
+            at=now,
+        )
+        == OPERATIONAL_SALE_OPEN
+    )
 
 
 @pytest.mark.django_db
@@ -90,10 +96,13 @@ def test_published_after_sales_window_before_event_is_sale_closed():
         sales_ends_at=now - datetime.timedelta(hours=1),
     )
 
-    assert event_operational_status(
-        event,
-        at=now,
-    ) == OPERATIONAL_SALE_CLOSED
+    assert (
+        event_operational_status(
+            event,
+            at=now,
+        )
+        == OPERATIONAL_SALE_CLOSED
+    )
 
 
 @pytest.mark.django_db
@@ -105,10 +114,13 @@ def test_legacy_published_without_sales_dates_remains_sale_open():
         now=now,
     )
 
-    assert event_operational_status(
-        event,
-        at=now,
-    ) == OPERATIONAL_SALE_OPEN
+    assert (
+        event_operational_status(
+            event,
+            at=now,
+        )
+        == OPERATIONAL_SALE_OPEN
+    )
 
 
 @pytest.mark.django_db
@@ -120,10 +132,13 @@ def test_published_event_becomes_live_at_start():
         now=now,
     )
 
-    assert event_operational_status(
-        event,
-        at=event.starts_at,
-    ) == OPERATIONAL_LIVE
+    assert (
+        event_operational_status(
+            event,
+            at=event.starts_at,
+        )
+        == OPERATIONAL_LIVE
+    )
 
 
 @pytest.mark.django_db
@@ -135,10 +150,13 @@ def test_published_event_becomes_ended_at_end():
         now=now,
     )
 
-    assert event_operational_status(
-        event,
-        at=event.ends_at,
-    ) == OPERATIONAL_ENDED
+    assert (
+        event_operational_status(
+            event,
+            at=event.ends_at,
+        )
+        == OPERATIONAL_ENDED
+    )
 
 
 @pytest.mark.django_db
@@ -165,10 +183,13 @@ def test_structural_status_has_priority(
         sales_ends_at=now + datetime.timedelta(days=1),
     )
 
-    assert event_operational_status(
-        event,
-        at=now,
-    ) == expected
+    assert (
+        event_operational_status(
+            event,
+            at=now,
+        )
+        == expected
+    )
 
 
 @pytest.mark.django_db
@@ -203,7 +224,6 @@ def test_database_rejects_inverted_sales_window():
             )
 
 
-
 @pytest.mark.django_db
 def test_postponed_without_new_date_is_not_sellable():
     now = timezone.now()
@@ -216,10 +236,7 @@ def test_postponed_without_new_date_is_not_sellable():
     )
 
     assert event.postponed_to_starts_at is None
-    assert (
-        event_sales_phase(event, at=now)
-        == OPERATIONAL_POSTPONED
-    )
+    assert event_sales_phase(event, at=now) == OPERATIONAL_POSTPONED
     assert event_sales_open(event, at=now) is False
 
 
@@ -237,10 +254,7 @@ def test_postponed_with_known_new_date_can_reopen_sales():
     event.postponed_to_starts_at = event.starts_at
     event.postponed_to_ends_at = event.ends_at
 
-    assert (
-        event_sales_phase(event, at=now)
-        == OPERATIONAL_SALE_OPEN
-    )
+    assert event_sales_phase(event, at=now) == OPERATIONAL_SALE_OPEN
     assert event_sales_open(event, at=now) is True
 
 
@@ -255,17 +269,23 @@ def test_catalog_status_becomes_sold_out_during_open_sale():
         sales_ends_at=now + datetime.timedelta(hours=2),
     )
 
-    assert event_catalog_status(
-        event,
-        sold_out=True,
-        at=now,
-    ) == "SOLD_OUT"
+    assert (
+        event_catalog_status(
+            event,
+            sold_out=True,
+            at=now,
+        )
+        == "SOLD_OUT"
+    )
 
-    assert event_catalog_status(
-        event,
-        sold_out=False,
-        at=now,
-    ) == OPERATIONAL_SALE_OPEN
+    assert (
+        event_catalog_status(
+            event,
+            sold_out=False,
+            at=now,
+        )
+        == OPERATIONAL_SALE_OPEN
+    )
 
 
 @pytest.mark.django_db
@@ -279,12 +299,14 @@ def test_sold_out_does_not_hide_coming_soon():
         sales_ends_at=now + datetime.timedelta(hours=2),
     )
 
-    assert event_catalog_status(
-        event,
-        sold_out=True,
-        at=now,
-    ) == OPERATIONAL_COMING_SOON
-
+    assert (
+        event_catalog_status(
+            event,
+            sold_out=True,
+            at=now,
+        )
+        == OPERATIONAL_COMING_SOON
+    )
 
 
 @pytest.mark.django_db
@@ -298,8 +320,11 @@ def test_catalog_status_maps_draft_to_public_coming_soon():
 
     assert event.operational_status == OPERATIONAL_DRAFT
 
-    assert event_catalog_status(
-        event,
-        sold_out=False,
-        at=now,
-    ) == OPERATIONAL_COMING_SOON
+    assert (
+        event_catalog_status(
+            event,
+            sold_out=False,
+            at=now,
+        )
+        == OPERATIONAL_COMING_SOON
+    )

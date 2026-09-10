@@ -86,14 +86,11 @@ class FanCatalogEventListView(APIView):
         )
         query_serializer.is_valid(raise_exception=True)
 
-        category_id = query_serializer.validated_data[
-            "category_id"
-        ]
+        category_id = query_serializer.validated_data["category_id"]
 
         queryset = (
             Event.objects.filter(
-                Q(organizer__isnull=True)
-                | Q(organizer__validation_status="APPROVED"),
+                Q(organizer__isnull=True) | Q(organizer__validation_status="APPROVED"),
                 category_id=category_id,
             )
             .exclude(

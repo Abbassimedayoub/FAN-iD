@@ -36,21 +36,20 @@ def test_elapsed_event_is_completed_once_and_publishes_outbox():
     assert outbox.payload["notify_buyers"] is False
 
     assert complete_elapsed_events(now=now) == 0
-    assert OutboxEvent.objects.filter(
-        event_type=CATALOG_EVENT_COMPLETED,
-        aggregate_id=event.id,
-    ).count() == 1
+    assert (
+        OutboxEvent.objects.filter(
+            event_type=CATALOG_EVENT_COMPLETED,
+            aggregate_id=event.id,
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db
 def test_event_ending_after_midnight_completes_after_its_real_end():
     category = Category.objects.create(name="Completion midnight category")
-    start = datetime.datetime(
-        2026, 9, 8, 22, 0, tzinfo=datetime.UTC
-    )
-    end = datetime.datetime(
-        2026, 9, 9, 1, 0, tzinfo=datetime.UTC
-    )
+    start = datetime.datetime(2026, 9, 8, 22, 0, tzinfo=datetime.UTC)
+    end = datetime.datetime(2026, 9, 9, 1, 0, tzinfo=datetime.UTC)
     event = Event.objects.create(
         category=category,
         name="Completion after midnight",
@@ -59,16 +58,22 @@ def test_event_ending_after_midnight_completes_after_its_real_end():
         ends_at=end,
     )
 
-    assert complete_elapsed_events(
-        now=datetime.datetime(2026, 9, 9, 0, 59, tzinfo=datetime.UTC),
-    ) == 0
+    assert (
+        complete_elapsed_events(
+            now=datetime.datetime(2026, 9, 9, 0, 59, tzinfo=datetime.UTC),
+        )
+        == 0
+    )
 
     event.refresh_from_db()
     assert event.status == Event.PUBLISHED
 
-    assert complete_elapsed_events(
-        now=datetime.datetime(2026, 9, 9, 1, 1, tzinfo=datetime.UTC),
-    ) == 1
+    assert (
+        complete_elapsed_events(
+            now=datetime.datetime(2026, 9, 9, 1, 1, tzinfo=datetime.UTC),
+        )
+        == 1
+    )
 
     event.refresh_from_db()
     assert event.status == Event.COMPLETED

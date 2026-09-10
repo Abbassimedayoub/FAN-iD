@@ -18,23 +18,12 @@ from apps.identity import consumers as identity_consumers
 from apps.identity import tasks as identity_tasks
 from apps.identity import views
 from apps.identity.consumers import PasswordResetEmailConsumer
-from apps.identity.events import (
-    USER_PHONE_CHANGED,
-    USER_PROFILE_UPDATED,
-)
+from apps.identity.events import USER_PHONE_CHANGED, USER_PROFILE_UPDATED
 from apps.identity.models import User
-from apps.identity.services.authentication import (
-    AuthenticationService,
-    LoginCommand,
-)
+from apps.identity.services.authentication import AuthenticationService, LoginCommand
 from apps.identity.services.devices import DeviceBindingService
-from apps.identity.services.phone_change import (
-    PhoneChangeService,
-)
-from apps.identity.services.registration import (
-    RegistrationCommand,
-    RegistrationService,
-)
+from apps.identity.services.phone_change import PhoneChangeService
+from apps.identity.services.registration import RegistrationCommand, RegistrationService
 
 PASSWORD = "Chataigne-Orageuse-2026"
 REQUEST_URL = "/api/v1/auth/phone/change/request"
@@ -49,13 +38,8 @@ def isolated_throttle_cache(
 ):
     settings.CACHES = {
         "default": {
-            "BACKEND": (
-                "django.core.cache.backends."
-                "locmem.LocMemCache"
-            ),
-            "LOCATION": (
-                "phone-change-http-tests"
-            ),
+            "BACKEND": ("django.core.cache.backends." "locmem.LocMemCache"),
+            "LOCATION": ("phone-change-http-tests"),
         }
     }
     cache.clear()
@@ -142,11 +126,7 @@ def authenticated_client(
     )
 
     client = APIClient()
-    client.credentials(
-        HTTP_AUTHORIZATION=(
-            f"Bearer {opened.pair.access}"
-        )
-    )
+    client.credentials(HTTP_AUTHORIZATION=(f"Bearer {opened.pair.access}"))
     return client
 
 
@@ -155,9 +135,7 @@ def otp_from(
 ) -> str:
     assert sender.emails_sent
 
-    body = sender.emails_sent[-1][
-        "body"
-    ]
+    body = sender.emails_sent[-1]["body"]
 
     match = re.search(
         r"\b([0-9]{6})\b",
@@ -228,20 +206,12 @@ def test_wrong_code_never_replaces_old_phone(
     real_code = otp_from(
         sender,
     )
-    wrong_code = (
-        "000000"
-        if real_code != "000000"
-        else "000001"
-    )
+    wrong_code = "000000" if real_code != "000000" else "000001"
 
     response = client.post(
         CONFIRM_URL,
         {
-            "challenge_id": (
-                requested.data[
-                    "challenge_id"
-                ]
-            ),
+            "challenge_id": (requested.data["challenge_id"]),
             "phone": NEW_PHONE,
             "code": wrong_code,
         },
@@ -249,10 +219,7 @@ def test_wrong_code_never_replaces_old_phone(
     )
 
     assert response.status_code == 400
-    assert (
-        response.data["error"]["code"]
-        == "OTP_INVALID"
-    )
+    assert response.data["error"]["code"] == "OTP_INVALID"
 
     fan.refresh_from_db()
 
@@ -283,11 +250,7 @@ def test_confirm_replaces_phone_atomically_and_emits_events(
     response = client.post(
         CONFIRM_URL,
         {
-            "challenge_id": (
-                requested.data[
-                    "challenge_id"
-                ]
-            ),
+            "challenge_id": (requested.data["challenge_id"]),
             "phone": NEW_PHONE,
             "code": otp_from(
                 sender,
@@ -301,21 +264,14 @@ def test_confirm_replaces_phone_atomically_and_emits_events(
     fan.refresh_from_db()
 
     assert fan.phone == NEW_PHONE
-    assert fan.version == (
-        initial_version + 1
-    )
+    assert fan.version == (initial_version + 1)
     assert response.data["phone"] == NEW_PHONE
-    assert response["ETag"] == (
-        f'"{initial_version + 1}"'
-    )
+    assert response["ETag"] == (f'"{initial_version + 1}"')
 
-    profile_event = (
-        OutboxEvent.objects.filter(
-            event_type=USER_PROFILE_UPDATED,
-            aggregate_id=fan.pk,
-        )
-        .latest("occurred_at")
-    )
+    profile_event = OutboxEvent.objects.filter(
+        event_type=USER_PROFILE_UPDATED,
+        aggregate_id=fan.pk,
+    ).latest("occurred_at")
 
     assert profile_event.payload == {
         "changed_fields": [
@@ -323,13 +279,10 @@ def test_confirm_replaces_phone_atomically_and_emits_events(
         ],
     }
 
-    phone_event = (
-        OutboxEvent.objects.filter(
-            event_type=USER_PHONE_CHANGED,
-            aggregate_id=fan.pk,
-        )
-        .latest("occurred_at")
-    )
+    phone_event = OutboxEvent.objects.filter(
+        event_type=USER_PHONE_CHANGED,
+        aggregate_id=fan.pk,
+    ).latest("occurred_at")
 
     assert phone_event.payload == {
         "first_record": False,
@@ -361,11 +314,7 @@ def test_otp_is_bound_to_requested_phone(
     response = client.post(
         CONFIRM_URL,
         {
-            "challenge_id": (
-                requested.data[
-                    "challenge_id"
-                ]
-            ),
+            "challenge_id": (requested.data["challenge_id"]),
             "phone": "+33777777777",
             "code": otp_from(
                 sender,
@@ -375,10 +324,7 @@ def test_otp_is_bound_to_requested_phone(
     )
 
     assert response.status_code == 400
-    assert (
-        response.data["error"]["code"]
-        == "OTP_INVALID"
-    )
+    assert response.data["error"]["code"] == "OTP_INVALID"
 
     fan.refresh_from_db()
 
@@ -430,15 +376,14 @@ def test_confirmation_email_distinguishes_first_and_change(
         first_record=True,
     )
 
-    assert len(
-        sender.emails_sent,
-    ) == 1
-
-    assert "enregistré" in (
-        sender.emails_sent[0][
-            "subject"
-        ]
+    assert (
+        len(
+            sender.emails_sent,
+        )
+        == 1
     )
+
+    assert "enregistré" in (sender.emails_sent[0]["subject"])
 
     sender.emails_sent.clear()
 
@@ -449,21 +394,16 @@ def test_confirmation_email_distinguishes_first_and_change(
         first_record=False,
     )
 
-    assert len(
-        sender.emails_sent,
-    ) == 1
-
-    assert "modifié" in (
-        sender.emails_sent[0][
-            "subject"
-        ]
+    assert (
+        len(
+            sender.emails_sent,
+        )
+        == 1
     )
 
-    assert OLD_PHONE in (
-        sender.emails_sent[0][
-            "body"
-        ]
-    )
+    assert "modifié" in (sender.emails_sent[0]["subject"])
+
+    assert OLD_PHONE in (sender.emails_sent[0]["body"])
 
 
 @pytest.mark.django_db
@@ -472,13 +412,10 @@ def test_identity_consumer_dispatches_phone_email(
     monkeypatch,
     django_capture_on_commit_callbacks,
 ):
-    delayed: list[
-        dict[str, object]
-    ] = []
+    delayed: list[dict[str, object]] = []
 
     monkeypatch.setattr(
-        identity_consumers
-        .send_phone_changed_email,
+        identity_consumers.send_phone_changed_email,
         "delay",
         lambda **kwargs: delayed.append(
             kwargs,
@@ -519,10 +456,7 @@ def test_registration_with_phone_publishes_first_record_event(
 ):
     user = RegistrationService.register(
         RegistrationCommand(
-            email=(
-                "first-phone-registration"
-                "@example.test"
-            ),
+            email=("first-phone-registration" "@example.test"),
             password=PASSWORD,
             first_name="Premiere",
             last_name="Telephone",
@@ -536,13 +470,10 @@ def test_registration_with_phone_publishes_first_record_event(
         )
     )
 
-    event = (
-        OutboxEvent.objects.filter(
-            event_type=USER_PHONE_CHANGED,
-            aggregate_id=user.pk,
-        )
-        .latest("occurred_at")
-    )
+    event = OutboxEvent.objects.filter(
+        event_type=USER_PHONE_CHANGED,
+        aggregate_id=user.pk,
+    ).latest("occurred_at")
 
     assert event.payload == {
         "first_record": True,

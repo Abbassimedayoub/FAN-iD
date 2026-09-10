@@ -249,12 +249,8 @@ def test_fan_catalog_hides_events_of_suspended_organizer(
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    assert [item["id"] for item in response.data["results"]] == [
-        str(visible_event.pk)
-    ]
-    assert str(hidden_event.pk) not in {
-        item["id"] for item in response.data["results"]
-    }
+    assert [item["id"] for item in response.data["results"]] == [str(visible_event.pk)]
+    assert str(hidden_event.pk) not in {item["id"] for item in response.data["results"]}
 
 
 @pytest.mark.django_db
@@ -684,9 +680,7 @@ def test_fan_catalog_cart_eligibility_respects_lifecycle(
             unit_price_cents=2500,
         )
 
-        expected[str(event.pk)] = (
-            event_status == Event.PUBLISHED
-        )
+        expected[str(event.pk)] = event_status == Event.PUBLISHED
 
         if event_status == Event.POSTPONED:
             assert event.postponed_to_starts_at is None
@@ -701,10 +695,7 @@ def test_fan_catalog_cart_eligibility_respects_lifecycle(
 
     assert response.status_code == 200
 
-    items = {
-        item["id"]: item
-        for item in response.data["results"]
-    }
+    items = {item["id"]: item for item in response.data["results"]}
 
     assert set(items) == set(expected)
 
@@ -761,7 +752,6 @@ def test_fan_catalog_cart_rejects_fully_sold_out_event(
     assert item["ticket_categories"][0]["available_count"] == 0
 
 
-
 @pytest.mark.django_db
 def test_fan_catalog_future_sales_window_is_coming_soon(
     client,
@@ -786,12 +776,8 @@ def test_fan_catalog_future_sales_window_is_coming_soon(
 
     now = timezone.now()
 
-    event.sales_starts_at = (
-        now + datetime.timedelta(hours=4)
-    )
-    event.sales_ends_at = (
-        event.starts_at - datetime.timedelta(hours=1)
-    )
+    event.sales_starts_at = now + datetime.timedelta(hours=4)
+    event.sales_ends_at = event.starts_at - datetime.timedelta(hours=1)
     event.save(
         update_fields=[
             "sales_starts_at",
@@ -903,12 +889,8 @@ def test_fan_catalog_postponed_known_date_can_sell_again(
 
     event.postponed_to_starts_at = event.starts_at
     event.postponed_to_ends_at = event.ends_at
-    event.sales_starts_at = (
-        now - datetime.timedelta(hours=1)
-    )
-    event.sales_ends_at = (
-        event.starts_at - datetime.timedelta(hours=1)
-    )
+    event.sales_starts_at = now - datetime.timedelta(hours=1)
+    event.sales_ends_at = event.starts_at - datetime.timedelta(hours=1)
     event.save(
         update_fields=[
             "postponed_to_starts_at",
@@ -943,7 +925,6 @@ def test_fan_catalog_postponed_known_date_can_sell_again(
     assert item["sales_open"] is True
     assert item["sold_out"] is False
     assert item["can_add_to_cart"] is True
-
 
 
 @pytest.mark.django_db

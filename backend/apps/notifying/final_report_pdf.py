@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from io import BytesIO
+from typing import Any, Protocol
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -8,15 +10,59 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from apps.access.models import EventFinalReport
+
+class FinalReportEventData(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def ends_at(self) -> datetime: ...
+
+
+class FinalReportPDFData(Protocol):
+    @property
+    def event(self) -> FinalReportEventData: ...
+
+    @property
+    def generated_at(self) -> datetime: ...
+
+    @property
+    def tickets_sold_count(self) -> int: ...
+
+    @property
+    def tickets_used_count(self) -> int: ...
+
+    @property
+    def tickets_absent_count(self) -> int: ...
+
+    @property
+    def tickets_voided_count(self) -> int: ...
+
+    @property
+    def gross_revenue_cents(self) -> int: ...
+
+    @property
+    def refunds_cents(self) -> int: ...
+
+    @property
+    def net_revenue_cents(self) -> int: ...
+
+    @property
+    def commission_cents(self) -> int: ...
+
+    @property
+    def organizer_net_cents(self) -> int: ...
+
+    @property
+    def scanner_stats(self) -> list[dict[str, Any]]: ...
 
 
 def _money(cents: int) -> str:
     return f"{cents / 100:,.2f} €".replace(",", " ").replace(".", ",")
 
 
-def build_final_report_pdf(*, report: EventFinalReport) -> bytes:
-    """Construit le PDF du snapshot final, sans recalculer les données métier."""
+def build_final_report_pdf(*, report: FinalReportPDFData) -> bytes:
+    """Build the final snapshot PDF without recalculating business data."""
     output = BytesIO()
     document = SimpleDocTemplate(
         output,
@@ -64,54 +110,62 @@ def build_final_report_pdf(*, report: EventFinalReport) -> bytes:
     ]
     summary = Table(rows, colWidths=[10.8 * cm, 5.0 * cm])
     summary.setStyle(
-        TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#172554")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-            ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-        ])
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#172554")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
     )
     story.extend([summary, Spacer(1, 0.5 * cm), Paragraph("Scans par Scanner", heading)])
 
     scanner_rows = [["Scanner", "E-mail", "Scans", "Dernier scan"]]
     for scanner in report.scanner_stats:
         last_scan = scanner.get("last_scan_at") or "—"
-        scanner_rows.append([
-            str(scanner.get("name") or "—"),
-            str(scanner.get("email") or "—"),
-            str(scanner.get("scan_count") or 0),
-            last_scan.replace("T", " ")[:16],
-        ])
+        scanner_rows.append(
+            [
+                str(scanner.get("name") or "—"),
+                str(scanner.get("email") or "—"),
+                str(scanner.get("scan_count") or 0),
+                last_scan.replace("T", " ")[:16],
+            ]
+        )
 
     if len(scanner_rows) == 1:
         scanner_rows.append(["Aucun scan enregistré", "—", "0", "—"])
 
     scanners = Table(scanner_rows, colWidths=[4.3 * cm, 5.8 * cm, 1.6 * cm, 4.1 * cm])
     scanners.setStyle(
-        TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F766E")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("ALIGN", (2, 1), (2, -1), "RIGHT"),
-        ])
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F766E")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("ALIGN", (2, 1), (2, -1), "RIGHT"),
+            ]
+        )
     )
-    story.extend([
-        scanners,
-        Spacer(1, 0.45 * cm),
-        Paragraph(
-            "Ce document est le snapshot final généré à la clôture de l’événement.",
-            normal,
-        ),
-    ])
+    story.extend(
+        [
+            scanners,
+            Spacer(1, 0.45 * cm),
+            Paragraph(
+                "Ce document est le snapshot final généré à la clôture de l’événement.",
+                normal,
+            ),
+        ]
+    )
 
     document.build(story)
     return output.getvalue()

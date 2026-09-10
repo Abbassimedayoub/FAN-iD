@@ -6,7 +6,7 @@ from typing import Any
 from celery import shared_task
 
 from apps.core.adapters.notifications import build_notification_sender
-from apps.payments.models import PAYMENT_REFUND_SUCCEEDED, PaymentRefund
+from apps.payments.api import get_payment_refund_notification_summary
 
 
 def _amount_label(amount_cents: int) -> str:
@@ -28,31 +28,22 @@ def send_refund_succeeded_email(
     except ValueError:
         return {"sent": False, "reason": "invalid_identifier"}
 
-    refund = (
-        PaymentRefund.objects.select_related(
-            "event",
-            "payment_intent__order__user",
-        )
-        .filter(
-            pk=refund_uuid,
-            status=PAYMENT_REFUND_SUCCEEDED,
-        )
-        .first()
+    refund = get_payment_refund_notification_summary(
+        refund_id=refund_uuid,
     )
     if refund is None:
         return {"sent": False, "reason": "refund_not_succeeded"}
 
-    buyer = refund.payment_intent.order.user
-    first_name = buyer.first_name.strip()
+    first_name = refund.buyer_first_name.strip()
     greeting = f"Bonjour {first_name}" if first_name else "Bonjour"
 
     try:
         build_notification_sender().send_email(
-            to=buyer.email,
-            subject=f"[FANID] Remboursement effectué : {refund.event.name}",
+            to=refund.buyer_email,
+            subject=f"[FANID] Remboursement effectué : {refund.event_name}",
             body=(
                 f"{greeting},\n\n"
-                f"L’événement « {refund.event.name} » a été annulé.\n\n"
+                f"L’événement « {refund.event_name} » a été annulé.\n\n"
                 f"Votre remboursement de {_amount_label(refund.amount_cents)} "
                 "a été effectué par Stripe. Les billets concernés ne sont "
                 "désormais plus utilisables.\n\n"

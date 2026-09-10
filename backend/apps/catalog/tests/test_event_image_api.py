@@ -438,7 +438,6 @@ def test_replacing_image_deletes_old_after_commit(
         ]
     )
 
-
     published_at = timezone.now()
     event.status = Event.PUBLISHED
     event.published_at = published_at

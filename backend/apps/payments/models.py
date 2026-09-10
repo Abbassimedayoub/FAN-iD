@@ -4,7 +4,6 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel, UUIDModel
 
-
 PAYMENT_INTENT_CREATED = "CREATED"
 PAYMENT_INTENT_SUCCEEDED = "SUCCEEDED"
 PAYMENT_INTENT_FAILED = "FAILED"

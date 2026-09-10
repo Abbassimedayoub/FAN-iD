@@ -9,25 +9,21 @@ from django.db import IntegrityError, transaction
 from django.test import Client, override_settings
 from django.utils import timezone
 
-from apps.core.adapters.payments import (
-    FakeGateway,
-    StripeGateway,
-    StripeWebhookSignatureError,
-)
 from apps.catalog.models import Category, Event, TicketCategory
+from apps.core.adapters.payments import FakeGateway, StripeGateway, StripeWebhookSignatureError
 from apps.core.outbox.models import OutboxEvent
 from apps.ordering.models import Order, StockHold
-from apps.ordering.services.reservations import ReservationLine, reserve_stock
 from apps.ordering.services.confirmation import ReservationExpiredError
+from apps.ordering.services.reservations import ReservationLine, reserve_stock
 from apps.payments.models import PaymentIntent, PaymentRefund
-from apps.ticketing.models import TICKET_VALID, TICKET_VOID, Ticket
-from apps.payments.services.refunds import PaymentRefundGatewayError
 from apps.payments.services import (
     create_payment_intent,
     execute_payment_refund,
     mark_payment_intent_succeeded,
     request_event_refunds,
 )
+from apps.payments.services.refunds import PaymentRefundGatewayError
+from apps.ticketing.models import TICKET_VALID, TICKET_VOID, Ticket
 
 
 @pytest.fixture
@@ -391,7 +387,7 @@ def test_stripe_webhook_rejects_invalid_signature(monkeypatch):
     client = Client()
     response = client.post(
         "/api/v1/payments/stripe/webhook",
-        data=b'{}',
+        data=b"{}",
         content_type="application/json",
         HTTP_STRIPE_SIGNATURE="bad-signature",
     )
@@ -413,7 +409,6 @@ def test_stripe_webhook_is_hidden_when_stripe_is_disabled(monkeypatch):
     )
 
     assert response.status_code == 404
-
 
 
 def test_event_refund_request_is_idempotent(reserved_order, buyer):
@@ -439,7 +434,6 @@ def test_event_refund_request_is_idempotent(reserved_order, buyer):
     assert first[0].amount_cents == 2400
     assert first[0].status == "PENDING"
     assert PaymentRefund.objects.count() == 1
-
 
 
 def test_stripe_gateway_maps_refund_without_network():
@@ -484,7 +478,6 @@ def test_stripe_gateway_maps_refund_without_network():
     }
 
 
-
 def test_successful_refund_voids_only_event_tickets(reserved_order, buyer):
     order, ticket_category = reserved_order
     gateway = FakeGateway()
@@ -509,8 +502,6 @@ def test_successful_refund_voids_only_event_tickets(reserved_order, buyer):
     assert completed.provider_refund_id.startswith("re_fake_")
     assert len(tickets) == 2
     assert all(ticket.status == TICKET_VOID for ticket in tickets)
-
-
 
 
 def test_refund_rejects_gateway_different_from_payment_provider(
@@ -547,6 +538,7 @@ def test_refund_rejects_gateway_different_from_payment_provider(
     assert refund.provider_refund_id is None
     assert all(ticket.status == TICKET_VALID for ticket in tickets)
 
+
 def test_cancellation_refund_consumer_respects_refund_requested(monkeypatch):
     from apps.payments.refund_consumers import EventCancellationRefundConsumer
 
@@ -554,8 +546,7 @@ def test_cancellation_refund_consumer_respects_refund_requested(monkeypatch):
     consumer = EventCancellationRefundConsumer()
 
     monkeypatch.setattr(
-        "apps.payments.refund_consumers."
-        "process_cancelled_event_refunds.delay",
+        "apps.payments.refund_consumers." "process_cancelled_event_refunds.delay",
         lambda **kwargs: scheduled.append(kwargs),
     )
     monkeypatch.setattr(
@@ -576,7 +567,6 @@ def test_cancellation_refund_consumer_respects_refund_requested(monkeypatch):
     assert scheduled == [
         {"event_id": "00000000-0000-0000-0000-000000000001"},
     ]
-
 
 
 def test_stripe_webhook_confirms_pending_refund(
@@ -631,7 +621,10 @@ def test_stripe_webhook_confirms_pending_refund(
     assert response.status_code == 200, response.content
     assert refund.status == "SUCCEEDED"
     assert all(ticket.status == TICKET_VOID for ticket in tickets)
-    assert OutboxEvent.objects.filter(
-        event_type="payments.refund.succeeded",
-        aggregate_id=refund.id,
-    ).count() == 1
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="payments.refund.succeeded",
+            aggregate_id=refund.id,
+        ).count()
+        == 1
+    )

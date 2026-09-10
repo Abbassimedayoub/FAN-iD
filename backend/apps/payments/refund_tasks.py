@@ -6,11 +6,7 @@ from typing import Any
 from celery import shared_task
 
 from .gateways import get_payment_gateway
-from .services import (
-    PaymentRefundGatewayError,
-    execute_payment_refund,
-    request_event_refunds,
-)
+from .services import PaymentRefundGatewayError, execute_payment_refund, request_event_refunds
 
 
 @shared_task(

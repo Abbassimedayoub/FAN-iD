@@ -2,18 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Iterable
+from typing import Iterable, cast
 from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from apps.catalog.lifecycle import event_sales_open
+from apps.catalog.lifecycle import EventLifecycleLike, event_sales_open
 from apps.catalog.models import TicketCategory
 from apps.core.exceptions import ConflictError, NotFoundBusinessError, ValidationBusinessError
 from apps.ordering.models import Order, OrderLine, StockHold, StockHoldLine
-
 
 HOLD_TTL = timedelta(minutes=10)
 
@@ -48,9 +47,7 @@ def reserve_stock(*, user, lines: Iterable[ReservationLine], now=None) -> Order:
             raise InvalidReservationError(
                 details={"reason": "quantity doit être strictement positive."},
             )
-        requested[line.ticket_category_id] = (
-            requested.get(line.ticket_category_id, 0) + line.quantity
-        )
+        requested[line.ticket_category_id] = requested.get(line.ticket_category_id, 0) + line.quantity
 
     if not requested:
         raise InvalidReservationError(
@@ -87,7 +84,7 @@ def reserve_stock(*, user, lines: Iterable[ReservationLine], now=None) -> Order:
 
     for category_id, quantity in requested.items():
         category = categories[category_id]
-        if not event_sales_open(category.event, at=moment):
+        if not event_sales_open(cast(EventLifecycleLike, category.event), at=moment):
             raise SaleUnavailableError(details={"event_id": str(category.event_id)})
 
         available = category.quota - category.sold_count - held.get(category_id, 0)
@@ -101,20 +98,15 @@ def reserve_stock(*, user, lines: Iterable[ReservationLine], now=None) -> Order:
             )
 
     for event_id in {category.event_id for category in locked_categories}:
-        event_categories = [
-            category for category in locked_categories
-            if category.event_id == event_id
-        ]
+        event_categories = [category for category in locked_categories if category.event_id == event_id]
         capacity = event_categories[0].event.capacity_total
         if capacity is None:
             continue
 
-        occupied = sum(
-            category.sold_count + held.get(category.id, 0)
-            for category in event_categories
-        )
+        occupied = sum(category.sold_count + held.get(category.id, 0) for category in event_categories)
         requested_for_event = sum(
-            quantity for category_id, quantity in requested.items()
+            quantity
+            for category_id, quantity in requested.items()
             if categories[category_id].event_id == event_id
         )
         if occupied + requested_for_event > capacity:
@@ -123,8 +115,7 @@ def reserve_stock(*, user, lines: Iterable[ReservationLine], now=None) -> Order:
             )
 
     total = sum(
-        categories[category_id].unit_price_cents * quantity
-        for category_id, quantity in requested.items()
+        categories[category_id].unit_price_cents * quantity for category_id, quantity in requested.items()
     )
     order = Order.objects.create(user=user, total_amount_cents=total)
     hold = StockHold.objects.create(order=order, expires_at=moment + HOLD_TTL)

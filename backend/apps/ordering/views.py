@@ -46,7 +46,6 @@ class ReservationCreateView(APIView):
         )
 
 
-
 class OrderStatusView(APIView):
     permission_classes = [IsAuthenticated]
 

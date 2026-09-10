@@ -3,16 +3,8 @@ from __future__ import annotations
 from apps.core.outbox.consumer import BaseConsumer
 from apps.core.outbox.models import OutboxEvent
 
-from .events import (
-    PASSWORD_RESET_COMPLETED,
-    PASSWORD_RESET_REQUESTED,
-    USER_PHONE_CHANGED,
-)
-from .tasks import (
-    send_password_changed_email,
-    send_password_reset_email,
-    send_phone_changed_email,
-)
+from .events import PASSWORD_RESET_COMPLETED, PASSWORD_RESET_REQUESTED, USER_PHONE_CHANGED
+from .tasks import send_password_changed_email, send_password_reset_email, send_phone_changed_email
 
 
 class PasswordResetEmailConsumer(BaseConsumer):

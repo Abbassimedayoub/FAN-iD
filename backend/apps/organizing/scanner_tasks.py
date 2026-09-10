@@ -623,11 +623,9 @@ def send_scanner_invitation_reissued_emails(
         "sent": True,
     }
 
+
 @shared_task(
-    name=(
-        "organizing."
-        "send_scanner_phone_changed_organizer_email"
-    ),
+    name=("organizing." "send_scanner_phone_changed_organizer_email"),
 )
 def send_scanner_phone_changed_organizer_email(
     *,
@@ -636,9 +634,7 @@ def send_scanner_phone_changed_organizer_email(
 ) -> None:
     import logging
 
-    from apps.core.adapters.notifications import (
-        build_notification_sender,
-    )
+    from apps.core.adapters.notifications import build_notification_sender
 
     task_logger = logging.getLogger(
         "fanid.organizing",
@@ -665,61 +661,25 @@ def send_scanner_phone_changed_organizer_email(
     if not phone:
         return
 
-    first_name = (
-        str(
-            scanner.user.first_name
-            or scanner.invited_first_name
-            or ""
-        )
-        .strip()
-    )
-    last_name = (
-        str(
-            scanner.user.last_name
-            or scanner.invited_last_name
-            or ""
-        )
-        .strip()
-    )
+    first_name = str(scanner.user.first_name or scanner.invited_first_name or "").strip()
+    last_name = str(scanner.user.last_name or scanner.invited_last_name or "").strip()
 
-    scanner_name = (
-        f"{first_name} {last_name}".strip()
-        or scanner.user.email
-    )
+    scanner_name = f"{first_name} {last_name}".strip() or scanner.user.email
 
-    organizer_email = str(
-        scanner.organizer.contact_email
-        or ""
-    ).strip()
+    organizer_email = str(scanner.organizer.contact_email or "").strip()
 
     if not organizer_email:
-        organizer_email = str(
-            scanner.organizer.user.email
-            or ""
-        ).strip()
+        organizer_email = str(scanner.organizer.user.email or "").strip()
 
     if not organizer_email:
         return
 
     if first_record:
-        subject = (
-            "[FANID] Numéro de téléphone "
-            "du scanner enregistré"
-        )
-        body = (
-            "Le numéro de téléphone de "
-            f"{scanner_name} a été enregistré : "
-            f"{phone}."
-        )
+        subject = "[FANID] Numéro de téléphone " "du scanner enregistré"
+        body = "Le numéro de téléphone de " f"{scanner_name} a été enregistré : " f"{phone}."
     else:
-        subject = (
-            "[FANID] Numéro de téléphone "
-            "du scanner modifié"
-        )
-        body = (
-            "Le numéro de téléphone de "
-            f"{scanner_name} est devenu {phone}."
-        )
+        subject = "[FANID] Numéro de téléphone " "du scanner modifié"
+        body = "Le numéro de téléphone de " f"{scanner_name} est devenu {phone}."
 
     try:
         build_notification_sender().send_email(

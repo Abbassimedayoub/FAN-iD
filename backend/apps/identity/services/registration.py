@@ -128,10 +128,7 @@ class RegistrationService:
         )
 
         if str(user.phone or "").strip():
-            from ..events import (
-                USER_PHONE_CHANGED,
-                user_phone_changed_payload,
-            )
+            from ..events import USER_PHONE_CHANGED, user_phone_changed_payload
 
             publish_event(
                 event_type=USER_PHONE_CHANGED,

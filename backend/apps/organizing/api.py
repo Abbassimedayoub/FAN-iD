@@ -29,7 +29,7 @@ __all__ = [
     "get_scanner_assignment_summary",
     "get_scanner_portal_context",
     "list_scanner_assignment_summaries",
-    "resolve_active_scanner_event_assignment",
+    "resolve_active_scanner_id",
     "resolve_organizer_context",
     "resolve_organizer_commercial_context",
 ]
@@ -123,17 +123,12 @@ def resolve_organizer_commercial_context(
             commission_agreed_at,
         ) = row
 
-        approved = (
-            validation_status == ORGANIZER_APPROVED
-        )
+        approved = validation_status == ORGANIZER_APPROVED
 
         return (
             organizer_id,
             approved,
-            (
-                approved
-                and commission_agreed_at is not None
-            ),
+            (approved and commission_agreed_at is not None),
         )
 
     scanner_row = (
@@ -164,17 +159,12 @@ def resolve_organizer_commercial_context(
         commission_agreed_at,
     ) = scanner_row
 
-    approved = (
-        validation_status == ORGANIZER_APPROVED
-    )
+    approved = validation_status == ORGANIZER_APPROVED
 
     return (
         organizer_id,
         approved,
-        (
-            approved
-            and commission_agreed_at is not None
-        ),
+        (approved and commission_agreed_at is not None),
     )
 
 
@@ -377,13 +367,12 @@ def get_organizer_notification_summary(
     )
 
 
-def resolve_active_scanner_event_assignment(
+def resolve_active_scanner_id(
     *,
     user_id: uuid.UUID,
-    event_id: uuid.UUID,
 ) -> uuid.UUID | None:
-    """Retourne le scanner actif affecté à l'événement, sinon None."""
-    scanner_id = (
+    """Return the active scanner associated with the authenticated user."""
+    return (
         Scanner.objects.filter(
             user_id=user_id,
             user__is_active=True,
@@ -396,18 +385,3 @@ def resolve_active_scanner_event_assignment(
         .values_list("pk", flat=True)
         .first()
     )
-
-    if scanner_id is None:
-        return None
-
-    # Import local : organizing expose une primitive, sans importer
-    # catalog pendant le chargement du module.
-    from apps.catalog.models import EventScannerAssignment
-
-    assigned = EventScannerAssignment.objects.filter(
-        event_id=event_id,
-        scanner_id=scanner_id,
-        unassigned_at__isnull=True,
-    ).exists()
-
-    return scanner_id if assigned else None

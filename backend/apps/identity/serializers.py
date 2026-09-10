@@ -493,6 +493,7 @@ class StepUpConfirmSerializer(serializers.Serializer):
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(max_length=16, trim_whitespace=True)
 
+
 class PhoneChangeRequestSerializer(serializers.Serializer):
     """Demande de remplacement du numéro de téléphone."""
 

@@ -10,19 +10,11 @@ from apps.access.models import ScannerPresence, TicketAdmission
 from apps.access.services.admission_sessions import (
     EventAdmissionClosedError,
     close_event_admission,
-    require_event_admission_open,
     open_event_admission,
+    require_event_admission_open,
 )
-from apps.access.services.admissions import (
-    TicketAlreadyAdmittedError,
-    admit_ticket_from_qr,
-)
-from apps.catalog.models import (
-    Category,
-    Event,
-    EventScannerAssignment,
-    TicketCategory,
-)
+from apps.access.services.admissions import TicketAlreadyAdmittedError, admit_ticket_from_qr
+from apps.catalog.models import Category, Event, EventScannerAssignment, TicketCategory
 from apps.ordering.services.confirmation import confirm_order_payment
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
 from apps.organizing.constants import SCANNER_ACTIVE

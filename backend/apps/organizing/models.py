@@ -147,10 +147,7 @@ class OrganizerCommissionProposal(
 
     proposer_role = models.CharField(
         max_length=16,
-        choices=[
-            (role, role)
-            for role in ORGANIZER_COMMISSION_PROPOSER_ROLES
-        ],
+        choices=[(role, role) for role in ORGANIZER_COMMISSION_PROPOSER_ROLES],
     )
 
     rate = models.DecimalField(
@@ -181,17 +178,12 @@ class OrganizerCommissionProposal(
                 name="uq_org_commission_proposal_seq",
             ),
             models.CheckConstraint(
-                condition=(
-                    models.Q(rate__gte=0)
-                    & models.Q(rate__lte=1)
-                ),
+                condition=(models.Q(rate__gte=0) & models.Q(rate__lte=1)),
                 name="ck_org_commission_proposal_rate",
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    proposer_role__in=list(
-                        ORGANIZER_COMMISSION_PROPOSER_ROLES
-                    ),
+                    proposer_role__in=list(ORGANIZER_COMMISSION_PROPOSER_ROLES),
                 ),
                 name="ck_org_commission_proposer_role",
             ),
@@ -205,12 +197,7 @@ class OrganizerCommissionProposal(
         ]
 
     def __str__(self) -> str:
-        return (
-            f"{self.organizer_id} "
-            f"#{self.sequence} "
-            f"{self.proposer_role} "
-            f"{self.rate}"
-        )
+        return f"{self.organizer_id} " f"#{self.sequence} " f"{self.proposer_role} " f"{self.rate}"
 
 
 class Scanner(

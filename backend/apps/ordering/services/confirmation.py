@@ -7,19 +7,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.catalog.models import TicketCategory
-from apps.core.exceptions import (
-    ConflictError,
-    InvalidStateTransitionError,
-    NotFoundBusinessError,
-)
+from apps.core.exceptions import InvalidStateTransitionError, NotFoundBusinessError
+from apps.ordering.api import ReservationExpiredError
 from apps.ordering.models import ORDER_PAID, ORDER_PENDING, Order, StockHold, StockHoldLine
 
 from .reservations import StockUnavailableError
-
-
-class ReservationExpiredError(ConflictError):
-    default_code = "RESERVATION_EXPIRED"
-    default_message = "La réservation a expiré."
 
 
 @transaction.atomic
@@ -70,15 +62,13 @@ def confirm_order_payment(*, order_id: UUID, now=None) -> Order:
             "quantity",
         )
     )
-    quantities = defaultdict(int)
+    quantities: defaultdict[UUID, int] = defaultdict(int)
     for ticket_category_id, quantity in hold_lines:
         quantities[ticket_category_id] += quantity
 
     categories = {
         category.id: category
-        for category in TicketCategory.objects.select_for_update()
-        .filter(pk__in=quantities)
-        .order_by("pk")
+        for category in TicketCategory.objects.select_for_update().filter(pk__in=quantities).order_by("pk")
     }
 
     if len(categories) != len(quantities):
@@ -108,10 +98,12 @@ def confirm_order_payment(*, order_id: UUID, now=None) -> Order:
     order.status = ORDER_PAID
     order.save(update_fields=["status"])
 
-    # Import local : ordering confirme le paiement, ticketing émet les billets.
-    # La transaction commune annule aussi la vente si l'émission échoue.
-    from apps.ticketing.services import issue_tickets_for_order
+    # Keep ticket issuance inside the same transaction so any issuance
+    # failure rolls the order confirmation back as well.
+    from apps.ticketing.api import issue_tickets_for_order
 
-    issue_tickets_for_order(order=order)
+    issue_tickets_for_order(
+        order_id=order.id,
+    )
 
     return order

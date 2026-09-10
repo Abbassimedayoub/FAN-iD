@@ -7,8 +7,6 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-from apps.core.outbox.publisher import publish_event
-
 from apps.core.exceptions import (
     ConflictError,
     InvalidStateTransitionError,
@@ -16,6 +14,7 @@ from apps.core.exceptions import (
     StaleResourceError,
     ValidationBusinessError,
 )
+from apps.core.outbox.publisher import publish_event
 
 from ..constants import (
     ORGANIZER_APPROVED,
@@ -23,16 +22,8 @@ from ..constants import (
     ORGANIZER_COMMISSION_PROPOSER_ORGANIZER,
     ORGANIZER_PENDING,
 )
-from ..events import (
-    AGGREGATE_ORGANIZER,
-    ORGANIZER_APPROVED_EVENT,
-    organizer_decision_payload,
-)
-from ..models import (
-    Organizer,
-    OrganizerCommissionProposal,
-)
-
+from ..events import AGGREGATE_ORGANIZER, ORGANIZER_APPROVED_EVENT, organizer_decision_payload
+from ..models import Organizer, OrganizerCommissionProposal
 
 NEGOTIABLE_ACCOUNT_STATES = {
     ORGANIZER_PENDING,
@@ -55,9 +46,7 @@ class OrganizerCommissionService:
         if rate < Decimal("0") or rate > Decimal("1"):
             raise ValidationBusinessError(
                 details={
-                    "commission_rate": [
-                        "Le taux doit etre compris entre 0 et 1."
-                    ],
+                    "commission_rate": ["Le taux doit etre compris entre 0 et 1."],
                 },
             )
 
@@ -111,12 +100,7 @@ class OrganizerCommissionService:
     def _latest(
         organizer: Organizer,
     ) -> OrganizerCommissionProposal | None:
-        return (
-            OrganizerCommissionProposal.objects
-            .filter(organizer=organizer)
-            .order_by("-sequence")
-            .first()
-        )
+        return OrganizerCommissionProposal.objects.filter(organizer=organizer).order_by("-sequence").first()
 
     @classmethod
     def _legacy_initial(
@@ -132,9 +116,7 @@ class OrganizerCommissionService:
             organizer=organizer,
             sequence=1,
             proposed_by_id=organizer.user_id,
-            proposer_role=(
-                ORGANIZER_COMMISSION_PROPOSER_ORGANIZER
-            ),
+            proposer_role=(ORGANIZER_COMMISSION_PROPOSER_ORGANIZER),
             rate=organizer.commission_rate,
         )
 
@@ -152,14 +134,9 @@ class OrganizerCommissionService:
         if proposal.proposer_role != expected_proposer:
             raise ConflictError(
                 code="COMMISSION_NEGOTIATION_TURN_INVALID",
-                message=(
-                    "La derniere proposition doit etre traitee "
-                    "par l'autre partie."
-                ),
+                message=("La derniere proposition doit etre traitee " "par l'autre partie."),
                 details={
-                    "latest_proposer_role": (
-                        proposal.proposer_role
-                    ),
+                    "latest_proposer_role": (proposal.proposer_role),
                 },
             )
 
@@ -175,8 +152,7 @@ class OrganizerCommissionService:
         cls._validate_rate(rate)
 
         organizer = (
-            Organizer.objects
-            .select_for_update()
+            Organizer.objects.select_for_update()
             .filter(
                 pk=organizer_id,
                 user_id=actor_id,
@@ -206,9 +182,7 @@ class OrganizerCommissionService:
             organizer=organizer,
             sequence=1,
             proposed_by_id=actor_id,
-            proposer_role=(
-                ORGANIZER_COMMISSION_PROPOSER_ORGANIZER
-            ),
+            proposer_role=(ORGANIZER_COMMISSION_PROPOSER_ORGANIZER),
             rate=rate,
         )
 
@@ -224,11 +198,7 @@ class OrganizerCommissionService:
     ) -> Organizer:
         cls._validate_rate(rate)
 
-        organizer = (
-            Organizer.objects
-            .select_for_update()
-            .get(pk=organizer_id)
-        )
+        organizer = Organizer.objects.select_for_update().get(pk=organizer_id)
 
         cls._require_version(
             organizer,
@@ -254,9 +224,7 @@ class OrganizerCommissionService:
             organizer=organizer,
             sequence=latest.sequence + 1,
             proposed_by_id=actor_id,
-            proposer_role=(
-                ORGANIZER_COMMISSION_PROPOSER_ADMIN
-            ),
+            proposer_role=(ORGANIZER_COMMISSION_PROPOSER_ADMIN),
             rate=rate,
         )
 
@@ -283,8 +251,7 @@ class OrganizerCommissionService:
         cls._validate_rate(rate)
 
         organizer = (
-            Organizer.objects
-            .select_for_update()
+            Organizer.objects.select_for_update()
             .filter(
                 pk=organizer_id,
                 user_id=actor_id,
@@ -313,10 +280,7 @@ class OrganizerCommissionService:
         if latest is None:
             raise ConflictError(
                 code="COMMISSION_ADMIN_PROPOSAL_REQUIRED",
-                message=(
-                    "Aucune contre-proposition administrateur "
-                    "n'est en attente."
-                ),
+                message=("Aucune contre-proposition administrateur " "n'est en attente."),
             )
 
         cls._require_turn(
@@ -328,9 +292,7 @@ class OrganizerCommissionService:
             organizer=organizer,
             sequence=latest.sequence + 1,
             proposed_by_id=actor_id,
-            proposer_role=(
-                ORGANIZER_COMMISSION_PROPOSER_ORGANIZER
-            ),
+            proposer_role=(ORGANIZER_COMMISSION_PROPOSER_ORGANIZER),
             rate=rate,
         )
 
@@ -368,8 +330,7 @@ class OrganizerCommissionService:
 
         approval_actor_id = (
             proposal.proposed_by_id
-            if proposal.proposer_role
-            == ORGANIZER_COMMISSION_PROPOSER_ADMIN
+            if proposal.proposer_role == ORGANIZER_COMMISSION_PROPOSER_ADMIN
             else accepted_by_id
         )
 
@@ -425,11 +386,7 @@ class OrganizerCommissionService:
         actor_id: Any,
         expected_version: int,
     ) -> Organizer:
-        organizer = (
-            Organizer.objects
-            .select_for_update()
-            .get(pk=organizer_id)
-        )
+        organizer = Organizer.objects.select_for_update().get(pk=organizer_id)
 
         cls._require_version(
             organizer,
@@ -467,8 +424,7 @@ class OrganizerCommissionService:
         expected_version: int,
     ) -> Organizer:
         organizer = (
-            Organizer.objects
-            .select_for_update()
+            Organizer.objects.select_for_update()
             .filter(
                 pk=organizer_id,
                 user_id=actor_id,
@@ -497,10 +453,7 @@ class OrganizerCommissionService:
         if latest is None:
             raise ConflictError(
                 code="COMMISSION_ADMIN_PROPOSAL_REQUIRED",
-                message=(
-                    "Aucune contre-proposition administrateur "
-                    "n'est en attente."
-                ),
+                message=("Aucune contre-proposition administrateur " "n'est en attente."),
             )
 
         cls._require_turn(

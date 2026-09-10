@@ -5,7 +5,6 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel, UUIDModel
 
-
 TICKET_VALID = "VALID"
 TICKET_USED = "USED"
 TICKET_VOID = "VOID"

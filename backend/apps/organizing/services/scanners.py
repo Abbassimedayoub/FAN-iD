@@ -80,10 +80,7 @@ class ScannerInvitationService:
         ):
             raise ConflictError(
                 code="SCANNER_ASSIGNED_TO_OTHER_ORGANIZER",
-                message=(
-                    "Ce scanner est déjà affecté "
-                    "à un autre organisateur."
-                ),
+                message=("Ce scanner est déjà affecté " "à un autre organisateur."),
             )
 
         existing_scanner = (
@@ -157,18 +154,12 @@ class ScannerInvitationService:
             ):
                 raise ConflictError(
                     code="SCANNER_ASSIGNED_TO_OTHER_ORGANIZER",
-                    message=(
-                        "Ce scanner est déjà affecté "
-                        "à un autre organisateur."
-                    ),
+                    message=("Ce scanner est déjà affecté " "à un autre organisateur."),
                 ) from exc
 
             raise ConflictError(
                 code="SCANNER_EMAIL_ALREADY_USED",
-                message=(
-                    "Cette adresse e-mail est déjà "
-                    "associée à un compte FANID."
-                ),
+                message=("Cette adresse e-mail est déjà " "associée à un compte FANID."),
             ) from exc
 
         return scanner

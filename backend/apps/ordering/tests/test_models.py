@@ -7,13 +7,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.catalog.models import Category, Event, TicketCategory
-from apps.ordering.models import (
-    ORDER_PENDING,
-    Order,
-    OrderLine,
-    StockHold,
-    StockHoldLine,
-)
+from apps.ordering.models import ORDER_PENDING, Order, OrderLine, StockHold, StockHoldLine
 
 
 @pytest.fixture

@@ -32,3 +32,19 @@ def roles(db):
     for name, role_id in ROLE_IDS.items():
         Role.objects.get_or_create(id=role_id, defaults={"name": name})
     return {role.name: role for role in Role.objects.all()}
+
+
+@pytest.fixture(autouse=True)
+def isolated_test_cache(settings, worker_id):
+    settings.CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": f"fanid-tests-{worker_id}",
+        },
+    }
+
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
+    cache.clear()

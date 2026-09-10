@@ -9,8 +9,10 @@ from django.utils import timezone
 
 from apps.catalog.models import Category, Event, TicketCategory
 from apps.core.exceptions import ConflictError
+from apps.core.outbox.models import OutboxEvent
 from apps.ordering.services.confirmation import confirm_order_payment
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
+from apps.ticketing.events import AGGREGATE_TICKET_TRANSFER, TICKET_TRANSFERRED_EVENT
 from apps.ticketing.models import Ticket, TicketTransferAudit
 from apps.ticketing.services.qr import QR_ISSUER, issue_dynamic_ticket_qr
 from apps.ticketing.services.transfers import transfer_ticket
@@ -77,6 +79,14 @@ def test_transfer_moves_owner_audits_and_rotates_qr_version(transfer_setup):
     assert audit.previous_user_id == owner.id
     assert audit.recipient_user_id == recipient.id
 
+    outbox = OutboxEvent.objects.get(
+        event_type=TICKET_TRANSFERRED_EVENT,
+        aggregate_type=AGGREGATE_TICKET_TRANSFER,
+        aggregate_id=audit.id,
+    )
+    assert outbox.payload == {}
+    assert outbox.actor_id == owner.id
+
 
 @pytest.mark.django_db
 @override_settings(QR_SIGNING_KEY="test-qr-signing-key-which-is-long-enough")
@@ -139,9 +149,7 @@ def test_transfer_email_notifies_previous_owner_and_recipient(
     transfer_setup,
     monkeypatch,
 ):
-    from apps.notifying.ticket_transfer_tasks import (
-        send_ticket_transfer_emails,
-    )
+    from apps.notifying.ticket_transfer_tasks import send_ticket_transfer_emails
 
     owner, recipient, ticket = transfer_setup
 

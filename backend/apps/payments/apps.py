@@ -8,6 +8,7 @@ class PaymentsConfig(AppConfig):
 
     def ready(self) -> None:
         from apps.core.outbox.relay import register_consumer
+
         from .refund_consumers import EventCancellationRefundConsumer
 
         register_consumer(EventCancellationRefundConsumer())

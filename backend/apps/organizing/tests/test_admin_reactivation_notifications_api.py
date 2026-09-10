@@ -8,7 +8,6 @@ from rest_framework.test import APIClient
 from apps.organizing.constants import ORGANIZER_SUSPENDED
 from apps.organizing.models import Organizer, OrganizerReactivationRequest
 
-
 PASSWORD = "StrongPass123!"
 
 
@@ -67,10 +66,7 @@ def test_admin_list_exposes_pending_reactivation_notifications(roles):
     assert response.data["pending_reactivation_count"] == 6
     assert len(response.data["pending_reactivations"]) == 5
 
-    returned_organizer_ids = {
-        item["organizer_id"]
-        for item in response.data["pending_reactivations"]
-    }
+    returned_organizer_ids = {item["organizer_id"] for item in response.data["pending_reactivations"]}
 
     assert returned_organizer_ids <= organizer_ids
 

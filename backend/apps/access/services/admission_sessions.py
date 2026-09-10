@@ -18,9 +18,7 @@ class EventAdmissionClosedError(ConflictError):
 
 class EventAdmissionUnavailableError(ConflictError):
     default_code = "EVENT_ADMISSION_UNAVAILABLE"
-    default_message = (
-        "Les entrées ne peuvent pas être ouvertes pour cet événement."
-    )
+    default_message = "Les entrées ne peuvent pas être ouvertes pour cet événement."
 
 
 def _event_can_open_admission(event: Event) -> bool:
@@ -62,9 +60,7 @@ def open_event_admission(*, event_id: UUID, opened_by_id: UUID, now=None):
 
     moment = now or timezone.now()
     active = (
-        EventAdmissionSession.objects.select_for_update()
-        .filter(event=event, closed_at__isnull=True)
-        .first()
+        EventAdmissionSession.objects.select_for_update().filter(event=event, closed_at__isnull=True).first()
     )
 
     if active is not None and active.scheduled_starts_at == event.starts_at:

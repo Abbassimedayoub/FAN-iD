@@ -349,6 +349,7 @@ def test_patch_has_its_own_scope_but_get_keeps_user_rate(client, service, fan, m
     get_response = authenticated.get(URL)
     assert get_response.status_code == 200, get_response.data
 
+
 def test_existing_phone_cannot_be_replaced_by_profile_patch(
     client,
     service,
@@ -371,16 +372,11 @@ def test_existing_phone_cannot_be_replaced_by_profile_patch(
             "phone": "+33699999999",
         },
         format="json",
-        HTTP_IF_MATCH=(
-            f'"{initial_version}"'
-        ),
+        HTTP_IF_MATCH=(f'"{initial_version}"'),
     )
 
     assert response.status_code == 400
-    assert (
-        "PHONE_CHANGE_REQUIRES_VERIFICATION"
-        in str(response.data)
-    )
+    assert "PHONE_CHANGE_REQUIRES_VERIFICATION" in str(response.data)
 
     fan.refresh_from_db()
 

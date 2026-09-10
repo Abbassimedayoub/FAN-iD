@@ -22,7 +22,6 @@ class PaymentGateway(ABC):
     def retrieve_intent(self, intent_id: str) -> Any:
         raise NotImplementedError
 
-
     @abstractmethod
     def create_refund(
         self,

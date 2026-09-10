@@ -215,12 +215,8 @@ def test_scanner_assigned_to_other_organizer_is_rejected(
     )
 
     assert second.status_code == 409
-    assert second.data["error"]["code"] == (
-        "SCANNER_ASSIGNED_TO_OTHER_ORGANIZER"
-    )
-    assert second.data["error"]["message"] == (
-        "Ce scanner est déjà affecté à un autre organisateur."
-    )
+    assert second.data["error"]["code"] == ("SCANNER_ASSIGNED_TO_OTHER_ORGANIZER")
+    assert second.data["error"]["message"] == ("Ce scanner est déjà affecté à un autre organisateur.")
 
     scanner.refresh_from_db()
 
@@ -256,13 +252,10 @@ def test_archived_scanner_cannot_move_to_other_organizer(
 
     assert first.status_code == 201
 
-    scanner = (
-        Scanner.objects.select_related(
-            "user",
-        )
-        .get(
-            invited_email__iexact=email,
-        )
+    scanner = Scanner.objects.select_related(
+        "user",
+    ).get(
+        invited_email__iexact=email,
     )
 
     scanner.status = SCANNER_DELETED
@@ -275,9 +268,7 @@ def test_archived_scanner_cannot_move_to_other_organizer(
         ]
     )
 
-    scanner.user.email = (
-        "cross-archived-internal@example.test"
-    )
+    scanner.user.email = "cross-archived-internal@example.test"
     scanner.user.save(
         update_fields=[
             "email",
@@ -291,12 +282,8 @@ def test_archived_scanner_cannot_move_to_other_organizer(
     )
 
     assert second.status_code == 409
-    assert second.data["error"]["code"] == (
-        "SCANNER_ASSIGNED_TO_OTHER_ORGANIZER"
-    )
-    assert second.data["error"]["message"] == (
-        "Ce scanner est déjà affecté à un autre organisateur."
-    )
+    assert second.data["error"]["code"] == ("SCANNER_ASSIGNED_TO_OTHER_ORGANIZER")
+    assert second.data["error"]["message"] == ("Ce scanner est déjà affecté à un autre organisateur.")
 
     scanner.refresh_from_db()
 

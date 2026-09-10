@@ -15,10 +15,7 @@ from django.utils import timezone
 from apps.core.interfaces.notifications import NotificationSender
 from apps.core.outbox.publisher import publish_event
 
-from ..constants import (
-    MFA_PURPOSE_PHONE_CHANGE,
-    OTP_TTL_MINUTES,
-)
+from ..constants import MFA_PURPOSE_PHONE_CHANGE, OTP_TTL_MINUTES
 from ..events import (
     AGGREGATE_USER,
     USER_PHONE_CHANGED,
@@ -26,10 +23,7 @@ from ..events import (
     user_phone_changed_payload,
     user_profile_updated_payload,
 )
-from ..exceptions import (
-    OtpInvalidError,
-    OtpMaxAttemptsError,
-)
+from ..exceptions import OtpInvalidError, OtpMaxAttemptsError
 from ..models import MfaChallenge, Session, User
 from ..tokens import TokenInvalidError
 
@@ -50,10 +44,7 @@ def phone_key(value: Any) -> str:
     key = PHONE_SEPARATORS_RE.sub("", raw)
 
     if not PHONE_KEY_RE.fullmatch(key):
-        raise ValueError(
-            "Saisissez un numéro international valide, "
-            "par exemple +33612345678."
-        )
+        raise ValueError("Saisissez un numéro international valide, " "par exemple +33612345678.")
 
     return key
 
@@ -93,12 +84,7 @@ def _hash_code(
     target_phone_key: str,
     code: str,
 ) -> str:
-    raw = (
-        f"{session_id}:"
-        f"{challenge_id}:"
-        f"{target_phone_key}:"
-        f"{code}"
-    )
+    raw = f"{session_id}:" f"{challenge_id}:" f"{target_phone_key}:" f"{code}"
     return hashlib.sha256(
         raw.encode("utf-8"),
     ).hexdigest()
@@ -147,16 +133,11 @@ class PhoneChangeService:
         display_phone = clean_phone(phone)
         target_key = phone_key(display_phone)
         challenge_id = uuid.uuid4()
-        code = (
-            f"{secrets.randbelow(10 ** CODE_DIGITS):0{CODE_DIGITS}d}"
-        )
+        code = f"{secrets.randbelow(10 ** CODE_DIGITS):0{CODE_DIGITS}d}"
         now = timezone.now()
 
         with transaction.atomic():
-            locked_user = (
-                User.objects.select_for_update()
-                .get(pk=user.pk)
-            )
+            locked_user = User.objects.select_for_update().get(pk=user.pk)
 
             session = (
                 Session.objects.active()
@@ -240,10 +221,7 @@ class PhoneChangeService:
         try:
             self._sender.send_email(
                 to=user.email,
-                subject=(
-                    "[FANID] Validation du nouveau numéro "
-                    "de téléphone"
-                ),
+                subject=("[FANID] Validation du nouveau numéro " "de téléphone"),
                 body=(
                     "Vous avez demandé à remplacer votre "
                     f"numéro de téléphone par {phone}.\n\n"
@@ -300,9 +278,7 @@ class PhoneChangeService:
                 "challenge_id": str(
                     challenge_id,
                 ),
-                "first_record": (
-                    result.first_record
-                ),
+                "first_record": (result.first_record),
                 "changed": result.changed,
             },
         )
@@ -326,27 +302,22 @@ class PhoneChangeService:
 
         with transaction.atomic():
             challenge = (
-                MfaChallenge.objects
-                .select_for_update(
+                MfaChallenge.objects.select_for_update(
                     of=("self",),
                 )
                 .filter(
                     pk=challenge_id,
                     user=user,
-                    purpose=(
-                        MFA_PURPOSE_PHONE_CHANGE
-                    ),
+                    purpose=(MFA_PURPOSE_PHONE_CHANGE),
                 )
                 .first()
             )
 
             if (
                 challenge is None
-                or challenge.consumed_at
-                is not None
+                or challenge.consumed_at is not None
                 or challenge.expires_at <= now
-                or challenge.attempts
-                >= challenge.max_attempts
+                or challenge.attempts >= challenge.max_attempts
             ):
                 return "invalid", None
 
@@ -363,10 +334,7 @@ class PhoneChangeService:
             ):
                 challenge.attempts += 1
 
-                exhausted = (
-                    challenge.attempts
-                    >= challenge.max_attempts
-                )
+                exhausted = challenge.attempts >= challenge.max_attempts
 
                 if exhausted:
                     challenge.consumed_at = now
@@ -379,11 +347,7 @@ class PhoneChangeService:
                 )
 
                 return (
-                    (
-                        "exhausted"
-                        if exhausted
-                        else "invalid"
-                    ),
+                    ("exhausted" if exhausted else "invalid"),
                     None,
                 )
 
@@ -406,11 +370,7 @@ class PhoneChangeService:
                 )
                 return "invalid", None
 
-            locked_user = (
-                User.objects.select_for_update()
-                .select_related("role")
-                .get(pk=user.pk)
-            )
+            locked_user = User.objects.select_for_update().select_related("role").get(pk=user.pk)
 
             old_phone = str(
                 locked_user.phone or "",

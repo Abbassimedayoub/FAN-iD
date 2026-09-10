@@ -1,26 +1,24 @@
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Count, F, Max, Sum
+from django.db.models import Count, Max
 from django.utils import timezone
 
 from apps.catalog.models import Event
-from apps.ordering.models import ORDER_PAID, OrderLine
+from apps.ordering.api import get_paid_event_gross_revenue_cents
 from apps.organizing.models import Scanner
-from apps.payments.models import PAYMENT_REFUND_SUCCEEDED, PaymentRefund
-from apps.ticketing.models import TICKET_USED, TICKET_VOID, Ticket
+from apps.payments.api import get_succeeded_refunds_total_cents
+from apps.ticketing.api import get_event_ticket_status_counts
 
 from ..models import EventFinalReport, TicketAdmission
 
 
 def _commission_cents(*, amount_cents: int, rate: Decimal) -> int:
     return int(
-        (
-            Decimal(amount_cents) * rate
-        ).quantize(
+        (Decimal(amount_cents) * rate).quantize(
             Decimal("1"),
             rounding=ROUND_HALF_UP,
         )
@@ -46,44 +44,31 @@ def build_event_final_report(*, event_id: UUID) -> EventFinalReport:
     if event.status != Event.COMPLETED:
         raise ValueError("EVENT_NOT_COMPLETED")
 
-    tickets = Ticket.objects.filter(event=event)
-    tickets_sold_count = tickets.count()
-    tickets_used_count = tickets.filter(status=TICKET_USED).count()
-    tickets_voided_count = tickets.filter(status=TICKET_VOID).count()
+    ticket_counts = get_event_ticket_status_counts(
+        event_id=event.id,
+    )
+    tickets_sold_count = ticket_counts.total_count
+    tickets_used_count = ticket_counts.used_count
+    tickets_voided_count = ticket_counts.voided_count
     tickets_absent_count = max(
         tickets_sold_count - tickets_used_count - tickets_voided_count,
         0,
     )
 
-    gross_revenue_cents = int(
-        OrderLine.objects.filter(
-            order__status=ORDER_PAID,
-            ticket_category__event=event,
-        ).aggregate(
-            total=Sum(
-                F("quantity") * F("unit_price_cents"),
-            )
-        )["total"]
-        or 0
+    gross_revenue_cents = get_paid_event_gross_revenue_cents(
+        event_id=event.id,
     )
 
-    refunds_cents = int(
-        PaymentRefund.objects.filter(
-            event=event,
-            status=PAYMENT_REFUND_SUCCEEDED,
-        ).aggregate(total=Sum("amount_cents"))["total"]
-        or 0
+    refunds_cents = get_succeeded_refunds_total_cents(
+        event_id=event.id,
     )
     net_revenue_cents = max(
         gross_revenue_cents - refunds_cents,
         0,
     )
 
-    commission_rate = (
-        event.organizer.commission_rate
-        if event.organizer_id is not None
-        else Decimal("0")
-    )
+    organizer = event.organizer
+    commission_rate = organizer.commission_rate if organizer is not None else Decimal("0")
     commission_cents = _commission_cents(
         amount_cents=net_revenue_cents,
         rate=commission_rate,
@@ -117,14 +102,17 @@ def build_event_final_report(*, event_id: UUID) -> EventFinalReport:
         if scanner is None:
             continue
 
-        name = " ".join(
-            value
-            for value in [
-                scanner.user.first_name,
-                scanner.user.last_name,
-            ]
-            if value
-        ) or scanner.user.email
+        name = (
+            " ".join(
+                value
+                for value in [
+                    scanner.user.first_name,
+                    scanner.user.last_name,
+                ]
+                if value
+            )
+            or scanner.user.email
+        )
 
         scanner_stats.append(
             {
@@ -133,9 +121,7 @@ def build_event_final_report(*, event_id: UUID) -> EventFinalReport:
                 "email": scanner.user.email,
                 "scan_count": int(row["scan_count"]),
                 "last_scan_at": (
-                    row["last_scan_at"].isoformat()
-                    if row["last_scan_at"] is not None
-                    else None
+                    row["last_scan_at"].isoformat() if row["last_scan_at"] is not None else None
                 ),
             }
         )

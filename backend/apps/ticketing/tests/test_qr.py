@@ -5,12 +5,7 @@ import pytest
 from django.test import override_settings
 
 from apps.ticketing.models import TICKET_USED, Ticket
-from apps.ticketing.services.qr import (
-    QR_ISSUER,
-    QR_TYPE,
-    TicketQrUnavailableError,
-    issue_dynamic_ticket_qr,
-)
+from apps.ticketing.services.qr import QR_ISSUER, QR_TYPE, TicketQrUnavailableError, issue_dynamic_ticket_qr
 
 
 @override_settings(QR_SIGNING_KEY="test-qr-signing-key-which-is-long-enough")

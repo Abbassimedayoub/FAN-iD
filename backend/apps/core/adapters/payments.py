@@ -5,6 +5,7 @@ from typing import Any
 
 from apps.core.interfaces import PaymentGateway
 
+
 def _metadata_to_dict(metadata: Any) -> dict[str, Any]:
     if isinstance(metadata, dict):
         return dict(metadata)
@@ -16,7 +17,6 @@ def _metadata_to_dict(metadata: Any) -> dict[str, Any]:
     return {}
 
 
-
 class FakeGateway(PaymentGateway):
     """
     Tests — aucun appel réseau vers Stripe.
@@ -25,7 +25,8 @@ class FakeGateway(PaymentGateway):
     provider_name = "fake"
 
     def __init__(self) -> None:
-        self.created_intents: list[dict] = []
+        self.created_intents: list[dict[str, Any]] = []
+        self._refunds_by_key: dict[str, dict[str, Any]] = {}
 
     def create_intent(self, amount_cents: int, currency: str, metadata: dict) -> Any:
         intent = {
@@ -45,9 +46,6 @@ class FakeGateway(PaymentGateway):
         amount_cents: int,
         idempotency_key: str,
     ) -> Any:
-        if not hasattr(self, "_refunds_by_key"):
-            self._refunds_by_key = {}
-
         existing = self._refunds_by_key.get(idempotency_key)
         if existing is not None:
             return existing
@@ -71,7 +69,6 @@ class FakeGateway(PaymentGateway):
         raise LookupError(f"PaymentIntent {intent_id} introuvable (FakeGateway).")
 
 
-
 class StripeWebhookSignatureError(ValueError):
     """La signature d'un webhook Stripe est absente ou invalide."""
 
@@ -88,7 +85,7 @@ class StripeGateway(PaymentGateway):
         *,
         secret_key: str,
         webhook_secret: str,
-        client=None,
+        client: Any | None = None,
     ) -> None:
         self.webhook_secret = webhook_secret
 

@@ -12,11 +12,11 @@ from typing import Any
 from rest_framework import serializers
 
 from .constants import (
+    ORG_NAME_MAX_LENGTH,
     ORGANIZER_COMMISSION_AGREED,
     ORGANIZER_COMMISSION_CANCELLED,
     ORGANIZER_COMMISSION_NEGOTIATING,
     ORGANIZER_REJECTED,
-    ORG_NAME_MAX_LENGTH,
 )
 
 

@@ -19,9 +19,7 @@ class FakeSender:
         self.emails_sent = []
 
     def send_email(self, *, to, subject, body, **kwargs):
-        self.emails_sent.append(
-            {"to": to, "subject": subject, "body": body}
-        )
+        self.emails_sent.append({"to": to, "subject": subject, "body": body})
 
 
 @pytest.mark.django_db
@@ -100,8 +98,7 @@ def test_consumer_respects_notify_buyers(monkeypatch):
     consumer = EventBuyerNotificationConsumer()
 
     monkeypatch.setattr(
-        "apps.notifying.event_buyer_consumers."
-        "send_event_buyer_postponement_emails.delay",
+        "apps.notifying.event_buyer_consumers." "send_event_buyer_postponement_emails.delay",
         lambda **kwargs: deferred.append(kwargs),
     )
     monkeypatch.setattr(
@@ -124,23 +121,17 @@ def test_consumer_respects_notify_buyers(monkeypatch):
             payload={"notify_buyers": True},
         )
     )
-    assert deferred == [
-        {"event_id": "00000000-0000-0000-0000-000000000001"}
-    ]
-
+    assert deferred == [{"event_id": "00000000-0000-0000-0000-000000000001"}]
 
 
 def test_refund_email_consumer_schedules_after_success(monkeypatch):
-    from apps.notifying.refund_notification_consumers import (
-        PaymentRefundNotificationConsumer,
-    )
+    from apps.notifying.refund_notification_consumers import PaymentRefundNotificationConsumer
 
     scheduled = []
     consumer = PaymentRefundNotificationConsumer()
 
     monkeypatch.setattr(
-        "apps.notifying.refund_notification_consumers."
-        "send_refund_succeeded_email.delay",
+        "apps.notifying.refund_notification_consumers." "send_refund_succeeded_email.delay",
         lambda **kwargs: scheduled.append(kwargs),
     )
     monkeypatch.setattr(consumer, "defer", lambda callback: callback())

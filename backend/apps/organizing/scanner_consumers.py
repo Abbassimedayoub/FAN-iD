@@ -4,12 +4,7 @@ from django.utils import timezone
 
 from apps.core.outbox.consumer import BaseConsumer
 from apps.core.outbox.models import OutboxEvent
-from apps.identity.api import (
-    USER_LOGGED_IN,
-    USER_PASSWORD_CHANGED,
-    USER_PHONE_CHANGED,
-    USER_PROFILE_UPDATED,
-)
+from apps.identity.api import USER_LOGGED_IN, USER_PASSWORD_CHANGED, USER_PHONE_CHANGED, USER_PROFILE_UPDATED
 
 from .constants import (
     SCANNER_ACTIVE,
@@ -123,12 +118,9 @@ class ScannerLifecycleConsumer(BaseConsumer):
         event: OutboxEvent,
     ) -> None:
         if event.event_type == USER_PHONE_CHANGED:
-            scanner = (
-                Scanner.objects.filter(
-                    user_id=event.aggregate_id,
-                )
-                .first()
-            )
+            scanner = Scanner.objects.filter(
+                user_id=event.aggregate_id,
+            ).first()
 
             if scanner is None:
                 return

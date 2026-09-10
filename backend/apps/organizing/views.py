@@ -728,10 +728,8 @@ class AdminOrganizerListView(APIView):
 
         response = paginator.get_paginated_response(serializer.data)
         response.data["pending_reactivation_count"] = pending_count
-        response.data["pending_reactivations"] = (
-            AdminOrganizerPendingReactivationSerializer(
-                pending_items,
-                many=True,
-            ).data
-        )
+        response.data["pending_reactivations"] = AdminOrganizerPendingReactivationSerializer(
+            pending_items,
+            many=True,
+        ).data
         return response

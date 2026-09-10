@@ -8,14 +8,10 @@ from django.utils import timezone
 from apps.catalog.models import EventScannerAssignment, TicketCategory
 from apps.organizing.constants import SCANNER_ACTIVE
 from apps.organizing.models import Scanner
-from apps.ticketing.models import TICKET_VOID, Ticket
+from apps.ticketing.api import count_active_tickets_for_event
 
+from ..models import ScannerPresence, TicketAdmission
 from .admission_sessions import current_event_admission_session
-
-from ..models import (
-    ScannerPresence,
-    TicketAdmission,
-)
 
 
 def _percent(numerator: int, denominator: int) -> float:
@@ -32,9 +28,9 @@ def event_live_dashboard(*, event) -> dict:
     )
     quota_total = int(ticketing["quota_total"] or 0)
 
-    tickets_sold = Ticket.objects.filter(event_id=event_id).exclude(
-        status=TICKET_VOID,
-    ).count()
+    tickets_sold = count_active_tickets_for_event(
+        event_id=event_id,
+    )
     tickets_remaining = max(quota_total - tickets_sold, 0)
 
     admissions_count = TicketAdmission.objects.filter(
@@ -58,17 +54,18 @@ def event_live_dashboard(*, event) -> dict:
         .order_by("user__last_name", "user__first_name", "pk")
     )
 
-    activity_rows = TicketAdmission.objects.filter(
-        ticket__event_id=event_id,
-        scanner_id__in=[scanner.id for scanner in scanners],
-    ).values("scanner_id").annotate(
-        scan_count=Count("id"),
-        last_activity=Max("admitted_at"),
+    activity_rows = (
+        TicketAdmission.objects.filter(
+            ticket__event_id=event_id,
+            scanner_id__in=[scanner.id for scanner in scanners],
+        )
+        .values("scanner_id")
+        .annotate(
+            scan_count=Count("id"),
+            last_activity=Max("admitted_at"),
+        )
     )
-    activity_by_scanner = {
-        row["scanner_id"]: row
-        for row in activity_rows
-    }
+    activity_by_scanner = {row["scanner_id"]: row for row in activity_rows}
 
     presence_by_scanner = dict(
         ScannerPresence.objects.filter(
@@ -82,9 +79,7 @@ def event_live_dashboard(*, event) -> dict:
         activity = activity_by_scanner.get(scanner.id)
         last_activity = activity["last_activity"] if activity else None
         last_seen_at = presence_by_scanner.get(scanner.id)
-        is_present = bool(
-            last_seen_at and last_seen_at >= presence_deadline
-        )
+        is_present = bool(last_seen_at and last_seen_at >= presence_deadline)
 
         scanner_items.append(
             {
@@ -106,9 +101,7 @@ def event_live_dashboard(*, event) -> dict:
             }
         )
 
-    present_count = sum(
-        1 for scanner in scanner_items if scanner["is_present"]
-    )
+    present_count = sum(1 for scanner in scanner_items if scanner["is_present"])
     capacity_total = event.capacity_total
 
     return {

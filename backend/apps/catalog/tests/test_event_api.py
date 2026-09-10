@@ -455,7 +455,6 @@ def test_create_rejects_incoherent_dates(
     assert Event.objects.count() == 0
 
 
-
 @pytest.mark.django_db
 def test_update_rejects_start_date_before_tomorrow(
     client,
@@ -487,9 +486,7 @@ def test_update_rejects_start_date_before_tomorrow(
         f"{EVENTS_URL}/{event.pk}",
         {
             "starts_at": forbidden_start.isoformat(),
-            "ends_at": (
-                forbidden_start + datetime.timedelta(hours=2)
-            ).isoformat(),
+            "ends_at": (forbidden_start + datetime.timedelta(hours=2)).isoformat(),
         },
         format="json",
         HTTP_IF_MATCH='"1"',
@@ -597,7 +594,6 @@ def test_same_name_is_allowed_for_different_organizers(
     )
 
 
-
 @pytest.mark.django_db
 def test_create_persists_sales_window(
     client,
@@ -620,9 +616,7 @@ def test_create_persists_sales_window(
         name="Event sales window",
     )
     body["starts_at"] = event_start.isoformat()
-    body["ends_at"] = (
-        event_start + datetime.timedelta(hours=2)
-    ).isoformat()
+    body["ends_at"] = (event_start + datetime.timedelta(hours=2)).isoformat()
     body["sales_starts_at"] = sales_start.isoformat()
     body["sales_ends_at"] = sales_end.isoformat()
 
@@ -717,12 +711,8 @@ def test_create_rejects_sales_start_after_event_start(
         name="Invalid sales window",
     )
     body["starts_at"] = event_start.isoformat()
-    body["ends_at"] = (
-        event_start + datetime.timedelta(hours=2)
-    ).isoformat()
-    body["sales_starts_at"] = (
-        event_start + datetime.timedelta(hours=1)
-    ).isoformat()
+    body["ends_at"] = (event_start + datetime.timedelta(hours=2)).isoformat()
+    body["sales_starts_at"] = (event_start + datetime.timedelta(hours=1)).isoformat()
 
     response = authenticate(
         client,

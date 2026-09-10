@@ -19,10 +19,14 @@ class ScannerInactiveError(PermissionBusinessError):
 
 @transaction.atomic
 def record_scanner_heartbeat(*, scanner_user_id: UUID) -> ScannerPresence:
-    scanner = Scanner.objects.select_for_update().filter(
-        user_id=scanner_user_id,
-        status=SCANNER_ACTIVE,
-    ).first()
+    scanner = (
+        Scanner.objects.select_for_update()
+        .filter(
+            user_id=scanner_user_id,
+            status=SCANNER_ACTIVE,
+        )
+        .first()
+    )
     if scanner is None:
         raise ScannerInactiveError()
 
