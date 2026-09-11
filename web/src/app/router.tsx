@@ -279,7 +279,7 @@ export function AppRoutes() {
         path="/organizer/security"
         element={
           <ProtectedRoute allowedRoles={["ORGANIZER"]}>
-            <PasswordChangePage />
+            <PasswordChangePage organizerShell />
           </ProtectedRoute>
         }
       />

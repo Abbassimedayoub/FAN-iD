@@ -262,17 +262,51 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
     List<FanCatalogEvent> sourceEvents,
     int filteredCount,
   ) {
-    final venues = FanCatalogFilters.venues(
-      sourceEvents,
-    );
-
+    final scheme = Theme.of(context).colorScheme;
+    final venues = FanCatalogFilters.venues(sourceEvents);
     final hasActiveFilters = _venueFilter != null ||
         _availabilityFilter != FanCatalogAvailabilityFilter.all ||
         _timeFilter != FanCatalogTimeFilter.all;
 
+    Widget filterChip({
+      required Key key,
+      required String label,
+      required bool selected,
+      required VoidCallback onSelected,
+    }) {
+      return ChoiceChip(
+        key: key,
+        label: Text(label, maxLines: 1),
+        selected: selected,
+        showCheckmark: selected,
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+          ),
+        ),
+        selectedColor: scheme.primary.withValues(alpha: 0.12),
+        backgroundColor: scheme.surface,
+        labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+        onSelected: (_) => onSelected(),
+      );
+    }
+
     return Card(
-      key: const ValueKey<String>(
-        'fan-catalog-filters',
+      key: const ValueKey<String>('fan-catalog-filters'),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -285,129 +319,99 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
                   child: Text(
                     'Filtres',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                   ),
                 ),
                 TextButton.icon(
-                  key: const ValueKey<String>(
-                    'fan-filter-reset',
-                  ),
-                  onPressed: hasActiveFilters
-                      ? () {
-                          setState(_resetFilters);
-                        }
-                      : null,
-                  icon: const Icon(Icons.restart_alt),
+                  key: const ValueKey<String>('fan-filter-reset'),
+                  onPressed:
+                      hasActiveFilters ? () => setState(_resetFilters) : null,
+                  icon: const Icon(Icons.restart_alt, size: 18),
                   label: const Text('Réinitialiser'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              'Lieu',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                ChoiceChip(
-                  key: const ValueKey<String>(
-                    'fan-filter-venue-all',
+            Text('Lieu', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 7),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: <Widget>[
+                  filterChip(
+                    key: const ValueKey<String>('fan-filter-venue-all'),
+                    label: 'Tous les lieux',
+                    selected: _venueFilter == null,
+                    onSelected: () => setState(() => _venueFilter = null),
                   ),
-                  label: const Text('Tous les lieux'),
-                  selected: _venueFilter == null,
-                  onSelected: (_) {
-                    setState(() {
-                      _venueFilter = null;
-                    });
-                  },
-                ),
-                ...venues.map(
-                  (venue) => ChoiceChip(
-                    key: ValueKey<String>(
-                      'fan-filter-venue-$venue',
+                  for (final venue in venues) ...<Widget>[
+                    const SizedBox(width: 8),
+                    filterChip(
+                      key: ValueKey<String>('fan-filter-venue-$venue'),
+                      label: venue,
+                      selected: _venueFilter == venue,
+                      onSelected: () => setState(() => _venueFilter = venue),
                     ),
-                    label: Text(venue),
-                    selected: _venueFilter == venue,
-                    onSelected: (_) {
-                      setState(() {
-                        _venueFilter = venue;
-                      });
-                    },
-                  ),
-                ),
-              ],
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 13),
             Text(
               'Disponibilité',
               style: Theme.of(context).textTheme.labelLarge,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 7),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: FanCatalogAvailabilityFilter.values
                   .map(
-                    (filter) => ChoiceChip(
+                    (filter) => filterChip(
                       key: ValueKey<String>(
-                        'fan-filter-availability-'
-                        '${filter.name}',
+                        'fan-filter-availability-${filter.name}',
                       ),
-                      label: Text(
-                        _availabilityFilterLabel(
-                          filter,
-                        ),
-                      ),
+                      label: _availabilityFilterLabel(filter),
                       selected: _availabilityFilter == filter,
-                      onSelected: (_) {
-                        setState(() {
-                          _availabilityFilter = filter;
-                        });
-                      },
+                      onSelected: () => setState(
+                        () => _availabilityFilter = filter,
+                      ),
                     ),
                   )
                   .toList(growable: false),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Période',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 13),
+            Text('Période', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 7),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: FanCatalogTimeFilter.values
                   .map(
-                    (filter) => ChoiceChip(
+                    (filter) => filterChip(
                       key: ValueKey<String>(
-                        'fan-filter-time-'
-                        '${filter.name}',
+                        'fan-filter-time-${filter.name}',
                       ),
-                      label: Text(
-                        _timeFilterLabel(filter),
-                      ),
+                      label: _timeFilterLabel(filter),
                       selected: _timeFilter == filter,
-                      onSelected: (_) {
-                        setState(() {
-                          _timeFilter = filter;
-                        });
-                      },
+                      onSelected: () => setState(() => _timeFilter = filter),
                     ),
                   )
                   .toList(growable: false),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
-              '$filteredCount / '
-              '${sourceEvents.length} événements',
-              key: const ValueKey<String>(
-                'fan-filter-result-count',
-              ),
+              '$filteredCount / ${sourceEvents.length} événements',
+              key: const ValueKey<String>('fan-filter-result-count'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ],
         ),
@@ -644,12 +648,34 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
   }
 
   Widget _statusBadge(FanCatalogEvent event) {
-    return Chip(
-      label: Text(
+    final scheme = Theme.of(context).colorScheme;
+    final status = event.status.toUpperCase();
+
+    final color = switch (status) {
+      'PUBLISHED' => const Color(0xFF0B7A56),
+      'POSTPONED' => const Color(0xFF8A5A02),
+      'CANCELLED' => scheme.error,
+      'SUSPENDED' => scheme.error,
+      _ => scheme.onSurfaceVariant,
+    };
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 94),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
         event.statusLabel,
-        key: ValueKey<String>(
-          'fan-event-status-${event.id}',
-        ),
+        key: ValueKey<String>('fan-event-status-${event.id}'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
       ),
     );
   }
@@ -661,11 +687,11 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
       key: ValueKey<String>(
         'fan-event-image-fallback-${event.id}',
       ),
-      height: 180,
+      height: 132,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: const Icon(
         Icons.event_outlined,
@@ -684,13 +710,13 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Image.network(
         imageUrl,
         key: ValueKey<String>(
           'fan-event-image-${event.id}',
         ),
-        height: 180,
+        height: 132,
         width: double.infinity,
         fit: BoxFit.cover,
         errorBuilder: (

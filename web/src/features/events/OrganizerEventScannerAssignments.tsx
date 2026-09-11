@@ -8,7 +8,12 @@ import {
   type ScannerStatus,
 } from "@/features/organizers/scanners";
 
-import { assignEventScanner, fetchEventScannerAssignments, unassignEventScanner } from "./api";
+import {
+  assignEventScanner,
+  fetchEventLiveDashboard,
+  fetchEventScannerAssignments,
+  unassignEventScanner,
+} from "./api";
 import type { EventScannerAssignment, OrganizerEvent } from "./types";
 
 const ASSIGNABLE_SCANNER_STATUSES = new Set<ScannerStatus>([
@@ -57,6 +62,14 @@ export function OrganizerEventScannerAssignments({ event }: OrganizerEventScanne
     queryKey: assignmentQueryKey,
     queryFn: () => fetchEventScannerAssignments(event.id),
     enabled: !draft,
+  });
+
+  const liveDashboardQuery = useQuery({
+    queryKey: ["access", "event", event.id, "live-dashboard"],
+    queryFn: () => fetchEventLiveDashboard(event.id),
+    enabled: !draft,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
   });
 
   const scannersQuery = useQuery({
@@ -169,6 +182,9 @@ export function OrganizerEventScannerAssignments({ event }: OrganizerEventScanne
               <div className="mt-3 divide-y divide-[#edf0f3] rounded-2xl border border-[#e3e9ef]">
                 {assignments.map((assignment) => {
                   const name = scannerName(assignment);
+                  const presence = liveDashboardQuery.data?.scanners.items.find(
+                    (scanner) => scanner.scanner_id === assignment.scanner_id,
+                  );
 
                   const removing =
                     unassignMutation.isPending &&
@@ -187,6 +203,16 @@ export function OrganizerEventScannerAssignments({ event }: OrganizerEventScanne
                         <p className="mt-1 text-xs font-semibold text-[#6b7d91]">
                           {SCANNER_STATUS_LABELS[assignment.status]}
                         </p>
+
+                        <span
+                          className={
+                            presence?.is_present
+                              ? "mt-2 inline-flex rounded-full bg-[#daf5e2] px-3 py-1 text-xs font-bold text-[#25733a]"
+                              : "mt-2 inline-flex rounded-full bg-[#eef1f5] px-3 py-1 text-xs font-bold text-[#657487]"
+                          }
+                        >
+                          {presence?.is_present ? "Présent" : "Absent"}
+                        </span>
                       </div>
 
                       <Button

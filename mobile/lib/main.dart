@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'design_system/theme.dart';
 import 'features/auth/presentation/pages/auth_entry_page.dart';
 
 const _stripePublishableKey = String.fromEnvironment(
@@ -35,10 +36,7 @@ class FanIdApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FAN id',
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1663C7),
-        useMaterial3: true,
-      ),
+      theme: FanTheme.light,
       home: const AuthEntryPage(),
     );
   }

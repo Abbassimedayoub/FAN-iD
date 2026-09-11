@@ -40,13 +40,15 @@ export function OrganizerEventDeleteButton({
     <>
       <Button
         type="button"
+        variant="danger"
         onClick={() => {
           setError(null);
           setOpen(true);
         }}
-        className="flex-1 border border-red-200 bg-white px-4 font-semibold text-red-600 hover:bg-red-50"
+        className="flex-1 border border-red-200 px-4 font-semibold text-red-600 hover:bg-red-50"
       >
-        Supprimer définitivement
+        {" "}
+        Supprimer définitivement{" "}
       </Button>
 
       <Modal
@@ -73,11 +75,13 @@ export function OrganizerEventDeleteButton({
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             type="button"
+            variant="secondary"
             disabled={pending}
             onClick={() => setOpen(false)}
-            className="border border-[#d6dfe8] bg-white text-[#536579] hover:bg-[#f7f9fb]"
+            className="border border-[#d6dfe8] text-[#536579] hover:bg-[#f7f9fb]"
           >
-            Annuler
+            {" "}
+            Annuler{" "}
           </Button>
 
           <Button

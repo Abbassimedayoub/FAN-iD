@@ -1,4 +1,4 @@
-import { Badge } from "@/components/primitives";
+import { Badge, type BadgeTone } from "@/components/primitives";
 
 import type { OrganizerStatus } from "./types";
 
@@ -9,11 +9,11 @@ const STATUS_LABELS: Record<OrganizerStatus, string> = {
   SUSPENDED: "Suspendu",
 };
 
-const STATUS_TONES: Record<OrganizerStatus, "default" | "success" | "danger"> = {
-  PENDING: "default",
+const STATUS_TONES: Record<OrganizerStatus, BadgeTone> = {
+  PENDING: "warning",
   APPROVED: "success",
   REJECTED: "danger",
-  SUSPENDED: "danger",
+  SUSPENDED: "warning",
 };
 
 export function OrganizerStatusBadge({ status }: { status: OrganizerStatus }) {

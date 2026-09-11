@@ -14,12 +14,14 @@ type OrganizerNavItem =
   | "orders"
   | "scanners"
   | "statistics"
+  | "sessions"
   | "settings";
 
 interface OrganizerShellProps {
   children: ReactNode;
   activeItem: OrganizerNavItem;
   breadcrumbs?: ReactNode;
+  eventsAvailable?: boolean;
 }
 
 interface IconProps {
@@ -82,6 +84,12 @@ function SidebarIcon({ name }: IconProps) {
         <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
       </>
     ),
+    sessions: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M8 20h8M12 16v4M3 8h18" />
+      </>
+    ),
     settings: (
       <>
         <circle cx="12" cy="12" r="3" />
@@ -133,6 +141,11 @@ const MAIN_NAV: Array<{
     key: "statistics",
     label: "Statistiques",
   },
+  {
+    key: "sessions",
+    label: "Sessions",
+    to: "/sessions",
+  },
 ];
 
 function initials(firstName?: string, lastName?: string): string {
@@ -145,7 +158,12 @@ function initials(firstName?: string, lastName?: string): string {
   );
 }
 
-export function OrganizerShell({ children, activeItem, breadcrumbs }: OrganizerShellProps) {
+export function OrganizerShell({
+  children,
+  activeItem,
+  breadcrumbs,
+  eventsAvailable = true,
+}: OrganizerShellProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, clearAuthentication } = useAuth();
@@ -162,13 +180,19 @@ export function OrganizerShell({ children, activeItem, breadcrumbs }: OrganizerS
       await logoutWeb();
       await queryClient.cancelQueries();
 
+      // Le jeton est supprimé avant la redirection.
+      clearAuthentication();
+
       navigate("/login", {
         replace: true,
         flushSync: true,
       });
 
-      clearAuthentication();
-      queryClient.clear();
+      // Une fois l’accueil démonté, aucune requête active ne peut recréer
+      // des entrées dans le cache avant son effacement.
+      window.setTimeout(() => {
+        queryClient.clear();
+      }, 0);
     } catch {
       setLogoutError(true);
       setLogoutPending(false);
@@ -190,6 +214,9 @@ export function OrganizerShell({ children, activeItem, breadcrumbs }: OrganizerS
         >
           {MAIN_NAV.map((item) => {
             const selected = item.key === activeItem;
+            const unavailable = !item.to || (item.key === "events" && !eventsAvailable);
+            const label =
+              item.key === "events" && !eventsAvailable ? "Événements verrouillés" : item.label;
 
             const className = [
               "flex min-h-[46px] shrink-0 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition",
@@ -198,11 +225,11 @@ export function OrganizerShell({ children, activeItem, breadcrumbs }: OrganizerS
                 : "text-white/62 hover:bg-white/[0.07] hover:text-white",
             ].join(" ");
 
-            if (item.to) {
+            if (item.to && !unavailable) {
               return (
                 <NavLink key={item.key} to={item.to} className={className}>
                   <SidebarIcon name={item.key} />
-                  <span>{item.label}</span>
+                  <span>{label}</span>
                 </NavLink>
               );
             }
@@ -215,7 +242,7 @@ export function OrganizerShell({ children, activeItem, breadcrumbs }: OrganizerS
                 className={`${className} cursor-not-allowed opacity-45`}
               >
                 <SidebarIcon name={item.key} />
-                <span>{item.label}</span>
+                <span>{label}</span>
               </button>
             );
           })}

@@ -390,11 +390,13 @@ export function OrganizerEventPublicationStep({
       <div className="flex flex-col-reverse gap-3 border-t border-[#e4e9ee] pt-5 sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
+          variant="secondary"
           disabled={pending}
           onClick={onBack}
-          className="border border-[#ccd6e0] bg-white px-5 font-semibold text-[#536578] hover:bg-[#f7f9fb]"
+          className="border border-[#ccd6e0] px-5 font-semibold text-[#536578] hover:bg-[#f7f9fb]"
         >
-          ← Retour aux catégories
+          {" "}
+          ← Retour aux catégories{" "}
         </Button>
 
         <Button

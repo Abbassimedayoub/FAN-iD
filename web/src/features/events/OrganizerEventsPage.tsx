@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button, Card, Spinner } from "@/components/primitives";
@@ -195,26 +195,30 @@ function EventCard({
           {event.status === "PUBLISHED" ? (
             <Button
               type="button"
+              variant="secondary"
               disabled={archivePending}
               onClick={() => {
                 void handleArchive();
               }}
-              className="flex-1 border border-[#d6dfe8] bg-white px-4 font-semibold text-[#536579] hover:bg-[#f7f9fb]"
+              className="flex-1 border border-[#d6dfe8] px-4 font-semibold text-[#536579] hover:bg-[#f7f9fb]"
             >
-              {archivePending ? "Archivage…" : "Archiver"}
+              {" "}
+              {archivePending ? "Archivage…" : "Archiver"}{" "}
             </Button>
           ) : null}
 
           {event.status === "ARCHIVED" ? (
             <Button
               type="button"
+              variant="secondary"
               disabled={unarchivePending}
               onClick={() => {
                 void handleUnarchive();
               }}
-              className="flex-1 border border-[#b9d4f6] bg-white px-4 font-semibold text-[#1769d2] hover:bg-[#f4f8fe]"
+              className="flex-1 border border-[#b9d4f6] px-4 font-semibold text-[#1769d2] hover:bg-[#f4f8fe]"
             >
-              {unarchivePending ? "Désarchivage…" : "Désarchiver"}
+              {" "}
+              {unarchivePending ? "Désarchivage…" : "Désarchiver"}{" "}
             </Button>
           ) : null}
         </div>
@@ -237,6 +241,10 @@ function EventCard({
 
 export function OrganizerEventsPage() {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<OrganizerEventStatus | "ALL">("ALL");
+  const [periodFilter, setPeriodFilter] = useState<"ALL" | "UPCOMING" | "PAST">("ALL");
+  const [page, setPage] = useState(1);
 
   const organizerQuery = useQuery({
     queryKey: myOrganizerQueryKey,
@@ -249,12 +257,71 @@ export function OrganizerEventsPage() {
     enabled: organizerQuery.data?.validation_status === "APPROVED",
   });
 
+  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+
+  const filteredEvents = useMemo(() => {
+    const now = Date.now();
+    const needle = search.trim().toLocaleLowerCase("fr-FR");
+
+    return events
+      .filter((event) => {
+        const startsAt = new Date(event.starts_at).getTime();
+        const isUpcoming = Number.isFinite(startsAt) && startsAt >= now;
+        const matchesSearch =
+          !needle ||
+          event.name.toLocaleLowerCase("fr-FR").includes(needle) ||
+          event.venue.toLocaleLowerCase("fr-FR").includes(needle);
+        const matchesStatus = statusFilter === "ALL" || event.status === statusFilter;
+        const matchesPeriod =
+          periodFilter === "ALL" ||
+          (periodFilter === "UPCOMING" && isUpcoming) ||
+          (periodFilter === "PAST" && !isUpcoming);
+
+        return matchesSearch && matchesStatus && matchesPeriod;
+      })
+      .sort((left, right) => {
+        const leftTime = new Date(left.starts_at).getTime();
+        const rightTime = new Date(right.starts_at).getTime();
+        const leftUpcoming = Number.isFinite(leftTime) && leftTime >= now;
+        const rightUpcoming = Number.isFinite(rightTime) && rightTime >= now;
+
+        if (leftUpcoming && rightUpcoming) {
+          return leftTime - rightTime;
+        }
+
+        if (!leftUpcoming && !rightUpcoming) {
+          return rightTime - leftTime;
+        }
+
+        return leftUpcoming ? -1 : 1;
+      });
+  }, [events, periodFilter, search, statusFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredEvents.length / 10));
+  const currentPage = Math.min(page, pageCount);
+  const pageEvents = filteredEvents.slice((currentPage - 1) * 10, currentPage * 10);
+
   const breadcrumbs = <span className="text-sm font-semibold text-[#34465c]">Événements</span>;
 
   async function refresh(): Promise<void> {
     await queryClient.invalidateQueries({
       queryKey: eventsQueryKey,
     });
+  }
+
+  function updateSearch(value: string): void {
+    setSearch(value);
+    setPage(1);
+  }
+
+  function updateStatus(value: OrganizerEventStatus | "ALL"): void {
+    setStatusFilter(value);
+    setPage(1);
+  }
+
+  function updatePeriod(value: "ALL" | "UPCOMING" | "PAST"): void {
+    setPeriodFilter(value);
+    setPage(1);
   }
 
   if (organizerQuery.isPending) {
@@ -289,7 +356,6 @@ export function OrganizerEventsPage() {
             <h1 className="font-sora text-2xl font-bold text-navy">
               Gestion des événements indisponible
             </h1>
-
             <p className="mt-3 text-sm leading-6 text-navy/55">
               Votre organisation doit être approuvée avant de gérer des événements.
             </p>
@@ -308,7 +374,6 @@ export function OrganizerEventsPage() {
               <h1 className="font-sora text-[28px] font-bold tracking-[-0.025em] text-[#26384f]">
                 Mes événements
               </h1>
-
               <p className="mt-2 text-sm text-[#778596]">
                 Créez, consultez et gérez les événements de votre organisation.
               </p>
@@ -334,55 +399,117 @@ export function OrganizerEventsPage() {
               <h2 className="font-sora text-xl font-bold text-[#30445b]">
                 Impossible de charger les événements
               </h2>
-
               <p className="mt-2 text-sm text-[#7b8998]">Réessayez dans quelques instants.</p>
-
-              <Button
-                type="button"
-                onClick={() => {
-                  void eventsQuery.refetch();
-                }}
-                className="mt-5"
-              >
+              <Button type="button" onClick={() => void eventsQuery.refetch()} className="mt-5">
                 Réessayer
               </Button>
             </Card>
-          ) : eventsQuery.data.length === 0 ? (
+          ) : events.length === 0 ? (
             <Card className="border-dashed p-10 text-center">
-              <span
-                aria-hidden="true"
-                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef5ff] text-2xl font-bold text-[#1769d2]"
-              >
-                +
-              </span>
-
-              <h2 className="mt-5 font-sora text-xl font-bold text-[#30445b]">Aucun événement</h2>
-
+              <h2 className="font-sora text-xl font-bold text-[#30445b]">Aucun événement</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7f8c9b]">
                 Créez votre premier événement pour commencer à configurer vos catégories et quotas.
               </p>
-
-              <Link
-                to="/organizer/events/new"
-                className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-xl bg-[#1769d2] px-5 text-sm font-semibold text-white"
-              >
-                Créer un événement
-              </Link>
             </Card>
           ) : (
             <>
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <p className="text-sm font-semibold text-[#5e7083]">
-                  {eventsQuery.data.length} événement
-                  {eventsQuery.data.length > 1 ? "s" : ""}
-                </p>
-              </div>
+              <Card className="mb-5 p-5">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+                  <label className="text-sm font-semibold text-[#40556b]">
+                    Rechercher
+                    <input
+                      value={search}
+                      onChange={(event) => updateSearch(event.target.value)}
+                      placeholder="Nom ou lieu"
+                      className="mt-2 min-h-[44px] w-full rounded-xl border border-[#c9d8ea] bg-white px-4 text-sm font-normal text-[#293c52] outline-none transition focus:border-[#1769d2] focus:ring-4 focus:ring-[#1769d2]/10"
+                    />
+                  </label>
 
-              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {eventsQuery.data.map((event) => (
-                  <EventCard key={event.id} event={event} onArchived={refresh} />
-                ))}
-              </div>
+                  <label className="text-sm font-semibold text-[#40556b]">
+                    Statut
+                    <select
+                      value={statusFilter}
+                      onChange={(event) =>
+                        updateStatus(event.target.value as OrganizerEventStatus | "ALL")
+                      }
+                      className="mt-2 min-h-[44px] w-full rounded-xl border border-[#c9d8ea] bg-white px-4 text-sm font-normal text-[#293c52] outline-none transition focus:border-[#1769d2] focus:ring-4 focus:ring-[#1769d2]/10"
+                    >
+                      <option value="ALL">Tous les statuts</option>
+                      {Object.entries(STATUS_CONTENT).map(([value, status]) => (
+                        <option key={value} value={value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-sm font-semibold text-[#40556b]">
+                    Période
+                    <select
+                      value={periodFilter}
+                      onChange={(event) =>
+                        updatePeriod(event.target.value as "ALL" | "UPCOMING" | "PAST")
+                      }
+                      className="mt-2 min-h-[44px] w-full rounded-xl border border-[#c9d8ea] bg-white px-4 text-sm font-normal text-[#293c52] outline-none transition focus:border-[#1769d2] focus:ring-4 focus:ring-[#1769d2]/10"
+                    >
+                      <option value="ALL">Toutes les dates</option>
+                      <option value="UPCOMING">À venir</option>
+                      <option value="PAST">Passés</option>
+                    </select>
+                  </label>
+                </div>
+              </Card>
+
+              {filteredEvents.length === 0 ? (
+                <Card className="p-8 text-center text-sm text-[#718195]">
+                  Aucun événement ne correspond à ces filtres.
+                </Card>
+              ) : (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#5e7083]">
+                      {filteredEvents.length} événement{filteredEvents.length > 1 ? "s" : ""} · page{" "}
+                      {currentPage} sur {pageCount}
+                    </p>
+                    <p className="text-xs text-[#7b8998]">
+                      Les événements à venir les plus proches apparaissent en premier.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {pageEvents.map((event) => (
+                      <EventCard key={event.id} event={event} onArchived={refresh} />
+                    ))}
+                  </div>
+
+                  {pageCount > 1 ? (
+                    <nav
+                      aria-label="Pagination des événements"
+                      className="mt-7 flex items-center justify-center gap-3"
+                    >
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={currentPage === 1}
+                        onClick={() => setPage((value) => Math.max(1, value - 1))}
+                      >
+                        ← Précédent
+                      </Button>
+                      <span className="text-sm font-semibold text-[#536579]">
+                        {currentPage} / {pageCount}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={currentPage === pageCount}
+                        onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+                      >
+                        Suivant →
+                      </Button>
+                    </nav>
+                  ) : null}
+                </>
+              )}
             </>
           )}
         </div>

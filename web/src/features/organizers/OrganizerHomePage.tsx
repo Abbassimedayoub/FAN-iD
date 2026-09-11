@@ -1,15 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { BrandMark } from "@/components/BrandMark";
 import { Badge, Button, Card } from "@/components/primitives";
-import { useAuth } from "@/features/auth/AuthContext";
-import { logoutWeb } from "@/features/auth/logout";
 
 import { fetchMyCommissionNegotiation, organizerCommissionQueryKeys } from "./commission";
 import { fetchMyOrganizer, myOrganizerQueryKey } from "./myOrganizer";
 import { OrganizerCommissionPanel } from "./OrganizerCommissionPanel";
+import { OrganizerShell } from "./OrganizerShell";
 import {
   fetchMyOrganizerReactivationRequest,
   myOrganizerReactivationQueryKey,
@@ -48,120 +46,9 @@ const STATUS_CONTENT: Record<
   },
 };
 
-function OrganizerNavigation({
-  approved,
-  commerciallyReady,
-  logoutPending,
-  logoutError,
-  onLogout,
-}: {
-  approved: boolean;
-  commerciallyReady: boolean;
-  logoutPending: boolean;
-  logoutError: boolean;
-  onLogout: () => void;
-}) {
-  return (
-    <Card className="mb-6 p-4 sm:p-5">
-      <nav
-        aria-label="Navigation organisateur"
-        className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
-      >
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/organizer"
-            aria-current="page"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-navy px-4 py-2 text-sm font-semibold text-white"
-          >
-            Tableau de bord
-          </Link>
-
-          <Link
-            to="/sessions"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-navy/10 bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
-          >
-            Sessions
-          </Link>
-
-          <Link
-            to="/organizer/security"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-navy/10 bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
-          >
-            Changer le mot de passe
-          </Link>
-
-          {commerciallyReady ? (
-            <Link
-              to="/organizer/events"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-navy/10 bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
-            >
-              Événements
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              aria-label="Événements verrouillés"
-              className="inline-flex min-h-[44px] cursor-not-allowed items-center justify-center rounded-xl border border-navy/10 bg-navy/5 px-4 py-2 text-sm font-semibold text-navy/40"
-            >
-              Événements · verrouillés
-            </button>
-          )}
-        </div>
-
-        <Button
-          type="button"
-          disabled={logoutPending}
-          onClick={onLogout}
-          className="min-h-[44px] shrink-0"
-        >
-          {logoutPending ? "Déconnexion…" : "Se déconnecter"}
-        </Button>
-      </nav>
-
-      {!approved ? (
-        <p className="mt-3 text-xs leading-5 text-navy/45">
-          Les fonctions opérationnelles restent verrouillées tant que votre organisation n’est pas
-          approuvée.
-        </p>
-      ) : !commerciallyReady ? (
-        <p className="mt-3 text-xs leading-5 text-navy/45">
-          Votre compte est approuvé, mais les événements restent verrouillés jusqu’à l’accord de
-          commission.
-        </p>
-      ) : (
-        <p className="mt-3 text-xs leading-5 text-navy/45">
-          Votre compte et votre commission sont validés. Vous pouvez gérer vos événements.
-        </p>
-      )}
-
-      {logoutError ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
-          Impossible de fermer la session. Réessayez.
-        </p>
-      ) : null}
-    </Card>
-  );
-}
-
 export function OrganizerHomePage() {
-  const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { clearAuthentication } = useAuth();
-
-  const [logoutPending, setLogoutPending] = useState(false);
-  const [logoutError, setLogoutError] = useState(false);
-  const clearCacheOnUnmount = useRef(false);
-
-  useEffect(() => {
-    return () => {
-      if (clearCacheOnUnmount.current) {
-        queryClient.clear();
-      }
-    };
-  }, [queryClient]);
-
   const query = useQuery({
     queryKey: myOrganizerQueryKey,
     queryFn: fetchMyOrganizer,
@@ -190,46 +77,35 @@ export function OrganizerHomePage() {
     },
   });
 
-  async function handleLogout(): Promise<void> {
-    setLogoutPending(true);
-    setLogoutError(false);
-
-    try {
-      await logoutWeb();
-      clearCacheOnUnmount.current = true;
-      clearAuthentication();
-      navigate("/login", { replace: true });
-    } catch {
-      setLogoutError(true);
-      setLogoutPending(false);
-    }
-  }
-
   if (query.isPending) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#eef4f9] p-6">
-        <p role="status" className="text-sm text-navy/60">
-          Chargement de votre espace organisateur…
-        </p>
-      </main>
+      <OrganizerShell activeItem="overview">
+        <main className="flex min-h-[calc(100vh-78px)] items-center justify-center p-6">
+          <p role="status" className="text-sm text-navy/60">
+            Chargement de votre espace organisateur…
+          </p>
+        </main>
+      </OrganizerShell>
     );
   }
 
   if (query.isError || !query.data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#eef4f9] p-6">
-        <Card className="w-full max-w-lg p-8 text-center">
-          <BrandMark compact className="mx-auto mb-6 text-navy" />
+      <OrganizerShell activeItem="overview">
+        <main className="flex min-h-[calc(100vh-78px)] items-center justify-center p-6">
+          <Card className="w-full max-w-lg p-8 text-center">
+            <BrandMark compact className="mx-auto mb-6 text-navy" />
 
-          <h1 className="font-sora text-2xl font-bold text-navy">
-            Espace organisateur indisponible
-          </h1>
+            <h1 className="font-sora text-2xl font-bold text-navy">
+              Espace organisateur indisponible
+            </h1>
 
-          <p className="mt-3 text-sm leading-6 text-navy/60">
-            Impossible de charger votre dossier pour le moment. Réessayez dans quelques instants.
-          </p>
-        </Card>
-      </main>
+            <p className="mt-3 text-sm leading-6 text-navy/60">
+              Impossible de charger votre dossier pour le moment. Réessayez dans quelques instants.
+            </p>
+          </Card>
+        </main>
+      </OrganizerShell>
     );
   }
 
@@ -251,227 +127,252 @@ export function OrganizerHomePage() {
     )?.existingOrganizerAccount === true;
 
   return (
-    <main className="min-h-screen bg-[#eef4f9] px-5 py-8 sm:px-8">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex items-center justify-between gap-4">
-          <BrandMark className="text-navy" />
-          <Badge>{content.badge}</Badge>
-        </header>
-
-        <OrganizerNavigation
-          approved={approved}
-          commerciallyReady={commerciallyReady}
-          logoutPending={logoutPending}
-          logoutError={logoutError}
-          onLogout={() => {
-            void handleLogout();
-          }}
-        />
-
-        {existingOrganizerNotice ? (
-          <Card className="mb-6 border-primary/20 bg-primary/5 p-5">
-            <p className="text-sm font-semibold text-navy">Ce compte organisateur existe déjà.</p>
-
-            <p className="mt-2 text-sm leading-6 text-navy/60">
-              {organizer.validation_status === "SUSPENDED"
-                ? "Ce compte est suspendu. Demandez sa réouverture : seul un administrateur FANID pourra l’accepter avec sa vérification OTP."
-                : "Vous avez été redirigé vers l’espace organisateur déjà associé à cette adresse e-mail."}
-            </p>
-          </Card>
-        ) : null}
-
-        {organizer.validation_status !== "SUSPENDED" ? (
-          <OrganizerCommissionPanel
-            organizer={organizer}
-            negotiation={commissionQuery.data}
-            isPending={commissionQuery.isPending}
-            isError={commissionQuery.isError}
-            onRetry={() => {
-              void commissionQuery.refetch();
-            }}
-          />
-        ) : null}
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <Card className="overflow-hidden border-white/80 p-0 shadow-[0_24px_70px_rgba(14,42,77,0.10)]">
-            <div className="border-b border-navy/10 bg-white p-7 sm:p-9">
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
-                Espace organisateur
+    <OrganizerShell
+      activeItem="overview"
+      eventsAvailable={commerciallyReady}
+      breadcrumbs={
+        <>
+          <span>Accueil</span>
+          <span aria-hidden="true">/</span>
+          <span className="text-navy/70">Vue d’ensemble</span>
+        </>
+      }
+    >
+      <main className="fanid-page px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1240px]">
+          <header className="mb-7 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="fanid-eyebrow">Espace organisateur</p>
+              <h1 className="fanid-page-title mt-2">Vue d’ensemble</h1>
+              <p className="fanid-page-description">
+                Suivez le statut de votre organisation et accédez à vos outils.
               </p>
+            </div>
+            <Badge>{content.badge}</Badge>
+          </header>
 
-              <h1 className="font-sora text-3xl font-bold tracking-[-0.03em] text-navy">
-                {content.title}
-              </h1>
+          {existingOrganizerNotice ? (
+            <Card className="mb-6 border-primary/20 bg-primary/5 p-5">
+              <p className="text-sm font-semibold text-navy">Ce compte organisateur existe déjà.</p>
 
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-navy/60">{content.description}</p>
+              <p className="mt-2 text-sm leading-6 text-navy/60">
+                {organizer.validation_status === "SUSPENDED"
+                  ? "Ce compte est suspendu. Demandez sa réouverture : seul un administrateur FANID pourra l’accepter avec sa vérification OTP."
+                  : "Vous avez été redirigé vers l’espace organisateur déjà associé à cette adresse e-mail."}
+              </p>
+            </Card>
+          ) : null}
 
-              {organizer.validation_status === "SUSPENDED" ? (
-                <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                  <p className="text-sm font-semibold text-navy">
-                    Réouverture soumise à validation administrateur
-                  </p>
+          {organizer.validation_status !== "SUSPENDED" ? (
+            <OrganizerCommissionPanel
+              organizer={organizer}
+              negotiation={commissionQuery.data}
+              isPending={commissionQuery.isPending}
+              isError={commissionQuery.isError}
+              onRetry={() => {
+                void commissionQuery.refetch();
+              }}
+            />
+          ) : null}
 
-                  <p className="mt-2 text-sm leading-6 text-navy/65">
-                    Votre compte reste suspendu jusqu’à la décision d’un administrateur FANID. Vous
-                    ne pouvez pas le réactiver vous-même.
-                  </p>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <Card className="overflow-hidden border-white/80 p-0 shadow-[0_24px_70px_rgba(14,42,77,0.10)]">
+              <div className="border-b border-navy/10 bg-white p-7 sm:p-9">
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                  Espace organisateur
+                </p>
 
-                  {reactivationQuery.isPending ? (
-                    <p role="status" className="mt-4 text-sm text-navy/55">
-                      Vérification de votre demande de réouverture…
+                <h1 className="font-sora text-3xl font-bold tracking-[-0.03em] text-navy">
+                  {content.title}
+                </h1>
+
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-navy/60">
+                  {content.description}
+                </p>
+
+                {organizer.validation_status === "SUSPENDED" ? (
+                  <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                    <p className="text-sm font-semibold text-navy">
+                      Réouverture soumise à validation administrateur
                     </p>
-                  ) : null}
 
-                  {reactivationPending ? (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                      <p className="text-sm font-semibold text-amber-900">
-                        Demande de réouverture en attente de validation administrateur.
+                    <p className="mt-2 text-sm leading-6 text-navy/65">
+                      Votre compte reste suspendu jusqu’à la décision d’un administrateur FANID.
+                      Vous ne pouvez pas le réactiver vous-même.
+                    </p>
+
+                    {reactivationQuery.isPending ? (
+                      <p role="status" className="mt-4 text-sm text-navy/55">
+                        Vérification de votre demande de réouverture…
                       </p>
+                    ) : null}
 
-                      <p className="mt-2 text-sm leading-6 text-amber-800">
-                        Un administrateur doit accepter cette demande avec sa vérification OTP. Vous
-                        recevrez un e-mail lorsque la décision sera prise.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {reactivationRequest?.status === "REJECTED" ? (
-                        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-                          <p className="text-sm font-semibold text-red-800">
-                            La précédente demande de réouverture a été refusée.
-                          </p>
+                    {reactivationPending ? (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-sm font-semibold text-amber-900">
+                          Demande de réouverture en attente de validation administrateur.
+                        </p>
 
-                          {reactivationRequest.rejection_reason ? (
-                            <p className="mt-2 text-sm text-red-700">
-                              Motif : {reactivationRequest.rejection_reason}
+                        <p className="mt-2 text-sm leading-6 text-amber-800">
+                          Un administrateur doit accepter cette demande avec sa vérification OTP.
+                          Vous recevrez un e-mail lorsque la décision sera prise.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {reactivationRequest?.status === "REJECTED" ? (
+                          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                            <p className="text-sm font-semibold text-red-800">
+                              La précédente demande de réouverture a été refusée.
                             </p>
-                          ) : null}
-                        </div>
-                      ) : null}
 
-                      <Button
-                        type="button"
-                        className="mt-4"
-                        disabled={reactivationMutation.isPending || reactivationQuery.isPending}
-                        onClick={() => {
-                          reactivationMutation.mutate();
-                        }}
-                      >
-                        {reactivationMutation.isPending
-                          ? "Envoi de la demande…"
-                          : "Demander la réouverture"}
-                      </Button>
-                    </>
-                  )}
+                            {reactivationRequest.rejection_reason ? (
+                              <p className="mt-2 text-sm text-red-700">
+                                Motif : {reactivationRequest.rejection_reason}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
 
-                  {reactivationMutation.isError || reactivationQuery.isError ? (
-                    <p role="alert" className="mt-3 text-sm text-red-700">
-                      Impossible de traiter la demande de réouverture. Réessayez.
+                        <Button
+                          type="button"
+                          className="mt-4"
+                          disabled={reactivationMutation.isPending || reactivationQuery.isPending}
+                          onClick={() => {
+                            reactivationMutation.mutate();
+                          }}
+                        >
+                          {reactivationMutation.isPending
+                            ? "Envoi de la demande…"
+                            : "Demander la réouverture"}
+                        </Button>
+                      </>
+                    )}
+
+                    {reactivationMutation.isError || reactivationQuery.isError ? (
+                      <p role="alert" className="mt-3 text-sm text-red-700">
+                        Impossible de traiter la demande de réouverture. Réessayez.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {organizer.validation_status === "REJECTED" && organizer.rejection_reason ? (
+                  <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-red-700">
+                      Motif
                     </p>
-                  ) : null}
+
+                    <p className="mt-2 text-sm leading-6 text-red-800">
+                      {organizer.rejection_reason}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid gap-4 bg-[#fbfcfe] p-7 sm:grid-cols-2 sm:p-9">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
+                    Organisation
+                  </p>
+                  <p className="mt-2 font-semibold text-navy">{organizer.org_name}</p>
                 </div>
-              ) : null}
 
-              {organizer.validation_status === "REJECTED" && organizer.rejection_reason ? (
-                <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-red-700">Motif</p>
-
-                  <p className="mt-2 text-sm leading-6 text-red-800">
-                    {organizer.rejection_reason}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
+                    E-mail de contact
+                  </p>
+                  <p className="mt-2 break-all font-semibold text-navy">
+                    {organizer.contact_email}
                   </p>
                 </div>
-              ) : null}
-            </div>
 
-            <div className="grid gap-4 bg-[#fbfcfe] p-7 sm:grid-cols-2 sm:p-9">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
-                  Organisation
-                </p>
-                <p className="mt-2 font-semibold text-navy">{organizer.org_name}</p>
-              </div>
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
-                  E-mail de contact
-                </p>
-                <p className="mt-2 break-all font-semibold text-navy">{organizer.contact_email}</p>
-              </div>
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
-                  Numéro de TVA
-                </p>
-                <p className="mt-2 font-semibold text-navy">
-                  {organizer.vat_number || "Non renseigné"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
-                  Statut du dossier
-                </p>
-                <p className="mt-2 font-semibold text-navy">{content.badge}</p>
-              </div>
-            </div>
-          </Card>
-
-          <div className="space-y-5">
-            <Card className="p-6">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-                Événements
-              </p>
-
-              <h2 className="mt-3 font-sora text-xl font-bold text-navy">Gestion événementielle</h2>
-
-              {commerciallyReady ? (
-                <>
-                  <p className="mt-3 text-sm leading-6 text-navy/55">
-                    Le compte et la commission sont validés. La gestion événementielle est active.
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
+                    Numéro de TVA
                   </p>
+                  <p className="mt-2 font-semibold text-navy">
+                    {organizer.vat_number || "Non renseigné"}
+                  </p>
+                </div>
 
-                  <Link
-                    to="/organizer/events/new"
-                    className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90"
-                  >
-                    Créer un événement
-                  </Link>
-                </>
-              ) : (
-                <p className="mt-3 text-sm leading-6 text-navy/55">
-                  {!approved
-                    ? "La gestion des événements nécessite d’abord l’approbation du compte organisateur."
-                    : "Votre compte est approuvé, mais un accord de commission avec FANID est requis avant de créer ou gérer des événements."}
-                </p>
-              )}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-navy/40">
+                    Statut du dossier
+                  </p>
+                  <p className="mt-2 font-semibold text-navy">{content.badge}</p>
+                </div>
+              </div>
             </Card>
 
-            <Card className="p-6">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-navy/40">
-                Sécurité du compte
-              </p>
+            <div className="space-y-5">
+              <Card className="p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
+                  Événements
+                </p>
 
-              <div className="mt-4 space-y-3">
-                <Link
-                  to="/organizer/security"
-                  className="flex min-h-[46px] items-center justify-between rounded-xl border border-navy/10 px-4 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
-                >
-                  <span>Changer le mot de passe</span>
-                  <span aria-hidden="true">→</span>
-                </Link>
+                <h2 className="mt-3 font-sora text-xl font-bold text-navy">
+                  Gestion événementielle
+                </h2>
+
+                {commerciallyReady ? (
+                  <>
+                    <p className="mt-3 text-sm leading-6 text-navy/55">
+                      Le compte et la commission sont validés. La gestion événementielle est active.
+                    </p>
+
+                    <Link
+                      to="/organizer/events/new"
+                      className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90"
+                    >
+                      Créer un événement
+                    </Link>
+                  </>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-navy/55">
+                    {!approved
+                      ? "La gestion des événements nécessite d’abord l’approbation du compte organisateur."
+                      : "Votre compte est approuvé, mais un accord de commission avec FANID est requis avant de créer ou gérer des événements."}
+                  </p>
+                )}
+              </Card>
+
+              <Card className="border-primary/15 bg-[#f8fbff] p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Compte</p>
+
+                <h2 className="mt-3 font-sora text-xl font-bold text-navy">Mes sessions</h2>
+
+                <p className="mt-2 text-sm leading-6 text-navy/55">
+                  Consultez vos appareils connectés et révoquez ceux que vous ne reconnaissez pas.
+                </p>
 
                 <Link
                   to="/sessions"
-                  className="flex min-h-[46px] items-center justify-between rounded-xl border border-navy/10 px-4 text-sm font-semibold text-navy transition hover:border-primary/30 hover:text-primary"
+                  className="mt-5 inline-flex min-h-[46px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-[#1256ac]"
                 >
-                  <span>Gérer mes sessions</span>
-                  <span aria-hidden="true">→</span>
+                  Gérer mes sessions
                 </Link>
-              </div>
-            </Card>
+              </Card>
+
+              <Card className="p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-navy/40">
+                  Sécurité du compte
+                </p>
+
+                <div className="mt-4">
+                  <Link
+                    to="/organizer/security"
+                    className="flex min-h-[46px] items-center justify-between rounded-xl border border-primary bg-white px-4 text-sm font-semibold text-primary transition hover:bg-[#eef5ff]"
+                  >
+                    <span>Changer le mot de passe</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </OrganizerShell>
   );
 }

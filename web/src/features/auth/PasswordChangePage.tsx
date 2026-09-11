@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Button, Card, Input } from "@/components/primitives";
+import { OrganizerShell } from "@/features/organizers/OrganizerShell";
 
 import { useAuth } from "./AuthContext";
 import { changePassword } from "./passwordChange";
@@ -74,7 +75,7 @@ function Rule({
   );
 }
 
-export function PasswordChangePage() {
+export function PasswordChangePage({ organizerShell = false }: { organizerShell?: boolean }) {
   const navigate = useNavigate();
   const { clearAuthentication, user } = useAuth();
 
@@ -140,8 +141,8 @@ export function PasswordChangePage() {
     }
   }
 
-  return (
-    <main className="mx-auto w-full max-w-[1200px] px-5 py-8 sm:px-8 sm:py-10">
+  const content = (
+    <main className="fanid-page mx-auto w-full max-w-[1200px] px-5 py-8 sm:px-8 sm:py-10">
       <div className="mb-8">
         <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
           {accountLabel}
@@ -338,5 +339,24 @@ export function PasswordChangePage() {
         </div>
       </div>
     </main>
+  );
+
+  if (!organizerShell) {
+    return content;
+  }
+
+  return (
+    <OrganizerShell
+      activeItem="settings"
+      breadcrumbs={
+        <>
+          <span>Accueil</span>
+          <span aria-hidden="true">/</span>
+          <span className="text-navy/70">Sécurité</span>
+        </>
+      }
+    >
+      {content}
+    </OrganizerShell>
   );
 }

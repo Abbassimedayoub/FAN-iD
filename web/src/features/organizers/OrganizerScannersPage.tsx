@@ -280,11 +280,13 @@ function ScannerCard({
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   type="button"
+                  variant="secondary"
                   disabled={leaveDecisionPending}
                   onClick={() => onLeaveDecision(scanner, "REJECT")}
-                  className="border border-orange-300 bg-white font-semibold text-orange-800 hover:bg-orange-100"
+                  className="border border-orange-300 font-semibold text-orange-800 hover:bg-orange-100"
                 >
-                  Refuser
+                  {" "}
+                  Refuser{" "}
                 </Button>
 
                 <Button
@@ -343,9 +345,10 @@ function ScannerCard({
               {isPreActive(scanner) ? (
                 <Button
                   type="button"
+                  variant="secondary"
                   disabled={resendPending}
                   onClick={() => onResendInvitation(scanner)}
-                  className="border border-blue-200 bg-white font-semibold text-[#1769d2] hover:bg-blue-50"
+                  className="font-semibold"
                 >
                   {resendPending ? "Renvoi…" : "Renvoyer l’invitation"}
                 </Button>
@@ -353,9 +356,10 @@ function ScannerCard({
 
               <Button
                 type="button"
+                variant="danger"
                 disabled={revokePending || resendPending}
                 onClick={() => onRevoke(scanner)}
-                className="border border-red-200 bg-white font-semibold text-red-700 hover:bg-red-50"
+                className="font-semibold"
               >
                 {isPreActive(scanner) ? "Annuler l’invitation" : "Retirer le scanner"}
               </Button>
@@ -954,12 +958,13 @@ export function OrganizerScannersPage() {
 
                       <Button
                         type="button"
+                        variant="danger"
                         disabled={archiveSelection.length === 0}
                         onClick={() => {
                           archiveMutation.reset();
                           setArchiveModalOpen(true);
                         }}
-                        className="border border-red-200 bg-white font-semibold text-red-700 hover:bg-red-50"
+                        className="font-semibold"
                       >
                         Supprimer la sélection ({archiveSelection.length})
                       </Button>
@@ -1009,6 +1014,7 @@ export function OrganizerScannersPage() {
                     <div className="flex gap-3">
                       <Button
                         type="button"
+                        variant="secondary"
                         disabled={
                           scannerPage <= 1 ||
                           scannerPageData?.previous == null ||
@@ -1073,6 +1079,7 @@ export function OrganizerScannersPage() {
           <div className="flex justify-end gap-3">
             <Button
               type="button"
+              variant="secondary"
               disabled={archiveMutation.isPending}
               onClick={() => setArchiveModalOpen(false)}
             >
@@ -1081,6 +1088,7 @@ export function OrganizerScannersPage() {
 
             <Button
               type="button"
+              variant="secondary"
               disabled={archiveMutation.isPending || selectedArchivedScanners.length === 0}
               onClick={() => archiveMutation.mutate(selectedArchivedScanners)}
               className="bg-red-600 font-semibold text-white hover:bg-red-700"
@@ -1135,11 +1143,13 @@ export function OrganizerScannersPage() {
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Button
                 type="button"
+                variant="secondary"
                 disabled={leaveDecisionMutation.isPending || securityCodeRequest.isPending}
                 onClick={closeLeaveDecision}
-                className="border border-[#d6dfe8] bg-white font-semibold text-[#536579]"
+                className="border border-[#d6dfe8] font-semibold text-[#536579]"
               >
-                Annuler
+                {" "}
+                Annuler{" "}
               </Button>
 
               <Button
@@ -1218,11 +1228,13 @@ export function OrganizerScannersPage() {
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Button
                 type="button"
+                variant="secondary"
                 disabled={revocation.isPending || securityCodeRequest.isPending}
                 onClick={closeRevocation}
-                className="border border-[#d6dfe8] bg-white font-semibold text-[#536579]"
+                className="border border-[#d6dfe8] font-semibold text-[#536579]"
               >
-                Fermer
+                {" "}
+                Fermer{" "}
               </Button>
 
               <Button
