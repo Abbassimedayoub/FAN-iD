@@ -40,26 +40,53 @@ class FanHomePage extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 32),
-              const Icon(Icons.verified_user_outlined, size: 80),
-              const SizedBox(height: 24),
-              Text(
-                'Bonjour ${user.firstName}',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium,
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E2A4D),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: const Color(0x2922D3EE),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.verified_user_outlined,
+                        size: 28, color: Color(0xFF7CEBFA)),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                      child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bonjour ${user.firstName}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Votre session FAN-iD est active.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: const Color(0xFFAECBE8)),
+                      ),
+                    ],
+                  )),
+                ]),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Votre session FAN-iD est active.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 18),
               Card(
                 key: const ValueKey<String>('fan-catalog-card'),
                 child: ListTile(
@@ -142,8 +169,8 @@ class FanHomePage extends ConsumerWidget {
                   },
                 ),
               ),
-              const Spacer(),
-              FilledButton.icon(
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
                 onPressed: () {
                   ref.read(authControllerProvider.notifier).signOutLocal();
                 },

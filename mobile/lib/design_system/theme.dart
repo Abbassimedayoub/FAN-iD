@@ -10,11 +10,8 @@ import 'typography.dart';
 /// coherents avec la maquette. Les composants FAN iD, eux, lisent les tokens
 /// directement — le theme n est pas leur source de verite.
 ///
-/// Ce fichier ne configure DELIBEREMENT pas :
-/// * `cardTheme` — son type a change entre Flutter 3.24 (`CardTheme`) et 3.27
-///   (`CardThemeData`) ; aucun `Card` Material n est utilise ici ;
-/// * l echelle typographique de l utilisateur — voir la note d accessibilite
-///   plus bas.
+/// Configure aussi les composants Material utilises par les parcours metier.
+/// Ne modifie pas l'echelle typographique de l'utilisateur.
 ///
 /// ## Accessibilite : aucun plafond sur l echelle de texte
 ///
@@ -34,19 +31,107 @@ abstract final class FanTheme {
       secondary: FanColors.cyan,
       error: FanColors.danger,
       surface: FanColors.surface,
+      onSurface: FanColors.navy,
+      onSurfaceVariant: FanColors.textSecondary,
+      outlineVariant: FanColors.border,
+      surfaceContainerLow: FanColors.surface,
+      surfaceContainerHighest: FanColors.surfaceSunken,
+      tertiaryContainer: const Color(0xFFF9F5FE),
+      onTertiaryContainer: const Color(0xFF6B21A8),
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: FanType.bodyFamily,
+      textTheme: const TextTheme(
+        headlineSmall: FanType.h1,
+        headlineMedium: FanType.h1,
+        titleLarge: FanType.h2,
+        titleMedium: FanType.h3,
+        titleSmall: FanType.bodyStrong,
+        bodyLarge: FanType.body,
+        bodyMedium: FanType.body,
+        bodySmall: FanType.caption,
+        labelLarge: FanType.label,
+        labelMedium: FanType.label,
+        labelSmall: FanType.caption,
+      ),
+      cardTheme: CardThemeData(
+        color: FanColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: FanColors.border),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          backgroundColor: FanColors.primary,
+          foregroundColor: Colors.white,
+          textStyle: FanType.button.copyWith(fontSize: 15),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          foregroundColor: FanColors.primary,
+          backgroundColor: Colors.white,
+          side: const BorderSide(color: FanColors.primary),
+          textStyle: FanType.button.copyWith(fontSize: 15),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.all(16),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: FanColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: FanColors.primary, width: 2),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: Colors.white,
+        selectedColor: const Color(0xFFDCE9FA),
+        side: const BorderSide(color: FanColors.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        labelStyle: FanType.label,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        iconColor: FanColors.primary,
+        titleTextStyle: FanType.bodyStrong,
+        subtitleTextStyle: FanType.caption,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
       scaffoldBackgroundColor: FanColors.background,
       splashFactory: InkRipple.splashFactory,
       // Cible tactile minimale posee au niveau du theme, pour ne pas dependre
       // de la vigilance de chaque ecran.
       materialTapTargetSize: MaterialTapTargetSize.padded,
       appBarTheme: const AppBarTheme(
-        backgroundColor: FanColors.background,
+        backgroundColor: FanColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,

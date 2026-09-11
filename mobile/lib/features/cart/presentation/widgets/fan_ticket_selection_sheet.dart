@@ -75,22 +75,36 @@ class _FanTicketSelectionSheetState extends State<FanTicketSelectionSheet> {
     final selected = _selectedTariff;
     final maxQuantity = selected == null ? 0 : _selectionLimit(selected);
 
+    final scheme = Theme.of(context).colorScheme;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
-          top: 20,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+          top: 12,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: scheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
             Text(
               widget.event.name,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w800,
                   ),
             ),
             const SizedBox(height: 6),
@@ -105,13 +119,25 @@ class _FanTicketSelectionSheetState extends State<FanTicketSelectionSheet> {
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              selectedItemBuilder: (context) => widget.event.ticketCategories
+                  .map((tariff) => Text(
+                        '${tariff.name} — ${tariff.priceLabel}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ))
+                  .toList(growable: false),
               key: const ValueKey<String>(
                 'fan-ticket-tariff',
               ),
               initialValue: _selectedTariffId,
               decoration: const InputDecoration(
                 labelText: 'Tarif',
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                ),
               ),
               items: widget.event.ticketCategories
                   .map(
@@ -119,6 +145,8 @@ class _FanTicketSelectionSheetState extends State<FanTicketSelectionSheet> {
                       value: tariff.id,
                       enabled: tariff.isAvailable,
                       child: Text(
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         tariff.isAvailable
                             ? '${tariff.name} — '
                                 '${tariff.priceLabel} — '
@@ -215,36 +243,39 @@ class _FanTicketSelectionSheetState extends State<FanTicketSelectionSheet> {
                     ),
               ),
             ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              key: const ValueKey<String>(
-                'fan-ticket-add',
-              ),
-              onPressed: selected == null || maxQuantity <= 0 || _saving
-                  ? null
-                  : () async {
-                      setState(() {
-                        _saving = true;
-                      });
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 56,
+              child: FilledButton.icon(
+                key: const ValueKey<String>(
+                  'fan-ticket-add',
+                ),
+                onPressed: selected == null || maxQuantity <= 0 || _saving
+                    ? null
+                    : () async {
+                        setState(() {
+                          _saving = true;
+                        });
 
-                      try {
-                        await widget.onAdd(
-                          selected,
-                          _quantity,
-                        );
-                      } finally {
-                        if (mounted) {
-                          setState(() {
-                            _saving = false;
-                          });
+                        try {
+                          await widget.onAdd(
+                            selected,
+                            _quantity,
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _saving = false;
+                            });
+                          }
                         }
-                      }
-                    },
-              icon: const Icon(
-                Icons.add_shopping_cart,
-              ),
-              label: Text(
-                _saving ? 'Ajout…' : 'Ajouter au panier',
+                      },
+                icon: const Icon(
+                  Icons.add_shopping_cart,
+                ),
+                label: Text(
+                  _saving ? 'Ajout…' : 'Ajouter au panier',
+                ),
               ),
             ),
           ],

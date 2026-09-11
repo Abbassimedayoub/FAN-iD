@@ -386,6 +386,7 @@ export function OrganizerArchivedScannersPage() {
                   <div className="flex gap-3">
                     <Button
                       type="button"
+                      variant="secondary"
                       disabled={
                         archivePage <= 1 ||
                         archivePageData?.previous == null ||
@@ -394,9 +395,10 @@ export function OrganizerArchivedScannersPage() {
                       onClick={() => {
                         setArchivePage((current) => Math.max(1, current - 1));
                       }}
-                      className="border border-[#d7e0e9] bg-white font-semibold text-[#40546a] hover:bg-slate-50"
+                      className="border border-[#d7e0e9] font-semibold text-[#40546a] hover:bg-slate-50"
                     >
-                      Précédent
+                      {" "}
+                      Précédent{" "}
                     </Button>
 
                     <Button

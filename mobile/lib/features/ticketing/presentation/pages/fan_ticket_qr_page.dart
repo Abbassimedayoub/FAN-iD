@@ -92,11 +92,18 @@ class _FanTicketQrPageState extends ConsumerState<FanTicketQrPage> {
     final qr = _qr;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('QR dynamique')),
+      backgroundColor: const Color(0xFF0B2545),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B2545),
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('QR dynamique',
+            style: TextStyle(color: Color(0xFF7CEBFA))),
+        centerTitle: true,
+      ),
       body: SafeArea(
-        child: Center(
+        child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 32),
             child: _loading
                 ? const CircularProgressIndicator()
                 : _error != null
@@ -107,20 +114,34 @@ class _FanTicketQrPageState extends ConsumerState<FanTicketQrPage> {
                           Text(
                             widget.ticket.eventName,
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(color: Colors.white, fontSize: 20),
                           ),
                           const SizedBox(height: 8),
-                          Text(widget.ticket.ticketCategoryName),
+                          Text(widget.ticket.ticketCategoryName,
+                              style: const TextStyle(color: Color(0xFFAECBE8))),
                           const SizedBox(height: 24),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: QrImageView(
-                                key:
-                                    const ValueKey<String>('ticket-dynamic-qr'),
-                                data: qr!.token,
-                                version: QrVersions.auto,
-                                size: 260,
+                          Container(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                  color: const Color(0xFF22D3EE), width: 3),
+                              borderRadius: BorderRadius.circular(32),
+                            ),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: QrImageView(
+                                  key: const ValueKey<String>(
+                                      'ticket-dynamic-qr'),
+                                  data: qr!.token,
+                                  version: QrVersions.auto,
+                                  size: 240,
+                                  backgroundColor: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -128,11 +149,15 @@ class _FanTicketQrPageState extends ConsumerState<FanTicketQrPage> {
                           const Text(
                             'Ce code est temporaire et se renouvelle automatiquement.',
                             textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFFAECBE8)),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Valide jusqu’à ${_formatTime(qr.expiresAt)}',
-                            style: Theme.of(context).textTheme.bodySmall,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(color: const Color(0xFF22D3EE)),
                           ),
                         ],
                       ),
@@ -161,11 +186,12 @@ class _QrError extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        const Icon(Icons.error_outline, size: 48),
+        const Icon(Icons.error_outline, size: 48, color: Colors.white),
         const SizedBox(height: 16),
         const Text(
           'Impossible de générer le QR dynamique.',
           textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white),
         ),
         const SizedBox(height: 12),
         FilledButton(

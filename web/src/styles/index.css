@@ -12,12 +12,12 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  background: #eef4f9;
+  background: #f4f7fb;
   color: #0e2a4d;
 }
 
 html {
-  background: #eef4f9;
+  background: #f4f7fb;
 }
 
 body {
@@ -25,7 +25,7 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 80% 10%, rgba(34, 211, 238, 0.06), transparent 28rem), #eef4f9;
+    radial-gradient(circle at 84% 4%, rgba(34, 211, 238, 0.08), transparent 28rem), #f4f7fb;
 }
 
 button,
@@ -44,4 +44,41 @@ textarea {
 :focus-visible {
   outline: 2px solid #22d3ee;
   outline-offset: 2px;
+}
+
+/* Fondations UI/UX — étape 26.1 */
+@layer base {
+  body {
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .fanid-page {
+    @apply mx-auto w-full max-w-[1240px] px-5 py-7 sm:px-8 sm:py-8;
+  }
+
+  .fanid-eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.08em] text-primary;
+  }
+
+  .fanid-page-title {
+    @apply mt-1 font-sora text-[28px] font-bold leading-tight text-navy;
+  }
+
+  .fanid-page-description {
+    @apply mt-2 max-w-3xl text-sm leading-6 text-[#5b6472];
+  }
+
+  .fanid-surface {
+    @apply rounded-2xl border border-[#e3eaf3] bg-white shadow-[0_2px_8px_rgba(11,27,46,0.06)];
+  }
 }

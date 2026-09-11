@@ -26,7 +26,10 @@ class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
     final tickets = ref.watch(fanTicketsProvider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
+        toolbarHeight: 56,
+        titleSpacing: 24,
         title: const Text('Mes billets'),
       ),
       body: tickets.when(
@@ -96,67 +99,97 @@ class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
                 : ListView.separated(
                     key: const ValueKey<String>('fan-tickets-list'),
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                     itemCount: filteredItems.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       if (index == 0) {
-                        return Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: <Widget>[
-                            ChoiceChip(
-                              label: const Text('Tous'),
-                              selected: _dateFilter == FanTicketDateFilter.all,
-                              onSelected: (_) => setState(
-                                () => _dateFilter = FanTicketDateFilter.all,
+                        return Card(
+                            child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('DATE',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: <Widget>[
+                                  ChoiceChip(
+                                    label: const Text('Tous'),
+                                    selected:
+                                        _dateFilter == FanTicketDateFilter.all,
+                                    onSelected: (_) => setState(
+                                      () =>
+                                          _dateFilter = FanTicketDateFilter.all,
+                                    ),
+                                  ),
+                                  ChoiceChip(
+                                    label: const Text('À venir'),
+                                    selected: _dateFilter ==
+                                        FanTicketDateFilter.upcoming,
+                                    onSelected: (_) => setState(
+                                      () => _dateFilter =
+                                          FanTicketDateFilter.upcoming,
+                                    ),
+                                  ),
+                                  ChoiceChip(
+                                    label: const Text('Passés'),
+                                    selected:
+                                        _dateFilter == FanTicketDateFilter.past,
+                                    onSelected: (_) => setState(
+                                      () => _dateFilter =
+                                          FanTicketDateFilter.past,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            ChoiceChip(
-                              label: const Text('À venir'),
-                              selected:
-                                  _dateFilter == FanTicketDateFilter.upcoming,
-                              onSelected: (_) => setState(
-                                () =>
-                                    _dateFilter = FanTicketDateFilter.upcoming,
+                              const SizedBox(height: 14),
+                              const Text('STATUT',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  ChoiceChip(
+                                    label: const Text('Valides'),
+                                    selected: _statusFilter ==
+                                        FanTicketStatusFilter.valid,
+                                    onSelected: (_) => setState(
+                                      () => _statusFilter =
+                                          FanTicketStatusFilter.valid,
+                                    ),
+                                  ),
+                                  ChoiceChip(
+                                    label: const Text('Utilisés'),
+                                    selected: _statusFilter ==
+                                        FanTicketStatusFilter.used,
+                                    onSelected: (_) => setState(
+                                      () => _statusFilter =
+                                          FanTicketStatusFilter.used,
+                                    ),
+                                  ),
+                                  ChoiceChip(
+                                    label: const Text('Annulés'),
+                                    selected: _statusFilter ==
+                                        FanTicketStatusFilter.voided,
+                                    onSelected: (_) => setState(
+                                      () => _statusFilter =
+                                          FanTicketStatusFilter.voided,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Passés'),
-                              selected: _dateFilter == FanTicketDateFilter.past,
-                              onSelected: (_) => setState(
-                                () => _dateFilter = FanTicketDateFilter.past,
-                              ),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Valides'),
-                              selected:
-                                  _statusFilter == FanTicketStatusFilter.valid,
-                              onSelected: (_) => setState(
-                                () =>
-                                    _statusFilter = FanTicketStatusFilter.valid,
-                              ),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Utilisés'),
-                              selected:
-                                  _statusFilter == FanTicketStatusFilter.used,
-                              onSelected: (_) => setState(
-                                () =>
-                                    _statusFilter = FanTicketStatusFilter.used,
-                              ),
-                            ),
-                            ChoiceChip(
-                              label: const Text('Annulés'),
-                              selected:
-                                  _statusFilter == FanTicketStatusFilter.voided,
-                              onSelected: (_) => setState(
-                                () => _statusFilter =
-                                    FanTicketStatusFilter.voided,
-                              ),
-                            ),
-                          ],
-                        );
+                            ],
+                          ),
+                        ));
                       }
 
                       final ticket = filteredItems[index - 1];
@@ -194,7 +227,7 @@ class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
     final emailController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
 
-    await showDialog<void>(
+    final route = DialogRoute<void>(
       context: context,
       builder: (dialogContext) {
         var submitting = false;
@@ -243,11 +276,13 @@ class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
                   ),
                 );
               } on Failure catch (exception) {
+                if (!dialogContext.mounted) return;
                 setDialogState(() {
                   submitting = false;
                   error = exception.message;
                 });
               } catch (_) {
+                if (!dialogContext.mounted) return;
                 setDialogState(() {
                   submitting = false;
                   error = 'Impossible de transférer ce billet. Réessayez.';
@@ -256,6 +291,9 @@ class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
             }
 
             return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              scrollable: true,
               title: const Text('Transférer ce billet'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -309,6 +347,8 @@ class _FanTicketsPageState extends ConsumerState<FanTicketsPage> {
         );
       },
     );
+    await Navigator.of(context).push(route);
+    await route.completed;
     emailController.dispose();
   }
 }
@@ -326,60 +366,145 @@ class _FanTicketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ticket.isValid
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.outline;
+    final scheme = Theme.of(context).colorScheme;
+    final isValid = ticket.isValid;
+    final statusColor = isValid
+        ? const Color(0xFF0B7A56)
+        : ticket.status == 'USED'
+            ? scheme.tertiary
+            : scheme.error;
 
     return Card(
       key: ValueKey<String>('fan-ticket-${ticket.id}'),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.all(18),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Icon(
-              Icons.confirmation_number_outlined,
-              color: color,
-              size: 34,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0E2A4D),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${ticket.effectiveStartsAt.toLocal().day}\n${const [
+                        'JAN',
+                        'FÉV',
+                        'MARS',
+                        'AVR',
+                        'MAI',
+                        'JUIN',
+                        'JUIL',
+                        'AOÛT',
+                        'SEPT',
+                        'OCT',
+                        'NOV',
+                        'DÉC'
+                      ][ticket.effectiveStartsAt.toLocal().month - 1]}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: Color(0xFF7CEBFA),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        ticket.eventName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        ticket.ticketCategoryName,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _TicketStatusPill(
+                  label: ticket.statusLabel,
+                  color: statusColor,
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    ticket.eventName,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(ticket.ticketCategoryName),
-                  const SizedBox(height: 6),
-                  Text(_formatDate(ticket.effectiveStartsAt)),
-                  if (ticket.isPostponed) ...<Widget>[
-                    const SizedBox(height: 12),
-                    _PostponementNotice(ticket: ticket),
+            const SizedBox(height: 18),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: <Widget>[
+                    Icon(Icons.calendar_today_outlined,
+                        size: 17, color: scheme.primary),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        _formatDate(ticket.effectiveStartsAt),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
                   ],
-                  const SizedBox(height: 10),
-                  Chip(
-                    label: Text(ticket.statusLabel),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: ticket.isValid ? onShowQr : null,
+                ),
+              ),
+            ),
+            if (ticket.isPostponed) ...<Widget>[
+              const SizedBox(height: 12),
+              _PostponementNotice(ticket: ticket),
+            ],
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: isValid ? onShowQr : null,
                     icon: const Icon(Icons.qr_code_2_outlined),
-                    label: const Text('Afficher le QR dynamique'),
+                    label: const Text('QR dynamique'),
                   ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: onTransfer,
-                    icon: const Icon(Icons.send_outlined),
-                    label: const Text('Transférer ce billet'),
+                ),
+                if (onTransfer != null) ...<Widget>[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onTransfer,
+                      icon: const Icon(Icons.send_outlined),
+                      label: const Text('Transférer'),
+                    ),
                   ),
                 ],
-              ),
+              ],
             ),
           ],
         ),
@@ -395,6 +520,36 @@ class _FanTicketCard extends StatelessWidget {
         '${date.year} à '
         '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _TicketStatusPill extends StatelessWidget {
+  const _TicketStatusPill({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+      ),
+    );
   }
 }
 

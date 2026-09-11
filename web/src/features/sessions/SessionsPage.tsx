@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AdminShell } from "@/components/AdminShell";
+import { OrganizerShell } from "@/features/organizers/OrganizerShell";
 import { useAuth } from "@/features/auth/AuthContext";
 import { logoutWeb } from "@/features/auth/logout";
 
@@ -100,6 +101,23 @@ export function SessionsPage() {
       <AdminShell>
         <SessionsView {...commonProps} />
       </AdminShell>
+    );
+  }
+
+  if (user?.role === "ORGANIZER") {
+    return (
+      <OrganizerShell
+        activeItem="sessions"
+        breadcrumbs={
+          <>
+            <span>Accueil</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-navy/70">Sessions</span>
+          </>
+        }
+      >
+        <SessionsView {...commonProps} />
+      </OrganizerShell>
     );
   }
 

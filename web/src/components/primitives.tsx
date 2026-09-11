@@ -11,11 +11,26 @@ import type {
   TableHTMLAttributes,
 } from "react";
 
-export function Button({ className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+
+export function Button({
+  className = "",
+  variant = "primary",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+}) {
+  const variantClasses: Record<ButtonVariant, string> = {
+    primary: "border border-primary bg-primary text-white hover:bg-[#1256ac]",
+    secondary: "!border !border-primary !bg-white !text-primary hover:!bg-[#eef5ff]",
+    danger: "!border !border-red-200 !bg-red-50 !text-red-700 hover:!bg-red-100",
+    ghost: "border border-transparent bg-transparent text-navy hover:bg-navy/5",
+  };
+
   return (
     <button
       {...props}
-      className={`min-h-[44px] rounded-xl bg-primary px-4 py-2 text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-cyan/10 disabled:cursor-not-allowed disabled:opacity-50 ${variantClasses[variant]} ${className}`}
     />
   );
 }
@@ -45,22 +60,107 @@ export function Table(props: TableHTMLAttributes<HTMLTableElement>) {
   );
 }
 
-export function Badge({
-  children,
-  tone = "default",
-}: {
-  children: ReactNode;
-  tone?: "default" | "success" | "danger";
-}) {
-  const toneClasses: Record<string, string> = {
-    default: "bg-navy/10 text-navy",
-    success: "bg-emerald-100 text-emerald-800",
-    danger: "bg-red-100 text-red-800",
+export type BadgeTone = "default" | "success" | "danger" | "warning" | "info" | "purple" | "muted";
+
+export function Badge({ children, tone = "default" }: { children: ReactNode; tone?: BadgeTone }) {
+  const toneClasses: Record<BadgeTone, string> = {
+    default: "bg-[#eaf0f7] text-[#3c4b60]",
+    success: "bg-[#e7f7f0] text-[#0b7a56]",
+    danger: "bg-[#fef3f3] text-[#b91c1c]",
+    warning: "bg-[#fef6e7] text-[#8a5a02]",
+    info: "bg-[#eaf2fd] text-[#1663c7]",
+    purple: "bg-[#f2e9fb] text-[#6b21a8]",
+    muted: "bg-[#eef2f6] text-[#5b6472]",
   };
+
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${toneClasses[tone]}`}>
+    <span
+      className={`inline-flex min-h-6 items-center rounded-lg px-2.5 py-0.5 text-xs font-bold ${toneClasses[tone]}`}
+    >
       {children}
     </span>
+  );
+}
+
+export type EventStatus =
+  "DRAFT" | "PUBLISHED" | "POSTPONED" | "SUSPENDED" | "CANCELLED" | "COMPLETED" | "ARCHIVED";
+
+const EVENT_STATUS_CONTENT: Record<EventStatus, { label: string; tone: BadgeTone }> = {
+  DRAFT: { label: "Brouillon", tone: "warning" },
+  PUBLISHED: { label: "Publié", tone: "success" },
+  POSTPONED: { label: "Reporté", tone: "purple" },
+  SUSPENDED: { label: "Suspendu", tone: "warning" },
+  CANCELLED: { label: "Annulé", tone: "danger" },
+  COMPLETED: { label: "Terminé", tone: "info" },
+  ARCHIVED: { label: "Archivé", tone: "muted" },
+};
+
+export function EventStatusBadge({ status }: { status: EventStatus }) {
+  const content = EVENT_STATUS_CONTENT[status];
+  return <Badge tone={content.tone}>{content.label}</Badge>;
+}
+
+export function InlineAlert({
+  children,
+  tone = "info",
+}: {
+  children: ReactNode;
+  tone?: "info" | "success" | "warning" | "danger";
+}) {
+  const toneClasses = {
+    info: "border-cyan/40 bg-[#f4fbfd] text-[#0a7180]",
+    success: "border-[#b6e6d2] bg-[#eefaf4] text-[#0b7a56]",
+    warning: "border-[#f5d9a8] bg-[#fef6e7] text-[#8a5a02]",
+    danger: "border-red-200 bg-red-50 text-red-800",
+  };
+
+  return (
+    <div
+      role={tone === "danger" ? "alert" : "status"}
+      className={`rounded-2xl border px-4 py-3 text-sm leading-6 ${toneClasses[tone]}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="fanid-surface flex min-h-56 flex-col items-center justify-center px-6 py-10 text-center">
+      <span
+        aria-hidden="true"
+        className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef4fc] text-xl text-primary"
+      >
+        ◌
+      </span>
+      <h2 className="font-sora text-lg font-bold text-navy">{title}</h2>
+      <p className="mt-2 max-w-md text-sm leading-6 text-[#5b6472]">{description}</p>
+      {action ? <div className="mt-5">{action}</div> : null}
+    </section>
+  );
+}
+
+export function Skeleton({
+  className = "",
+  label = "Chargement",
+}: {
+  className?: string;
+  label?: string;
+}) {
+  return (
+    <span
+      role="status"
+      aria-label={label}
+      className={`block animate-pulse rounded-xl bg-[#eaf0f7] ${className}`}
+    />
   );
 }
 

@@ -230,13 +230,15 @@ function TicketCategoryEditor({
       <div className="mt-4 flex flex-wrap justify-end gap-2">
         <Button
           type="button"
+          variant="danger"
           disabled={pending}
           onClick={() => {
             void remove();
           }}
-          className="border border-red-200 bg-white px-4 text-red-700 hover:bg-red-50"
+          className="border border-red-200 px-4 text-red-700 hover:bg-red-50"
         >
-          Supprimer
+          {" "}
+          Supprimer{" "}
         </Button>
 
         <Button
@@ -523,21 +525,25 @@ export function OrganizerEventCategoriesStep({
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             type="button"
+            variant="secondary"
             onClick={onBack}
-            className="border border-[#ccd6e0] bg-white px-5 font-semibold text-[#536578] hover:bg-[#f7f9fb]"
+            className="border border-[#ccd6e0] px-5 font-semibold text-[#536578] hover:bg-[#f7f9fb]"
           >
-            ← Retour aux informations
+            {" "}
+            ← Retour aux informations{" "}
           </Button>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             {onSaveDraft ? (
               <Button
                 type="button"
+                variant="secondary"
                 disabled={mutationPending}
                 onClick={onSaveDraft}
-                className="border border-[#b9cbe0] bg-white px-5 font-semibold text-[#405b78] hover:bg-[#f5f8fc]"
+                className="border border-[#b9cbe0] px-5 font-semibold text-[#405b78] hover:bg-[#f5f8fc]"
               >
-                Enregistrer le brouillon et quitter
+                {" "}
+                Enregistrer le brouillon et quitter{" "}
               </Button>
             ) : null}
 

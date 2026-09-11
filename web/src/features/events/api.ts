@@ -149,9 +149,25 @@ interface OrganizerEventsPageResponse {
 }
 
 export async function fetchOrganizerEvents(): Promise<OrganizerEvent[]> {
-  const response = await httpClient.get<OrganizerEventsPageResponse>("/api/v1/events");
+  const firstResponse = await httpClient.get<OrganizerEventsPageResponse>("/api/v1/events", {
+    params: {
+      page_size: 100,
+    },
+  });
 
-  return response.data.results;
+  const events = [...firstResponse.data.results];
+  let next = firstResponse.data.next;
+
+  // Le backend limite volontairement une réponse à 100 éléments.
+  // On récupère les pages suivantes pour que les filtres et la pagination
+  // de l'interface portent bien sur tous les événements de l'organisateur.
+  while (next) {
+    const response = await httpClient.get<OrganizerEventsPageResponse>(next);
+    events.push(...response.data.results);
+    next = response.data.next;
+  }
+
+  return events;
 }
 
 export async function fetchOrganizerEvent(eventId: string): Promise<OrganizerEvent> {

@@ -152,7 +152,7 @@ it("affiche le statut PENDING et les outils de compte", async () => {
 
   expect(
     screen.getByRole("navigation", {
-      name: "Navigation organisateur",
+      name: "Navigation organisateur principale",
     }),
   ).toBeInTheDocument();
 
@@ -165,7 +165,7 @@ it("affiche le statut PENDING et les outils de compte", async () => {
 
   expect(
     screen.getByRole("link", {
-      name: "Sessions",
+      name: "Gérer mes sessions",
     }),
   ).toHaveAttribute("href", "/sessions");
 

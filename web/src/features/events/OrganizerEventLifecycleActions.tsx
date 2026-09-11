@@ -274,6 +274,7 @@ export function OrganizerEventLifecycleActions({
             {canPostpone ? (
               <Button
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   openDialog("postpone");
                   if (isAwaitingNewDate) {
@@ -281,46 +282,53 @@ export function OrganizerEventLifecycleActions({
                     setPostponeEndsAt("");
                   }
                 }}
-                className="border border-[#b9d4f6] bg-white font-semibold text-[#1769d2] hover:bg-[#f4f8fe]"
+                className="border border-[#b9d4f6] font-semibold text-[#1769d2] hover:bg-[#f4f8fe]"
               >
-                {isAwaitingNewDate ? "Définir une nouvelle date" : "Reporter"}
+                {" "}
+                {isAwaitingNewDate ? "Définir une nouvelle date" : "Reporter"}{" "}
               </Button>
             ) : null}
 
             {canSuspend ? (
               <Button
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   openDialog("suspend");
                 }}
-                className="border border-amber-200 bg-white font-semibold text-amber-700 hover:bg-amber-50"
+                className="border border-amber-200 font-semibold text-amber-700 hover:bg-amber-50"
               >
-                Suspendre
+                {" "}
+                Suspendre{" "}
               </Button>
             ) : null}
 
             {canCancel ? (
               <Button
                 type="button"
+                variant="danger"
                 onClick={() => {
                   openDialog("cancel");
                 }}
-                className="border border-red-200 bg-white font-semibold text-red-700 hover:bg-red-50"
+                className="border border-red-200 font-semibold text-red-700 hover:bg-red-50"
               >
-                Annuler
+                {" "}
+                Annuler{" "}
               </Button>
             ) : null}
 
             {canUnarchive ? (
               <Button
                 type="button"
+                variant="secondary"
                 disabled={pending}
                 onClick={() => {
                   void handleUnarchive();
                 }}
-                className="border border-[#b9d4f6] bg-white font-semibold text-[#1769d2] hover:bg-[#f4f8fe]"
+                className="border border-[#b9d4f6] font-semibold text-[#1769d2] hover:bg-[#f4f8fe]"
               >
-                {pending ? "Désarchivage…" : "Désarchiver"}
+                {" "}
+                {pending ? "Désarchivage…" : "Désarchiver"}{" "}
               </Button>
             ) : null}
           </div>
@@ -436,11 +444,13 @@ export function OrganizerEventLifecycleActions({
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
+              variant="secondary"
               disabled={pending}
               onClick={closeDialog}
-              className="border border-[#d7e0e9] bg-white font-semibold text-navy hover:bg-slate-50"
+              className="border border-[#d7e0e9] font-semibold text-navy hover:bg-slate-50"
             >
-              Retour
+              {" "}
+              Retour{" "}
             </Button>
 
             <Button type="submit" disabled={pending} className="font-semibold">
@@ -529,11 +539,13 @@ export function OrganizerEventLifecycleActions({
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
+              variant="secondary"
               disabled={pending}
               onClick={closeDialog}
-              className="border border-[#d7e0e9] bg-white font-semibold text-navy hover:bg-slate-50"
+              className="border border-[#d7e0e9] font-semibold text-navy hover:bg-slate-50"
             >
-              Retour
+              {" "}
+              Retour{" "}
             </Button>
 
             <Button
@@ -621,11 +633,13 @@ export function OrganizerEventLifecycleActions({
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
+              variant="secondary"
               disabled={pending}
               onClick={closeDialog}
-              className="border border-[#d7e0e9] bg-white font-semibold text-navy hover:bg-slate-50"
+              className="border border-[#d7e0e9] font-semibold text-navy hover:bg-slate-50"
             >
-              Retour
+              {" "}
+              Retour{" "}
             </Button>
 
             <Button

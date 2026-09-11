@@ -111,15 +111,62 @@ function OrganizerErrorBanner({ error, onRetry }: { error: AppError; onRetry: ()
   );
 }
 
-function MetricCard({ label, value, helper }: { label: string; value: number; helper: string }) {
+function MetricCard({
+  label,
+  value,
+  helper,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  tone?: "default" | "primary" | "warning" | "success" | "danger";
+}) {
+  const tones = {
+    default: {
+      container: "fanid-surface",
+      label: "text-[#5b6472]",
+      value: "text-navy",
+      helper: "text-[#5b6472]",
+    },
+    primary: {
+      container: "border border-navy bg-navy shadow-[0_8px_22px_rgba(11,27,46,0.14)]",
+      label: "text-cyan",
+      value: "text-white",
+      helper: "text-[#aecbe8]",
+    },
+    warning: {
+      container: "fanid-surface",
+      label: "text-[#8a5a02]",
+      value: "text-navy",
+      helper: "text-[#5b6472]",
+    },
+    success: {
+      container: "fanid-surface",
+      label: "text-[#0b7a56]",
+      value: "text-navy",
+      helper: "text-[#5b6472]",
+    },
+    danger: {
+      container: "fanid-surface",
+      label: "text-[#b91c1c]",
+      value: "text-navy",
+      helper: "text-[#5b6472]",
+    },
+  };
+
+  const style = tones[tone];
+
   return (
-    <Card className="min-w-0 p-5">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-navy/45">{label}</p>
-
-      <p className="mt-3 font-sora text-3xl font-bold tracking-[-0.04em] text-navy">{value}</p>
-
-      <p className="mt-1 text-xs text-navy/45">{helper}</p>
-    </Card>
+    <article className={`min-w-0 rounded-2xl px-5 py-5 ${style.container}`}>
+      <p className={`text-[11px] font-bold uppercase tracking-[0.1em] ${style.label}`}>{label}</p>
+      <p
+        className={`mt-3 font-sora text-[30px] font-bold leading-none tabular-nums ${style.value}`}
+      >
+        {value}
+      </p>
+      <p className={`mt-2 text-xs ${style.helper}`}>{helper}</p>
+    </article>
   );
 }
 
@@ -173,17 +220,13 @@ export function AdminOrganizersView({
   const pendingReactivationCount = data?.pending_reactivation_count ?? pendingReactivations.length;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1400px] flex-col gap-7 p-5 sm:p-6 md:p-8">
+    <main className="fanid-page flex max-w-[1240px] flex-col gap-7">
       <header>
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
-          Gestion des comptes
-        </p>
+        <p className="fanid-eyebrow">Gestion des comptes</p>
 
-        <h1 className="font-sora text-2xl font-bold text-navy sm:text-3xl">
-          Administration des organisateurs
-        </h1>
+        <h1 className="fanid-page-title">Administration des organisateurs</h1>
 
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-navy/70">
+        <p className="fanid-page-description">
           Consultez les organisateurs enregistrés, leur état de validation, leurs informations
           administratives et ouvrez chaque fiche pour effectuer les actions autorisées.
         </p>
@@ -266,20 +309,41 @@ export function AdminOrganizersView({
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               label="Organisateurs"
               value={data.count}
               helper={`Filtre : ${activeFilter}`}
+              tone="primary"
             />
 
-            <MetricCard label="En attente" value={pageCounts.PENDING} helper="Page chargée" />
+            <MetricCard
+              label="En attente"
+              value={pageCounts.PENDING}
+              helper="Page chargée"
+              tone="warning"
+            />
 
-            <MetricCard label="Approuvés" value={pageCounts.APPROVED} helper="Page chargée" />
+            <MetricCard
+              label="Approuvés"
+              value={pageCounts.APPROVED}
+              helper="Page chargée"
+              tone="success"
+            />
 
-            <MetricCard label="Rejetés" value={pageCounts.REJECTED} helper="Page chargée" />
+            <MetricCard
+              label="Rejetés"
+              value={pageCounts.REJECTED}
+              helper="Page chargée"
+              tone="danger"
+            />
 
-            <MetricCard label="Suspendus" value={pageCounts.SUSPENDED} helper="Page chargée" />
+            <MetricCard
+              label="Suspendus"
+              value={pageCounts.SUSPENDED}
+              helper="Page chargée"
+              tone="warning"
+            />
           </div>
         </section>
       ) : null}
@@ -335,7 +399,7 @@ export function AdminOrganizersView({
             />
           ) : (
             <>
-              <Card className="overflow-hidden p-0">
+              <Card className="fanid-surface overflow-hidden p-0">
                 <OrganizerTable
                   organizers={displayedOrganizers}
                   onOpenOrganizer={onOpenOrganizer}
@@ -352,7 +416,7 @@ export function AdminOrganizersView({
 
               <nav
                 aria-label="Pagination des organisateurs"
-                className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-[#e4eaf0] bg-white p-4 sm:flex-row"
+                className="fanid-surface flex flex-col items-center justify-between gap-4 p-4 sm:flex-row"
               >
                 <Button
                   type="button"

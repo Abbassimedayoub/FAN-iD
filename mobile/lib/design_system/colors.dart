@@ -45,7 +45,7 @@ abstract final class FanColors {
   // ---------------------------------------------------------------------
 
   /// Fond general des ecrans clairs.
-  static const Color background = Color(0xFFE9EFF8);
+  static const Color background = Color(0xFFF4F7FB);
 
   /// Surface des cartes, champs et feuilles.
   static const Color surface = Color(0xFFFFFFFF);

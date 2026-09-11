@@ -18,6 +18,8 @@ interface EventPage {
   results: AdminOrganizerEvent[];
 }
 
+const EVENTS_PER_PAGE = 5;
+
 const STATUS_LABELS: Record<OrganizerEvent["status"], string> = {
   DRAFT: "Brouillon",
   PUBLISHED: "Publié",
@@ -110,6 +112,7 @@ function TicketSales({ tickets }: { tickets: TicketCategory[] }) {
 
 export function AdminOrganizerEventsPanel({ organizerId }: { organizerId: string }) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [eventPage, setEventPage] = useState(1);
 
   const query = useQuery({
     queryKey: ["admin", "organizer", organizerId, "events"],
@@ -120,6 +123,12 @@ export function AdminOrganizerEventsPanel({ organizerId }: { organizerId: string
   const error = query.isError ? toAppError(query.error) : null;
 
   const events = query.data ?? [];
+  const pageCount = Math.max(1, Math.ceil(events.length / EVENTS_PER_PAGE));
+  const activePage = Math.min(eventPage, pageCount);
+  const visibleEvents = events.slice(
+    (activePage - 1) * EVENTS_PER_PAGE,
+    activePage * EVENTS_PER_PAGE,
+  );
 
   return (
     <section className="mx-auto w-full max-w-4xl px-6 pb-6 md:px-8">
@@ -157,58 +166,95 @@ export function AdminOrganizerEventsPanel({ organizerId }: { organizerId: string
             Cet organisateur n’a encore créé aucun événement.
           </p>
         ) : (
-          <div className="mt-5 space-y-4">
-            {events.map((event) => {
-              const expanded = expandedEventId === event.id;
+          <>
+            <div className="mt-5 space-y-4">
+              {visibleEvents.map((event) => {
+                const expanded = expandedEventId === event.id;
 
-              return (
-                <article
-                  key={event.id}
-                  className="overflow-hidden rounded-xl border border-slate-200"
-                >
-                  <div className="p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-navy">{event.name}</h3>
+                return (
+                  <article
+                    key={event.id}
+                    className="overflow-hidden rounded-xl border border-slate-200"
+                  >
+                    <div className="p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-navy">{event.name}</h3>
 
-                        <div className="mt-2 text-navy/65">
-                          <EventSchedule event={event} compact />
+                          <div className="mt-2 text-navy/65">
+                            <EventSchedule event={event} compact />
+                          </div>
+
+                          {event.venue ? (
+                            <p className="mt-2 text-sm text-navy/55">{event.venue}</p>
+                          ) : null}
                         </div>
 
-                        {event.venue ? (
-                          <p className="mt-2 text-sm text-navy/55">{event.venue}</p>
-                        ) : null}
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                          {STATUS_LABELS[event.status]}
+                        </span>
                       </div>
 
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                        {STATUS_LABELS[event.status]}
-                      </span>
+                      <div className="mt-4 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setExpandedEventId(expanded ? null : event.id);
+                          }}
+                        >
+                          {expanded ? "Masquer les détails" : "Voir les détails"}
+                        </Button>
+                      </div>
                     </div>
 
-                    <div className="mt-4 flex justify-end">
-                      <Button
-                        type="button"
-                        className="border border-slate-200 bg-white text-navy hover:bg-slate-50"
-                        onClick={() => {
-                          setExpandedEventId(expanded ? null : event.id);
-                        }}
-                      >
-                        {expanded ? "Masquer les détails" : "Voir les détails"}
-                      </Button>
-                    </div>
-                  </div>
+                    {expanded ? (
+                      <div className="border-t border-slate-200 bg-slate-50/60 p-4">
+                        <h4 className="mb-3 text-sm font-bold text-navy">Billetterie</h4>
 
-                  {expanded ? (
-                    <div className="border-t border-slate-200 bg-slate-50/60 p-4">
-                      <h4 className="mb-3 text-sm font-bold text-navy">Billetterie</h4>
+                        <TicketSales tickets={event.ticket_categories} />
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+            {pageCount > 1 ? (
+              <nav
+                aria-label="Pagination des événements de l’organisateur"
+                className="mt-5 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#e3eaf3] bg-[#fbfcfe] p-4 sm:flex-row"
+              >
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={activePage === 1}
+                  onClick={() => {
+                    setExpandedEventId(null);
+                    setEventPage((current) => Math.max(1, current - 1));
+                  }}
+                >
+                  Précédent
+                </Button>
 
-                      <TicketSales tickets={event.ticket_categories} />
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
+                <p className="text-sm text-[#5b6472]">
+                  Page {activePage} sur {pageCount} · {events.length} événement
+                  {events.length > 1 ? "s" : ""}
+                </p>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={activePage === pageCount}
+                  onClick={() => {
+                    setExpandedEventId(null);
+                    setEventPage((current) => Math.min(pageCount, current + 1));
+                  }}
+                >
+                  Suivant
+                </Button>
+              </nav>
+            ) : null}
+          </>
         )}
       </Card>
     </section>

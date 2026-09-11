@@ -829,14 +829,16 @@ export function OrganizerEventCreatePage() {
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button
                       type="submit"
+                      variant="secondary"
                       disabled={form.formState.isSubmitting}
-                      className="border border-[#ccd6e0] bg-white px-5 font-semibold text-[#44586d] hover:bg-[#f7f9fb]"
+                      className="border border-[#ccd6e0] px-5 font-semibold text-[#44586d] hover:bg-[#f7f9fb]"
                     >
+                      {" "}
                       {form.formState.isSubmitting
                         ? "Enregistrement…"
                         : savedEvent
                           ? "Mettre à jour le brouillon"
-                          : "Enregistrer le brouillon"}
+                          : "Enregistrer le brouillon"}{" "}
                     </Button>
 
                     <Button
