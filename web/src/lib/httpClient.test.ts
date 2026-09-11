@@ -212,7 +212,6 @@ describe("httpClient malformed refresh response", () => {
   });
 });
 
-
 describe("httpClient invalid session notification", () => {
   it("emits a global invalid-session event when refresh is rejected", async () => {
     let invalidationEvents = 0;

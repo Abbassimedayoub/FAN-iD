@@ -856,7 +856,8 @@ export function OrganizerRegistrationPage() {
                     <p className="text-sm font-semibold text-navy">Après l’envoi</p>
                     <p className="mt-1 text-xs leading-5 text-navy/55">
                       Votre dossier sera créé avec le statut « En attente ». Il sera approuvé
-                      automatiquement dès qu’un accord de commission sera conclu, ou pourra être rejeté.
+                      automatiquement dès qu’un accord de commission sera conclu, ou pourra être
+                      rejeté.
                     </p>
                   </div>
 

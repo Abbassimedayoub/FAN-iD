@@ -267,10 +267,7 @@ export async function unassignEventScanner(eventId: string, scannerId: string): 
   await httpClient.delete(`/api/v1/events/${eventId}/scanners/${scannerId}`);
 }
 
-
-export async function fetchEventAdmissionStatus(
-  eventId: string,
-): Promise<EventAdmissionStatus> {
+export async function fetchEventAdmissionStatus(eventId: string): Promise<EventAdmissionStatus> {
   const response = await httpClient.get<EventAdmissionStatus>(
     `/api/v1/access/events/${eventId}/admission`,
   );
@@ -278,9 +275,7 @@ export async function fetchEventAdmissionStatus(
   return response.data;
 }
 
-export async function openEventAdmission(
-  eventId: string,
-): Promise<EventAdmissionStatus> {
+export async function openEventAdmission(eventId: string): Promise<EventAdmissionStatus> {
   const response = await httpClient.post<EventAdmissionStatus>(
     `/api/v1/access/events/${eventId}/admission/open`,
     {},
@@ -289,9 +284,7 @@ export async function openEventAdmission(
   return response.data;
 }
 
-export async function closeEventAdmission(
-  eventId: string,
-): Promise<EventAdmissionStatus> {
+export async function closeEventAdmission(eventId: string): Promise<EventAdmissionStatus> {
   const response = await httpClient.post<EventAdmissionStatus>(
     `/api/v1/access/events/${eventId}/admission/close`,
     {},
@@ -300,10 +293,7 @@ export async function closeEventAdmission(
   return response.data;
 }
 
-
-export async function fetchEventLiveDashboard(
-  eventId: string,
-): Promise<EventLiveDashboard> {
+export async function fetchEventLiveDashboard(eventId: string): Promise<EventLiveDashboard> {
   const response = await httpClient.get<EventLiveDashboard>(
     `/api/v1/access/events/${eventId}/live-dashboard`,
   );
@@ -311,10 +301,7 @@ export async function fetchEventLiveDashboard(
   return response.data;
 }
 
-
-export async function fetchEventFinalReport(
-  eventId: string,
-): Promise<EventFinalReport> {
+export async function fetchEventFinalReport(eventId: string): Promise<EventFinalReport> {
   const response = await httpClient.get<EventFinalReport>(
     `/api/v1/access/events/${eventId}/final-report`,
   );

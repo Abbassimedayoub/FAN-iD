@@ -70,11 +70,8 @@ export async function suspendOrganizer(organizerId: string, version: number): Pr
   return response.data;
 }
 
-
 export async function fetchAdminFinancialDashboard(): Promise<AdminFinancialDashboard> {
-  const response = await httpClient.get<AdminFinancialDashboard>(
-    "/api/v1/admin/dashboard",
-  );
+  const response = await httpClient.get<AdminFinancialDashboard>("/api/v1/admin/dashboard");
 
   return response.data;
 }

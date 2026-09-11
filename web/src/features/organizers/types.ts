@@ -37,7 +37,6 @@ export interface OrganizerFilters {
   validationStatus: OrganizerStatus | undefined;
 }
 
-
 export interface AdminFinancialOrganizer {
   organizer_id: string;
   org_name: string;

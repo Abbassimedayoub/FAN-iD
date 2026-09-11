@@ -170,8 +170,7 @@ export function AdminOrganizersView({
   const canShowAll = Boolean(data) && !showAll && (data?.count ?? 0) > PREVIEW_LIMIT;
 
   const pendingReactivations = data?.pending_reactivations ?? [];
-  const pendingReactivationCount =
-    data?.pending_reactivation_count ?? pendingReactivations.length;
+  const pendingReactivationCount = data?.pending_reactivation_count ?? pendingReactivations.length;
 
   return (
     <main className="mx-auto flex w-full max-w-[1400px] flex-col gap-7 p-5 sm:p-6 md:p-8">
@@ -191,10 +190,7 @@ export function AdminOrganizersView({
       </header>
 
       {pendingReactivationCount > 0 ? (
-        <section
-          aria-labelledby="pending-reactivations-title"
-          className="space-y-3"
-        >
+        <section aria-labelledby="pending-reactivations-title" className="space-y-3">
           <Card className="border border-primary/20 bg-primary/5 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -233,13 +229,10 @@ export function AdminOrganizersView({
                   className="flex flex-col gap-3 rounded-xl border border-navy/10 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="font-medium text-navy">
-                      {reactivation.organizer_name}
-                    </p>
+                    <p className="font-medium text-navy">{reactivation.organizer_name}</p>
 
                     <p className="mt-1 text-xs text-navy/50">
-                      Demande reçue le{" "}
-                      {new Date(reactivation.created_at).toLocaleString("fr-FR")}
+                      Demande reçue le {new Date(reactivation.created_at).toLocaleString("fr-FR")}
                     </p>
                   </div>
 

@@ -6,7 +6,6 @@ import { OrganizerShell } from "@/features/organizers/OrganizerShell";
 
 import { fetchEventFinalReport } from "./api";
 
-
 function money(cents: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -52,7 +51,10 @@ export function OrganizerEventFinalReportPage() {
           </Link>
           <span aria-hidden="true">/</span>
           {eventId ? (
-            <Link to={`/organizer/events/${eventId}`} className="font-medium text-[#8a96a5] hover:text-[#1769d2]">
+            <Link
+              to={`/organizer/events/${eventId}`}
+              className="font-medium text-[#8a96a5] hover:text-[#1769d2]"
+            >
               Détail
             </Link>
           ) : null}
@@ -69,7 +71,9 @@ export function OrganizerEventFinalReportPage() {
             </div>
           ) : reportQuery.isError || !report ? (
             <Card className="p-8 text-center">
-              <h1 className="font-sora text-xl font-bold text-[#30445b]">Rapport final indisponible</h1>
+              <h1 className="font-sora text-xl font-bold text-[#30445b]">
+                Rapport final indisponible
+              </h1>
               <p className="mt-3 text-sm text-[#66788b]">
                 Il sera disponible lorsque l’événement aura été clôturé.
               </p>
@@ -82,7 +86,8 @@ export function OrganizerEventFinalReportPage() {
                 </p>
                 <h1 className="mt-2 font-sora text-3xl font-bold text-[#293c52]">Rapport final</h1>
                 <p className="mt-3 text-sm text-[#66788b]">
-                  Généré le {dateTime(report.generated_at)}. Le PDF identique a été envoyé par e-mail.
+                  Généré le {dateTime(report.generated_at)}. Le PDF identique a été envoyé par
+                  e-mail.
                 </p>
               </Card>
 
@@ -94,7 +99,9 @@ export function OrganizerEventFinalReportPage() {
                   ["Billets annulés", report.tickets.voided_count],
                 ].map(([label, value]) => (
                   <Card key={String(label)} className="p-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#8a97a5]">{label}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#8a97a5]">
+                      {label}
+                    </p>
                     <p className="mt-3 font-sora text-3xl font-bold text-[#30445b]">{value}</p>
                   </Card>
                 ))}
@@ -123,17 +130,24 @@ export function OrganizerEventFinalReportPage() {
                 {report.scanners.length ? (
                   <div className="mt-5 divide-y divide-[#edf0f3]">
                     {report.scanners.map((scanner) => (
-                      <div key={scanner.scanner_id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                      <div
+                        key={scanner.scanner_id}
+                        className="flex flex-wrap items-center justify-between gap-3 py-4"
+                      >
                         <div>
                           <p className="font-semibold text-[#40556b]">{scanner.name}</p>
-                          <p className="mt-1 text-xs text-[#8a97a5]">{scanner.email} · Dernier scan : {dateTime(scanner.last_scan_at)}</p>
+                          <p className="mt-1 text-xs text-[#8a97a5]">
+                            {scanner.email} · Dernier scan : {dateTime(scanner.last_scan_at)}
+                          </p>
                         </div>
                         <p className="font-bold text-[#1769d2]">{scanner.scan_count} scan(s)</p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-[#8793a1]">Aucun scan enregistré pour cet événement.</p>
+                  <p className="mt-4 text-sm text-[#8793a1]">
+                    Aucun scan enregistré pour cet événement.
+                  </p>
                 )}
               </Card>
             </div>

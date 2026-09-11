@@ -28,10 +28,7 @@ export function endTimeThreeHoursAfter(startTime: string): string {
   return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
 }
 
-export function eventEndsNextDay(
-  startTime: string,
-  endTime: string,
-): boolean {
+export function eventEndsNextDay(startTime: string, endTime: string): boolean {
   const validTime = /^\d{2}:\d{2}$/;
 
   if (!validTime.test(startTime) || !validTime.test(endTime)) {

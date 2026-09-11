@@ -212,7 +212,11 @@ it("charge la négociation à la demande et protège l acceptation Admin par ste
     }),
   );
 
-  expect(await screen.findByText("Commission acceptée : 12 %. Compte organisateur approuvé automatiquement.")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      "Commission acceptée : 12 %. Compte organisateur approuvé automatiquement.",
+    ),
+  ).toBeInTheDocument();
   expect(acceptCalls).toBe(2);
 
   queryClient.clear();

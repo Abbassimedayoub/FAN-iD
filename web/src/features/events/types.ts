@@ -11,12 +11,7 @@ export type OrganizerEventStatus =
   "DRAFT" | "PUBLISHED" | "POSTPONED" | "SUSPENDED" | "CANCELLED" | "COMPLETED" | "ARCHIVED";
 
 export type EventOperationalStatus =
-  | OrganizerEventStatus
-  | "COMING_SOON"
-  | "SALE_OPEN"
-  | "SALE_CLOSED"
-  | "LIVE"
-  | "ENDED";
+  OrganizerEventStatus | "COMING_SOON" | "SALE_OPEN" | "SALE_CLOSED" | "LIVE" | "ENDED";
 
 export interface OrganizerEvent {
   id: string;
@@ -114,14 +109,12 @@ export interface EventScannerAssignment {
   assigned_at: string;
 }
 
-
 export interface EventAdmissionStatus {
   event_id: string;
   is_open: boolean;
   opened_at: string | null;
   opened_by_id: string | null;
 }
-
 
 export interface EventLiveDashboard {
   event_id: string;
@@ -157,7 +150,6 @@ export interface EventLiveDashboard {
     }>;
   };
 }
-
 
 export interface EventFinalReport {
   event_id: string;

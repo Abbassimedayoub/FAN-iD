@@ -2,18 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Card, Spinner } from "@/components/primitives";
 
-import {
-  closeEventAdmission,
-  fetchEventAdmissionStatus,
-  openEventAdmission,
-} from "./api";
+import { closeEventAdmission, fetchEventAdmissionStatus, openEventAdmission } from "./api";
 import type { OrganizerEvent } from "./types";
 
-export function OrganizerEventAdmissionControl({
-  event,
-}: {
-  event: OrganizerEvent;
-}) {
+export function OrganizerEventAdmissionControl({ event }: { event: OrganizerEvent }) {
   const queryClient = useQueryClient();
 
   const admissionQuery = useQuery({
@@ -42,12 +34,8 @@ export function OrganizerEventAdmissionControl({
   if (admissionQuery.isError || !admissionQuery.data) {
     return (
       <Card className="border-[#f1c8c8] bg-[#fffafa] p-6 sm:p-8">
-        <h2 className="font-sora text-lg font-bold text-[#30445b]">
-          Contrôle des entrées
-        </h2>
-        <p className="mt-2 text-sm text-[#a14343]">
-          Impossible de charger l’état des entrées.
-        </p>
+        <h2 className="font-sora text-lg font-bold text-[#30445b]">Contrôle des entrées</h2>
+        <p className="mt-2 text-sm text-[#a14343]">Impossible de charger l’état des entrées.</p>
       </Card>
     );
   }
@@ -65,9 +53,7 @@ export function OrganizerEventAdmissionControl({
     <Card className={isOpen ? "border-[#a7dabc] bg-[#f4fff7] p-6 sm:p-8" : "p-6 sm:p-8"}>
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div>
-          <h2 className="font-sora text-lg font-bold text-[#30445b]">
-            Contrôle des entrées
-          </h2>
+          <h2 className="font-sora text-lg font-bold text-[#30445b]">Contrôle des entrées</h2>
           <p className="mt-2 text-sm text-[#66788b]">
             {isOpen
               ? "Entrées ouvertes : les scanners peuvent valider les billets."
@@ -88,11 +74,7 @@ export function OrganizerEventAdmissionControl({
                 : "min-h-[44px] rounded-xl bg-[#1769d2] px-5 text-sm font-semibold text-white disabled:opacity-60"
             }
           >
-            {busy
-              ? "Mise à jour…"
-              : isOpen
-                ? "Fermer les entrées"
-                : "Ouvrir les entrées"}
+            {busy ? "Mise à jour…" : isOpen ? "Fermer les entrées" : "Ouvrir les entrées"}
           </button>
         ) : null}
       </div>

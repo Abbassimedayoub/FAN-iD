@@ -19,7 +19,9 @@ export function AdminFinancialDashboardPage() {
   });
 
   if (dashboard.isPending) {
-    return <main className="mx-auto max-w-[1500px] p-6 sm:p-8">Chargement du tableau de bord…</main>;
+    return (
+      <main className="mx-auto max-w-[1500px] p-6 sm:p-8">Chargement du tableau de bord…</main>
+    );
   }
 
   if (dashboard.isError || !dashboard.data) {
@@ -32,8 +34,11 @@ export function AdminFinancialDashboardPage() {
     );
   }
 
-  const { confirmed_commission_cents: commission, organizer_count: organizerCount, organizers } =
-    dashboard.data;
+  const {
+    confirmed_commission_cents: commission,
+    organizer_count: organizerCount,
+    organizers,
+  } = dashboard.data;
 
   return (
     <main className="mx-auto max-w-[1500px] p-6 sm:p-8">
@@ -41,8 +46,8 @@ export function AdminFinancialDashboardPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-primary">Administration</p>
         <h1 className="mt-2 font-sora text-3xl font-bold text-navy">Accueil FANID</h1>
         <p className="mt-2 max-w-2xl text-sm text-navy/60">
-          Les montants affichés sont confirmés à la clôture des événements et tiennent compte
-          des remboursements.
+          Les montants affichés sont confirmés à la clôture des événements et tiennent compte des
+          remboursements.
         </p>
       </div>
 
@@ -55,7 +60,10 @@ export function AdminFinancialDashboardPage() {
         <article className="rounded-3xl border border-[#dce6ef] bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-navy/60">Organizers contributeurs</p>
           <p className="mt-3 text-4xl font-bold text-navy">{organizerCount}</p>
-          <Link className="mt-4 inline-flex text-sm font-semibold text-primary hover:underline" to="/admin/organizers">
+          <Link
+            className="mt-4 inline-flex text-sm font-semibold text-primary hover:underline"
+            to="/admin/organizers"
+          >
             Voir tous les Organizers
           </Link>
         </article>
@@ -64,7 +72,9 @@ export function AdminFinancialDashboardPage() {
       <section className="mt-8 overflow-hidden rounded-3xl border border-[#dce6ef] bg-white shadow-sm">
         <div className="border-b border-[#e7edf3] p-6">
           <h2 className="font-sora text-xl font-bold text-navy">CA net généré par Organizer</h2>
-          <p className="mt-1 text-sm text-navy/60">Après remboursements, événements finalisés uniquement.</p>
+          <p className="mt-1 text-sm text-navy/60">
+            Après remboursements, événements finalisés uniquement.
+          </p>
         </div>
 
         {organizers.length === 0 ? (
