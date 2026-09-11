@@ -255,7 +255,7 @@ jobs:
 
           echo "=== metrics ==="
           curl -fsS http://localhost:8000/metrics |
-            grep -q '^http_requests_total'
+            python3 -c 'import sys; body=sys.stdin.read(); assert any(line.startswith("http_requests_total") for line in body.splitlines())'
 
           echo "=== OpenAPI ==="
           curl -fsS             -H "Accept: application/json"             http://localhost:8000/api/v1/schema/ |
