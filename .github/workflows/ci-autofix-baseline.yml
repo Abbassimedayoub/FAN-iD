@@ -33,6 +33,11 @@ jobs:
           before = json.loads(Path('/tmp/baseline-before.json').read_text())
           after = json.loads(baseline_path.read_text())
 
+          # This workflow is temporary and is deleted before the final PR.
+          after.get('results', {}).pop(
+              '.github/workflows/ci-autofix-baseline.yml', None
+          )
+
           allowed_files = {
               'backend/apps/access/tests/test_admin_financial_dashboard.py',
               'backend/apps/access/tests/test_admissions.py',
