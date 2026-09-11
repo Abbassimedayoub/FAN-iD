@@ -173,9 +173,7 @@ it("affiche une erreur explicite si l état des entrées ne peut pas être charg
 
   const { queryClient } = renderControl(eventFixture("PUBLISHED"));
 
-  expect(
-    await screen.findByText("Impossible de charger l’état des entrées."),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("Impossible de charger l’état des entrées.")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Contrôle des entrées" })).toBeInTheDocument();
 
   queryClient.clear();
