@@ -13,10 +13,7 @@ import { AdminOrganizerCommissionSection } from "./AdminOrganizerCommissionSecti
 import { AdminOrganizerReactivationPanel } from "./AdminOrganizerReactivationPanel";
 import { AdminOrganizerEventsPanel } from "./AdminOrganizerEventsPanel";
 import { useOrganizer } from "./useOrganizer";
-import {
-  useRejectOrganizer,
-  useSuspendOrganizer,
-} from "./useOrganizerMutations";
+import { useRejectOrganizer, useSuspendOrganizer } from "./useOrganizerMutations";
 
 type PendingOrganizerAction =
   | {

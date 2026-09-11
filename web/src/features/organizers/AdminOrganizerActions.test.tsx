@@ -381,7 +381,7 @@ describe("AdminOrganizerDetailPage actions", () => {
             isPending: false,
             feedback: null,
             isStaleResource: false,
-              onReject: vi.fn(async () => true),
+            onReject: vi.fn(async () => true),
             onSuspend: vi.fn(async () => true),
             onReloadStale: vi.fn(),
           }}
@@ -522,7 +522,6 @@ describe("AdminOrganizerDetailPage step-up", () => {
       screen.queryByRole("dialog", { name: "Vérification renforcée" }),
     ).not.toBeInTheDocument();
   });
-
 });
 
 describe("complément de couverture step-up", () => {

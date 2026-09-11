@@ -26,10 +26,7 @@ export function recordBrowserActivity(timestamp = Date.now()): void {
   browserLocalStorage()?.setItem(BROWSER_ACTIVITY_STORAGE_KEY, String(timestamp));
 }
 
-export function browserSessionHasTimedOut(
-  timeoutMs: number,
-  timestamp = Date.now(),
-): boolean {
+export function browserSessionHasTimedOut(timeoutMs: number, timestamp = Date.now()): boolean {
   const lastActivity = readBrowserActivity();
 
   return lastActivity !== null && timestamp - lastActivity >= timeoutMs;

@@ -56,11 +56,7 @@ const eventInformationSchema = z
     }
 
     if (values.eventDate && values.startTime && values.endTime) {
-      const schedule = buildEventDateTimes(
-        values.eventDate,
-        values.startTime,
-        values.endTime,
-      );
+      const schedule = buildEventDateTimes(values.eventDate, values.startTime, values.endTime);
 
       if (schedule === null) {
         context.addIssue({
@@ -71,13 +67,9 @@ const eventInformationSchema = z
         return;
       }
 
-      const salesStart = values.salesStartsAt
-        ? new Date(values.salesStartsAt)
-        : null;
+      const salesStart = values.salesStartsAt ? new Date(values.salesStartsAt) : null;
 
-      const salesEnd = values.salesEndsAt
-        ? new Date(values.salesEndsAt)
-        : null;
+      const salesEnd = values.salesEndsAt ? new Date(values.salesEndsAt) : null;
 
       if (salesStart && Number.isNaN(salesStart.getTime())) {
         context.addIssue({
@@ -164,11 +156,7 @@ function errorMessage(error: unknown): string {
 }
 
 function toPayload(values: EventInformationValues): EventDraftInput {
-  const schedule = buildEventDateTimes(
-    values.eventDate,
-    values.startTime,
-    values.endTime,
-  );
+  const schedule = buildEventDateTimes(values.eventDate, values.startTime, values.endTime);
 
   if (schedule === null) {
     throw new Error("Invalid event schedule");
@@ -180,12 +168,8 @@ function toPayload(values: EventInformationValues): EventDraftInput {
     description: values.description.trim(),
     starts_at: schedule.start.toISOString(),
     ends_at: schedule.end.toISOString(),
-    sales_starts_at: values.salesStartsAt
-      ? new Date(values.salesStartsAt).toISOString()
-      : null,
-    sales_ends_at: values.salesEndsAt
-      ? new Date(values.salesEndsAt).toISOString()
-      : null,
+    sales_starts_at: values.salesStartsAt ? new Date(values.salesStartsAt).toISOString() : null,
+    sales_ends_at: values.salesEndsAt ? new Date(values.salesEndsAt).toISOString() : null,
     venue: values.venue.trim(),
     capacity_total: values.capacityTotal.trim() === "" ? null : Number(values.capacityTotal),
   };
@@ -289,10 +273,7 @@ export function OrganizerEventCreatePage() {
 
   const selectedEndTime = form.watch("endTime");
 
-  const endsNextDay = eventEndsNextDay(
-    selectedStartTime,
-    selectedEndTime,
-  );
+  const endsNextDay = eventEndsNextDay(selectedStartTime, selectedEndTime);
 
   function selectImage(file: File | undefined): void {
     setImageError(null);
@@ -637,12 +618,10 @@ export function OrganizerEventCreatePage() {
 
                   <div className="rounded-2xl border border-[#e1e7ed] bg-[#fbfcfd] p-5">
                     <div>
-                      <p className="text-[13px] font-semibold text-[#33465c]">
-                        Période de vente
-                      </p>
+                      <p className="text-[13px] font-semibold text-[#33465c]">Période de vente</p>
                       <p className="mt-1 text-xs leading-5 text-[#8591a0]">
-                        Optionnelle. Sans date de début, la vente ouvre à la publication.
-                        Sans date de fin, elle reste ouverte jusqu’au début de l’événement.
+                        Optionnelle. Sans date de début, la vente ouvre à la publication. Sans date
+                        de fin, elle reste ouverte jusqu’au début de l’événement.
                       </p>
                     </div>
 
@@ -662,9 +641,7 @@ export function OrganizerEventCreatePage() {
                           {...form.register("salesStartsAt")}
                         />
 
-                        <FieldError
-                          message={form.formState.errors.salesStartsAt?.message}
-                        />
+                        <FieldError message={form.formState.errors.salesStartsAt?.message} />
                       </div>
 
                       <div>
@@ -682,9 +659,7 @@ export function OrganizerEventCreatePage() {
                           {...form.register("salesEndsAt")}
                         />
 
-                        <FieldError
-                          message={form.formState.errors.salesEndsAt?.message}
-                        />
+                        <FieldError message={form.formState.errors.salesEndsAt?.message} />
                       </div>
                     </div>
                   </div>

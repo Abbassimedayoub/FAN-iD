@@ -50,11 +50,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-[#f4f7fb]">
       <header className="sticky top-0 z-40 border-b border-[#e3eaf1] bg-white/95 backdrop-blur">
         <div className="mx-auto flex min-h-[72px] max-w-[1500px] items-center gap-5 px-5 sm:px-8">
-          <NavLink
-            to="/admin"
-            aria-label="Accueil administrateur FANID"
-            className="shrink-0"
-          >
+          <NavLink to="/admin" aria-label="Accueil administrateur FANID" className="shrink-0">
             <BrandMark compact className="text-navy" />
           </NavLink>
 

@@ -28,9 +28,7 @@ function Metric({
 }) {
   return (
     <Card className="p-5">
-      <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#8190a1]">
-        {label}
-      </p>
+      <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#8190a1]">{label}</p>
       <p className="mt-3 font-sora text-3xl font-bold text-[#293c52]">{value}</p>
       <p className="mt-2 text-sm text-[#718196]">{detail}</p>
     </Card>
@@ -85,9 +83,7 @@ export function OrganizerEventLiveDashboardPage() {
               <Spinner label="Chargement du dashboard live" />
             </div>
           ) : dashboardQuery.isError || !dashboard ? (
-            <Card className="p-8 text-center">
-              Impossible de charger le dashboard live.
-            </Card>
+            <Card className="p-8 text-center">Impossible de charger le dashboard live.</Card>
           ) : (
             <div className="space-y-5">
               <section className="flex flex-wrap items-start justify-between gap-4">

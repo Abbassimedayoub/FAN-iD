@@ -17,6 +17,9 @@ from .base import env
 DEBUG = False
 ALLOWED_HOSTS = ["*"]
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="test-secret-key-not-for-prod-use-only")
+QR_SIGNING_KEY = env(  # pragma: allowlist secret
+    "QR_SIGNING_KEY", default="test-qr-signing-key-not-for-prod-use-only"
+)
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 

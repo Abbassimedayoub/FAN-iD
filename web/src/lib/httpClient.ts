@@ -81,8 +81,7 @@ function apiErrorCode(error: AxiosError): string | null {
 
 function isExplicitInvalidSessionResponse(error: AxiosError): boolean {
   return (
-    error.response?.status === 403 &&
-    EXPLICIT_INVALID_SESSION_CODES.has(apiErrorCode(error) ?? "")
+    error.response?.status === 403 && EXPLICIT_INVALID_SESSION_CODES.has(apiErrorCode(error) ?? "")
   );
 }
 
@@ -198,11 +197,7 @@ async function performTokenRefresh(): Promise<string> {
     _skipAuthRefresh: true,
   } as AxiosRequestConfig & { _skipAuthRefresh: true };
 
-  const response = await httpClient.post<RefreshResponse>(
-    REFRESH_URL,
-    { client: "web" },
-    config,
-  );
+  const response = await httpClient.post<RefreshResponse>(REFRESH_URL, { client: "web" }, config);
 
   const token = response.data?.access;
 

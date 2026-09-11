@@ -162,10 +162,7 @@ export function OrganizerEventDetailPage() {
                     <OrganizerEventImageEditor
                       event={event}
                       onUpdated={async (updated) => {
-                        queryClient.setQueryData(
-                          ["catalog", "event", updated.id],
-                          updated,
-                        );
+                        queryClient.setQueryData(["catalog", "event", updated.id], updated);
 
                         await queryClient.invalidateQueries({
                           queryKey: ["catalog", "organizer-events"],

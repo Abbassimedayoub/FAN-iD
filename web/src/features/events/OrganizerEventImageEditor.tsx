@@ -10,18 +10,14 @@ type OrganizerEventImageEditorProps = {
   onUpdated: (event: OrganizerEvent) => void | Promise<void>;
 };
 
-export function OrganizerEventImageEditor({
-  event,
-  onUpdated,
-}: OrganizerEventImageEditorProps) {
+export function OrganizerEventImageEditor({ event, onUpdated }: OrganizerEventImageEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const imageEditable =
-    event.status === "PUBLISHED" || event.status === "POSTPONED";
+  const imageEditable = event.status === "PUBLISHED" || event.status === "POSTPONED";
 
   if (!imageEditable) {
     return null;
@@ -59,8 +55,7 @@ export function OrganizerEventImageEditor({
       );
     } catch {
       setError(
-        "Impossible d’enregistrer la photo. "
-          + "L’événement a peut-être été modifié ailleurs.",
+        "Impossible d’enregistrer la photo. " + "L’événement a peut-être été modifié ailleurs.",
       );
     } finally {
       setPending(false);
@@ -99,8 +94,8 @@ export function OrganizerEventImageEditor({
       </button>
 
       <p className="mt-2 max-w-xs text-xs leading-5 text-[#7b8998]">
-        PNG ou JPG, 5 Mo maximum. La modification de la photo
-        ne change pas le statut de l’événement.
+        PNG ou JPG, 5 Mo maximum. La modification de la photo ne change pas le statut de
+        l’événement.
       </p>
 
       {error ? (

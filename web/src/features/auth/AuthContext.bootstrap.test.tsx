@@ -325,7 +325,6 @@ describe("AuthProvider local authentication cleanup", () => {
   });
 });
 
-
 describe("AuthProvider session security", () => {
   const authenticatedUser = {
     id: "77d350dd-aee8-4c26-b4a0-07b3b1fde10a",

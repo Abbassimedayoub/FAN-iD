@@ -1,10 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 
-import {
-  AUTH_SESSION_INVALIDATED_EVENT,
-  clearAccessToken,
-  getAccessToken,
-} from "@/lib/httpClient";
+import { AUTH_SESSION_INVALIDATED_EVENT, clearAccessToken, getAccessToken } from "@/lib/httpClient";
 
 import { logoutWeb } from "./logout";
 import {
@@ -87,10 +83,7 @@ export function AuthProvider({
       return;
     }
 
-    if (
-      isBrowserSessionBlocked() ||
-      browserSessionHasTimedOut(inactivityTimeoutMs)
-    ) {
+    if (isBrowserSessionBlocked() || browserSessionHasTimedOut(inactivityTimeoutMs)) {
       markBrowserSessionBlocked();
       clearAccessToken();
       setUser(null);
@@ -168,12 +161,9 @@ export function AuthProvider({
       }
     };
 
-    const intervalId = window.setInterval(
-      () => {
-        void validateSession();
-      },
-      SESSION_VALIDATION_INTERVAL_MS,
-    );
+    const intervalId = window.setInterval(() => {
+      void validateSession();
+    }, SESSION_VALIDATION_INTERVAL_MS);
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -257,10 +247,7 @@ export function AuthProvider({
     };
 
     const handleStorage = (event: StorageEvent): void => {
-      if (
-        event.key === BROWSER_SESSION_BLOCKED_STORAGE_KEY &&
-        event.newValue === "1"
-      ) {
+      if (event.key === BROWSER_SESSION_BLOCKED_STORAGE_KEY && event.newValue === "1") {
         clearAccessToken();
         setUser(null);
         setStatus("anonymous");
