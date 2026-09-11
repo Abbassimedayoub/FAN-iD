@@ -1,0 +1,34 @@
+name: ci-format-new-web-test
+
+on:
+  push:
+    branches: [ci/fix-main-quality-gates]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/fix-main-quality-gates
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - working-directory: web
+        run: npm ci
+      - working-directory: web
+        run: npx prettier --write src/features/events/OrganizerEventEditPage.test.tsx
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/src/features/events/OrganizerEventEditPage.test.tsx
+          git diff --cached --check
+          git commit -m "style(web): format event edit coverage tests"
+          git push origin HEAD:ci/fix-main-quality-gates
