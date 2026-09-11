@@ -93,6 +93,48 @@ it("ouvre puis affiche les entrées comme ouvertes", async () => {
   queryClient.clear();
 });
 
+it("ferme des entrées déjà ouvertes", async () => {
+  let isOpen = true;
+  let closeCalls = 0;
+
+  httpClient.defaults.adapter = async (config) => {
+    if (
+      config.method === "get" &&
+      config.url === "/api/v1/access/events/event-admission-1/admission"
+    ) {
+      return response(config, { is_open: isOpen });
+    }
+
+    if (
+      config.method === "post" &&
+      config.url === "/api/v1/access/events/event-admission-1/admission/close"
+    ) {
+      closeCalls += 1;
+      isOpen = false;
+      return response(config, { is_open: false });
+    }
+
+    throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
+  };
+
+  const { queryClient } = renderControl(eventFixture("PUBLISHED"));
+
+  expect(
+    await screen.findByText("Entrées ouvertes : les scanners peuvent valider les billets."),
+  ).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Fermer les entrées" }));
+
+  await waitFor(() => {
+    expect(closeCalls).toBe(1);
+  });
+  expect(
+    await screen.findByText("Entrées fermées : aucun billet ne peut être validé par les scanners."),
+  ).toBeInTheDocument();
+
+  queryClient.clear();
+});
+
 it("interdit l ouverture d un événement reporté sans nouvelle date", async () => {
   httpClient.defaults.adapter = async (config) => {
     if (
