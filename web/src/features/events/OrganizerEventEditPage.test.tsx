@@ -229,7 +229,9 @@ it("refuse les informations structurelles quand l événement n est plus un brou
 
   const { queryClient } = renderPage();
 
-  expect(await screen.findByRole("heading", { name: "Événement non modifiable" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Événement non modifiable" }),
+  ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Voir l’événement" })).toHaveAttribute(
     "href",
     "/organizer/events/event-edit-1",
