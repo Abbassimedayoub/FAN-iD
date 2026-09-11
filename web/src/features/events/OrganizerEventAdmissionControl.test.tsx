@@ -116,3 +116,25 @@ it("interdit l ouverture d un événement reporté sans nouvelle date", async ()
 
   queryClient.clear();
 });
+
+it("affiche une erreur explicite si l état des entrées ne peut pas être chargé", async () => {
+  httpClient.defaults.adapter = async (config) => {
+    if (
+      config.method === "get" &&
+      config.url === "/api/v1/access/events/event-admission-1/admission"
+    ) {
+      throw new Error("ADMISSION_STATUS_UNAVAILABLE");
+    }
+
+    throw new Error(`Requête inattendue : ${config.method} ${config.url}`);
+  };
+
+  const { queryClient } = renderControl(eventFixture("PUBLISHED"));
+
+  expect(
+    await screen.findByText("Impossible de charger l’état des entrées."),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Contrôle des entrées" })).toBeInTheDocument();
+
+  queryClient.clear();
+});
