@@ -14,6 +14,8 @@ from typing import Any, cast
 from .base import *  # noqa: F401,F403
 from .base import env
 
+INSTALLED_APPS += ["django_migration_linter"]  # noqa: F405
+
 DEBUG = False
 ALLOWED_HOSTS = ["*"]
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="test-secret-key-not-for-prod-use-only")

@@ -64,7 +64,6 @@ THIRD_PARTY_APPS = [
     "channels",
     "django_celery_beat",
     "django_prometheus",
-    "django_migration_linter",
 ]
 
 # Bounded contexts (§14 Source B / ADR-S-01). `core` en premier : il ne dépend
