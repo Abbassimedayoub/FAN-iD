@@ -26,7 +26,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.concurrency import versioned_update
-from apps.core.exceptions import InvalidStateTransitionError, ValidationBusinessError
+from apps.core.exceptions import InvalidStateTransitionError, StaleResourceError, ValidationBusinessError
 from apps.core.outbox.publisher import publish_event
 
 from ..constants import ORGANIZER_APPROVED, ORGANIZER_PENDING, ORGANIZER_REJECTED, ORGANIZER_SUSPENDED
@@ -76,6 +76,13 @@ class OrganizerOnboardingService:
         La negociation financiere peut continuer apres APPROVED.
         """
         organizer = cls._get(organizer_id)
+
+        if organizer.version != expected_version:
+            raise StaleResourceError(
+                details={
+                    "current_version": organizer.version,
+                }
+            )
 
         cls._require_state(
             organizer,
