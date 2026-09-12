@@ -10,8 +10,12 @@ from django.test import Client, override_settings
 from django.utils import timezone
 
 from apps.catalog.models import Category, Event, TicketCategory
+from apps.core.adapters.device_lock import FakeDeviceLock
 from apps.core.adapters.payments import FakeGateway, StripeGateway, StripeWebhookSignatureError
 from apps.core.outbox.models import OutboxEvent
+from apps.identity import authentication as auth_module
+from apps.identity.services.authentication import AuthenticationService, LoginCommand
+from apps.identity.services.devices import DeviceBindingService
 from apps.ordering.models import Order, StockHold
 from apps.ordering.services.confirmation import ReservationExpiredError
 from apps.ordering.services.reservations import ReservationLine, reserve_stock
@@ -628,3 +632,143 @@ def test_stripe_webhook_confirms_pending_refund(
         ).count()
         == 1
     )
+
+
+@override_settings(PAYMENT_GATEWAY="fake")
+def test_payment_intent_idempotency_works_with_bearer_jwt(
+    order,
+    buyer,
+    monkeypatch,
+):
+    binding = DeviceBindingService(lock=FakeDeviceLock())
+    authentication = AuthenticationService(binding=binding)
+    opened = authentication.login(
+        LoginCommand(
+            email=buyer.email,
+            password="testpassword123",
+        )
+    )
+
+    monkeypatch.setattr(
+        auth_module,
+        "default_binding_service",
+        lambda: binding,
+    )
+
+    client = Client(
+        HTTP_AUTHORIZATION=f"Bearer {opened.pair.access}",
+    )
+
+    url = f"/api/v1/orders/{order.id}/payment-intent"
+    key = "jwt-payment-intent-regression"
+
+    first = client.post(
+        url,
+        data=json.dumps({}),
+        content_type="application/json",
+        HTTP_IDEMPOTENCY_KEY=key,
+    )
+    second = client.post(
+        url,
+        data=json.dumps({}),
+        content_type="application/json",
+        HTTP_IDEMPOTENCY_KEY=key,
+    )
+
+    assert first.status_code == 201, first.content
+    assert second.status_code == 201, second.content
+    assert second.headers["Idempotency-Replayed"] == "true"
+
+
+def test_stripe_gateway_rejects_missing_secret_key():
+    from django.core.exceptions import ImproperlyConfigured
+
+    from apps.payments.gateways import get_payment_gateway
+
+    with override_settings(
+        PAYMENT_GATEWAY="stripe",
+        STRIPE_SECRET_KEY="",
+        STRIPE_WEBHOOK_SECRET="configured-test-value",
+    ):
+        with pytest.raises(ImproperlyConfigured):
+            get_payment_gateway()
+
+
+def test_stripe_gateway_rejects_missing_webhook_secret():
+    from django.core.exceptions import ImproperlyConfigured
+
+    from apps.payments.gateways import get_payment_gateway
+
+    with override_settings(
+        PAYMENT_GATEWAY="stripe",
+        STRIPE_SECRET_KEY="configured-test-value",
+        STRIPE_WEBHOOK_SECRET="",
+    ):
+        with pytest.raises(ImproperlyConfigured):
+            get_payment_gateway()
+
+
+def test_stripe_webhook_replay_is_idempotent(
+    reserved_order,
+    buyer,
+    monkeypatch,
+):
+    order, ticket_category = reserved_order
+
+    gateway = FakeGateway()
+
+    intent = create_payment_intent(
+        order_id=order.id,
+        user=buyer,
+        gateway=gateway,
+    )
+
+    class VerifiedStripeGateway:
+        provider_name = "stripe"
+
+        def verify_webhook(
+            self,
+            payload,
+            signature,
+        ):
+            assert signature == "valid-signature"
+
+            return {
+                "type": "payment_intent.succeeded",
+                "data": {
+                    "object": {
+                        "id": intent.provider_intent_id,
+                    },
+                },
+            }
+
+    monkeypatch.setattr(
+        "apps.payments.views.get_payment_gateway",
+        lambda: VerifiedStripeGateway(),
+    )
+
+    client = Client()
+
+    responses = [
+        client.post(
+            "/api/v1/payments/stripe/webhook",
+            data=b'{"event": "same-event"}',
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="valid-signature",
+        )
+        for _ in range(2)
+    ]
+
+    assert [response.status_code for response in responses] == [200, 200]
+
+    intent.refresh_from_db()
+    order.refresh_from_db()
+    order.stock_hold.refresh_from_db()
+    ticket_category.refresh_from_db()
+
+    assert intent.status == "SUCCEEDED"
+    assert order.status == "PAID"
+    assert order.stock_hold.consumed is True
+    assert ticket_category.sold_count == 2
+
+    assert Ticket.objects.filter(order_line__order=order).count() == 2

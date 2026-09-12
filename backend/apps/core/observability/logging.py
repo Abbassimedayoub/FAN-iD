@@ -26,10 +26,36 @@ from .context import get_correlation_id, get_trace_id
 # (`otp_code`, `refresh_jti`) sans attraper `totp`.
 _SENSITIVE_KEY_PATTERN = re.compile(
     r"password|token|secret|seed|key|authorization|card|fingerprint"
+    r"|cookie|set-cookie|sessionid|csrftoken"
     r"|^otp|^refresh|^jti$|^did$|^access$|^code$",
     re.IGNORECASE,
 )
 _REDACTED = "***REDACTED***"
+
+_SENSITIVE_TEXT_PATTERNS = (
+    (
+        re.compile(r"\bBearer\s+[^\s,;]+", re.IGNORECASE),
+        f"Bearer {_REDACTED}",
+    ),
+    (
+        re.compile(
+            r"\b(fanid_refresh|sessionid|csrftoken)=([^;\s]+)",
+            re.IGNORECASE,
+        ),
+        rf"\1={_REDACTED}",
+    ),
+    (
+        re.compile(
+            r"\b(password|token|secret|authorization|otp|cookie)" r"\s*[:=]\s*[^\s,;]+",
+            re.IGNORECASE,
+        ),
+        rf"\1={_REDACTED}",
+    ),
+    (
+        re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\." r"[A-Za-z0-9_-]{8,}\." r"[A-Za-z0-9_-]{8,}\b"),
+        _REDACTED,
+    ),
+)
 
 _RESERVED_LOGRECORD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys()) | {
     "message",
@@ -49,7 +75,17 @@ class SecretRedactor:
             }
         if isinstance(value, (list, tuple)):
             return [cls.redact(v) for v in value]
+        if isinstance(value, str):
+            return cls.redact_text(value)
         return value
+
+    @staticmethod
+    def redact_text(value: str) -> str:
+        """Redact credential-shaped values embedded inside free-form text."""
+        redacted = value
+        for pattern, replacement in _SENSITIVE_TEXT_PATTERNS:
+            redacted = pattern.sub(replacement, redacted)
+        return redacted
 
 
 class CorrelationLogFilter(logging.Filter):
@@ -76,7 +112,7 @@ class JsonFormatter(logging.Formatter):
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": SecretRedactor.redact_text(record.getMessage()),
             "correlation_id": getattr(record, "correlation_id", None),
             "trace_id": getattr(record, "trace_id", None),
             "span_id": getattr(record, "span_id", None),
@@ -87,6 +123,6 @@ class JsonFormatter(logging.Formatter):
             **extra_fields,
         }
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            payload["exception"] = SecretRedactor.redact_text(self.formatException(record.exc_info))
 
         return json.dumps(payload, default=str, ensure_ascii=False)

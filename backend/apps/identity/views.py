@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.db import transaction
@@ -24,7 +25,7 @@ from rest_framework.views import APIView
 
 from apps.core.adapters.notifications import build_notification_sender
 from apps.core.concurrency import format_etag, parse_if_match
-from apps.core.exceptions import NotFoundBusinessError, StaleResourceError
+from apps.core.exceptions import NotFoundBusinessError, PermissionBusinessError, StaleResourceError
 from apps.core.http import FanIdApiRequest
 from apps.core.openapi import ERROR_RESPONSE
 from apps.core.outbox.publisher import publish_event
@@ -74,7 +75,9 @@ from .throttling import (
     DeviceResetAccountRateThrottle,
     LoginAccountRateThrottle,
     PasswordResetAccountRateThrottle,
+    RefreshOriginRateThrottle,
     RefreshSessionRateThrottle,
+    RefreshTokenRateThrottle,
 )
 from .tokens import TokenInvalidError
 
@@ -113,6 +116,44 @@ def set_refresh_cookie(response: Response, refresh: str) -> None:
         httponly=settings.REFRESH_COOKIE_HTTPONLY,
         samesite=settings.REFRESH_COOKIE_SAMESITE,
     )
+
+
+def _canonical_origin(value: str) -> str | None:
+    """Return a strict scheme/authority origin or None for an invalid value."""
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+def enforce_web_refresh_origin(request: Request) -> None:
+    """Reject browser refresh requests that do not come from a trusted origin."""
+    supplied = _canonical_origin(request.headers.get("Origin", ""))
+
+    allowed = {
+        canonical
+        for item in settings.CSRF_TRUSTED_ORIGINS
+        if (canonical := _canonical_origin(str(item))) is not None
+    }
+
+    if supplied is None or supplied not in allowed:
+        raise PermissionBusinessError(
+            code="CSRF_ORIGIN_DENIED",
+            message="Request origin is not allowed.",
+        )
 
 
 class RegistrationView(APIView):
@@ -288,7 +329,11 @@ class RefreshView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes: list[Any] = []
-    throttle_classes = [RefreshSessionRateThrottle]
+    throttle_classes = [
+        RefreshOriginRateThrottle,
+        RefreshTokenRateThrottle,
+        RefreshSessionRateThrottle,
+    ]
 
     @extend_schema(
         operation_id="auth_refresh",
@@ -319,6 +364,9 @@ class RefreshView(APIView):
 
         data = serializer.validated_data
         is_web = data["client"] == CLIENT_WEB
+
+        if is_web and (settings.REFRESH_REQUIRE_TRUSTED_ORIGIN or request.headers.get("Origin")):
+            enforce_web_refresh_origin(request)
 
         raw = request.COOKIES.get(settings.REFRESH_COOKIE_NAME) if is_web else data.get("refresh")
 

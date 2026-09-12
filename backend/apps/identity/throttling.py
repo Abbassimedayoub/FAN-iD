@@ -19,10 +19,44 @@ import hashlib
 from typing import Any
 
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework.throttling import SimpleRateThrottle
 
 from .constants import CLIENT_WEB
 from .tokens import TokenInvalidError, TokenType, decode_token
+
+
+class AtomicFixedWindowRateThrottle(SimpleRateThrottle):
+    """Apply a fixed-window counter using an atomic cache increment."""
+
+    def allow_request(self, request: Any, view: Any) -> bool:
+        if self.rate is None:
+            return True
+
+        self.key = self.get_cache_key(request, view)
+        if self.key is None:
+            return True
+
+        now = self.timer()
+        window = int(now // self.duration)
+        bucket_key = f"{self.key}:{window}"
+        remaining = self.duration - (now % self.duration)
+        timeout = max(1, int(remaining) + 1)
+
+        if cache.add(bucket_key, 1, timeout=timeout):
+            count = 1
+        else:
+            try:
+                count = cache.incr(bucket_key)
+            except ValueError:
+                cache.set(bucket_key, 1, timeout=timeout)
+                count = 1
+
+        self._fanid_wait_seconds = max(0.0, remaining)
+        return count <= self.num_requests
+
+    def wait(self) -> float | None:
+        return getattr(self, "_fanid_wait_seconds", None)
 
 
 class LoginAccountRateThrottle(SimpleRateThrottle):
@@ -53,7 +87,60 @@ class LoginAccountRateThrottle(SimpleRateThrottle):
         }
 
 
-class RefreshSessionRateThrottle(SimpleRateThrottle):
+def _refresh_token_from_request(request: Any) -> str | None:
+    """Read a refresh token only from the transport declared by the client."""
+    if not hasattr(request, "data"):
+        return None
+
+    data = request.data or {}
+    client = data.get("client")
+
+    if client == CLIENT_WEB:
+        raw = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
+    else:
+        raw = data.get("refresh")
+
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+
+    return raw.strip()
+
+
+class RefreshOriginRateThrottle(AtomicFixedWindowRateThrottle):
+    """Rate-limit all refresh attempts from one network origin."""
+
+    scope = "refresh_origin"
+
+    def get_cache_key(self, request: Any, view: Any) -> str | None:
+        ident = self.get_ident(request)
+        if not ident:
+            return None
+
+        digest = hashlib.sha256(ident.encode("utf-8")).hexdigest()
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": digest,
+        }
+
+
+class RefreshTokenRateThrottle(AtomicFixedWindowRateThrottle):
+    """Rate-limit a presented token even when its signature is invalid."""
+
+    scope = "refresh_token"
+
+    def get_cache_key(self, request: Any, view: Any) -> str | None:
+        raw = _refresh_token_from_request(request)
+        if raw is None:
+            return None
+
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": digest,
+        }
+
+
+class RefreshSessionRateThrottle(AtomicFixedWindowRateThrottle):
     """
     Plafonne les rotations a UNE MEME session.
 
@@ -77,23 +164,13 @@ class RefreshSessionRateThrottle(SimpleRateThrottle):
     scope = "refresh"
 
     def get_cache_key(self, request: Any, view: Any) -> str | None:
-        if not hasattr(request, "data"):
-            return None
-
-        data = request.data or {}
-        client = data.get("client")
-
-        if client == CLIENT_WEB:
-            raw = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
-        else:
-            raw = data.get("refresh")
-
-        if not isinstance(raw, str) or not raw.strip():
+        raw = _refresh_token_from_request(request)
+        if raw is None:
             return None
 
         try:
             claims = decode_token(
-                raw.strip(),
+                raw,
                 expected_type=TokenType.REFRESH,
             )
         except TokenInvalidError:

@@ -15,8 +15,16 @@ echo "[entrypoint] rôle=${ROLE} en cours de démarrage..."
 
 case "$ROLE" in
   api)
-    python manage.py migrate --noinput
-    exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 2
+    if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
+      python manage.py migrate --check
+    else
+      python manage.py migrate --noinput
+    fi
+
+    exec python -m uvicorn config.asgi:application \
+      --host 0.0.0.0 \
+      --port "${PORT:-8000}" \
+      --workers "${WEB_CONCURRENCY:-2}"
     ;;
   ws)
     exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8001 --workers 1
@@ -24,12 +32,22 @@ case "$ROLE" in
   worker)
     echo "[entrypoint] validation Django avant démarrage du worker..."
     python manage.py check --fail-level ERROR
+
+    if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
+      python manage.py migrate --check
+    fi
+
     python -c 'import jwt; print("[entrypoint] PyJWT import OK")'
     exec celery -A config worker --loglevel=INFO --concurrency=2
     ;;
   beat)
     echo "[entrypoint] validation Django avant démarrage de beat..."
     python manage.py check --fail-level ERROR
+
+    if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
+      python manage.py migrate --check
+    fi
+
     python -c 'import jwt; print("[entrypoint] PyJWT import OK")'
     # Planification statique (config.settings.base.CELERY_BEAT_SCHEDULE) : pas de
     # DatabaseScheduler au Sprint 0 (voir commentaire dans settings/base.py).

@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime
 
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -254,6 +255,98 @@ def test_the_endpoint_is_throttled_per_session(client, monkeypatch):
         client.post(
             URL,
             {"client": "web"},
+            format="json",
+        ).status_code
+        for _ in range(4)
+    ]
+
+    assert codes[:2] == [401, 401]
+    assert codes[2] == 429, codes
+
+
+@override_settings(
+    REFRESH_REQUIRE_TRUSTED_ORIGIN=True,
+    CSRF_TRUSTED_ORIGINS=["https://app.fanid.example"],
+)
+def test_web_refresh_rejects_untrusted_origin(
+    client,
+    opened,
+    settings,
+):
+    client.cookies[settings.REFRESH_COOKIE_NAME] = opened.pair.refresh
+
+    response = client.post(
+        URL,
+        {"client": "web"},
+        format="json",
+        HTTP_ORIGIN="https://attacker.example",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "CSRF_ORIGIN_DENIED"
+
+
+@override_settings(
+    REFRESH_REQUIRE_TRUSTED_ORIGIN=True,
+    CSRF_TRUSTED_ORIGINS=["https://app.fanid.example"],
+)
+def test_web_refresh_requires_origin_when_protection_is_enabled(
+    client,
+    opened,
+    settings,
+):
+    client.cookies[settings.REFRESH_COOKIE_NAME] = opened.pair.refresh
+
+    response = client.post(
+        URL,
+        {"client": "web"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["error"]["code"] == "CSRF_ORIGIN_DENIED"
+
+
+@override_settings(
+    REFRESH_REQUIRE_TRUSTED_ORIGIN=True,
+    CSRF_TRUSTED_ORIGINS=["https://app.fanid.example"],
+)
+def test_web_refresh_accepts_trusted_origin(
+    client,
+    opened,
+    settings,
+):
+    client.cookies[settings.REFRESH_COOKIE_NAME] = opened.pair.refresh
+
+    response = client.post(
+        URL,
+        {"client": "web"},
+        format="json",
+        HTTP_ORIGIN="https://app.fanid.example",
+    )
+
+    assert response.status_code == 200
+
+
+def test_invalid_refresh_attempts_are_throttled_by_origin(
+    client,
+    monkeypatch,
+):
+    from apps.identity.throttling import RefreshOriginRateThrottle
+
+    monkeypatch.setattr(
+        RefreshOriginRateThrottle,
+        "THROTTLE_RATES",
+        {"refresh_origin": "2/min"},
+    )
+
+    codes = [
+        client.post(
+            URL,
+            {
+                "client": "mobile",
+                "refresh": "invalid-refresh-token",
+            },
             format="json",
         ).status_code
         for _ in range(4)

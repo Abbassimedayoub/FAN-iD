@@ -31,6 +31,24 @@ STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 COMMIT_SHA = env("COMMIT_SHA", default="unknown")
 ENVIRONMENT = env("OTEL_ENVIRONMENT", default="dev")
 
+# --- Object storage ---
+OBJECT_STORAGE_BACKEND = (
+    env(
+        "OBJECT_STORAGE_BACKEND",
+        default="local",
+    )
+    .strip()
+    .lower()
+)
+OBJECT_STORAGE_LOCAL_ROOT = env(
+    "OBJECT_STORAGE_LOCAL_ROOT",
+    default="",
+)
+R2_ACCOUNT_ID = env("R2_ACCOUNT_ID", default="")
+R2_ACCESS_KEY_ID = env("R2_ACCESS_KEY_ID", default="")
+R2_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY", default="")
+R2_BUCKET = env("R2_BUCKET", default="")
+
 # --- Applications ---
 DJANGO_APPS = [
     "django.contrib.contenttypes",
@@ -83,6 +101,7 @@ MIDDLEWARE = [
     "apps.core.observability.middleware.RequestLogMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.identity.middleware.JWTAuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.core.idempotency.middleware.IdempotencyMiddleware",
     "apps.core.observability.metrics.MetricsMiddleware",
@@ -224,8 +243,18 @@ REST_FRAMEWORK = {
             "THROTTLE_REFRESH_RATE",
             default="30/hour",
         ),
+        "refresh_origin": env(
+            "THROTTLE_REFRESH_ORIGIN_RATE",
+            default="20/min",
+        ),
+        "refresh_token": env(
+            "THROTTLE_REFRESH_TOKEN_RATE",
+            default="10/min",
+        ),
     },
 }
+
+API_DOCS_ENABLED = env.bool("API_DOCS_ENABLED", default=True)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "FAN id API",
@@ -266,6 +295,10 @@ REFRESH_COOKIE_PATH = env(
     default="/api/v1/auth",
 )
 REFRESH_COOKIE_HTTPONLY = True
+REFRESH_REQUIRE_TRUSTED_ORIGIN = env.bool(
+    "REFRESH_REQUIRE_TRUSTED_ORIGIN",
+    default=False,
+)
 
 # --- Jetons JWT ---
 JWT_SIGNING_KEY = env("JWT_SIGNING_KEY")
