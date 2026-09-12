@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import path
 
 from .fan_catalog_views import FanCatalogCategoryListView, FanCatalogEventListView
@@ -44,11 +45,6 @@ urlpatterns = [
         "scanner/events",
         ScannerAssignedEventListView.as_view(),
         name="scanner-assigned-event-list",
-    ),
-    path(
-        "storage/local/<str:token>",
-        LocalStorageMediaView.as_view(),
-        name="local-storage-media",
     ),
     path(
         "categories",
@@ -126,3 +122,13 @@ urlpatterns = [
         name="event-detail",
     ),
 ]
+
+
+if settings.OBJECT_STORAGE_BACKEND == "local":
+    urlpatterns.append(
+        path(
+            "storage/local/<str:token>",
+            LocalStorageMediaView.as_view(),
+            name="local-storage-media",
+        )
+    )

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import sys
 
 from apps.core.observability.logging import JsonFormatter, SecretRedactor
 
@@ -55,3 +56,31 @@ def test_json_formatter_never_emits_raw_secret_in_log_line():
 
     assert "sk_live_should_never_appear" not in line
     assert payload["stripe_secret_key"] == _REDACTED
+
+
+def test_json_formatter_redacts_free_form_message_and_exception():
+    formatter = JsonFormatter()
+
+    try:
+        raise RuntimeError(
+            "Cookie: fanid_refresh=refresh-secret-value " "Authorization: Bearer access-secret-value"
+        )
+    except RuntimeError:
+        exc_info = sys.exc_info()
+
+    record = logging.LogRecord(
+        name="fanid.test",
+        level=logging.ERROR,
+        pathname=__file__,
+        lineno=1,
+        msg=("password=plain-password " "Authorization: Bearer access-secret-value"),
+        args=(),
+        exc_info=exc_info,
+    )
+
+    line = formatter.format(record)
+
+    assert "plain-password" not in line
+    assert "access-secret-value" not in line
+    assert "refresh-secret-value" not in line
+    assert "***REDACTED***" in line

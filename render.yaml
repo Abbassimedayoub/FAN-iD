@@ -1,0 +1,416 @@
+databases:
+  - name: fanid-postgres
+    region: frankfurt
+    plan: 0.5c-1g
+    postgresMajorVersion: "15"
+    diskSizeGB: 15
+    ipAllowList: []
+
+services:
+  - type: keyvalue
+    name: fanid-redis
+    region: frankfurt
+    plan: 256mb
+    ipAllowList: []
+    persistenceMode: journal-snapshot
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: fanid-api
+    runtime: docker
+    region: frankfurt
+    plan: 0.5c-512mb
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: api
+    preDeployCommand: python manage.py migrate --noinput
+    healthCheckPath: /api/v1/health
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fanid-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: JWT_SIGNING_KEY
+        generateValue: true
+      - key: QR_SIGNING_KEY
+        generateValue: true
+
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: REFRESH_COOKIE_SAMESITE
+        sync: false
+
+      - key: REFRESH_COOKIE_SECURE
+        value: "true"
+      - key: REFRESH_REQUIRE_TRUSTED_ORIGIN
+        value: "true"
+      - key: API_DOCS_ENABLED
+        value: "false"
+      - key: SECRET_PROVIDER
+        value: env
+      - key: LOG_LEVEL
+        value: INFO
+      - key: OTEL_ENVIRONMENT
+        value: production
+
+      - key: NOTIFICATION_BACKEND
+        value: smtp
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: EMAIL_USE_TLS
+        value: "true"
+      - key: EMAIL_USE_SSL
+        value: "false"
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+
+      - key: PAYMENT_GATEWAY
+        value: stripe
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      - key: OBJECT_STORAGE_BACKEND
+        value: r2
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+
+  - type: worker
+    name: fanid-worker
+    runtime: docker
+    region: frankfurt
+    plan: 0.5c-512mb
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: worker
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fanid-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: DJANGO_SECRET_KEY
+      - key: JWT_SIGNING_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: JWT_SIGNING_KEY
+      - key: QR_SIGNING_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: QR_SIGNING_KEY
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: DJANGO_ALLOWED_HOSTS
+      - key: CSRF_TRUSTED_ORIGINS
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: CSRF_TRUSTED_ORIGINS
+
+      - key: NOTIFICATION_BACKEND
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: NOTIFICATION_BACKEND
+      - key: EMAIL_HOST
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_HOST
+      - key: EMAIL_PORT
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_PORT
+      - key: EMAIL_HOST_USER
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_HOST_USER
+      - key: EMAIL_HOST_PASSWORD
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_HOST_PASSWORD
+      - key: EMAIL_USE_TLS
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_USE_TLS
+      - key: EMAIL_USE_SSL
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_USE_SSL
+      - key: DEFAULT_FROM_EMAIL
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: DEFAULT_FROM_EMAIL
+
+      - key: PAYMENT_GATEWAY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: PAYMENT_GATEWAY
+      - key: STRIPE_SECRET_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: STRIPE_SECRET_KEY
+      - key: STRIPE_WEBHOOK_SECRET
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: STRIPE_WEBHOOK_SECRET
+
+      - key: OBJECT_STORAGE_BACKEND
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: OBJECT_STORAGE_BACKEND
+      - key: R2_ACCOUNT_ID
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_ACCOUNT_ID
+      - key: R2_BUCKET
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_BUCKET
+      - key: R2_ACCESS_KEY_ID
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_ACCESS_KEY_ID
+      - key: R2_SECRET_ACCESS_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_SECRET_ACCESS_KEY
+
+      - key: SECRET_PROVIDER
+        value: env
+      - key: LOG_LEVEL
+        value: INFO
+      - key: OTEL_ENVIRONMENT
+        value: production
+
+  - type: worker
+    name: fanid-beat
+    runtime: docker
+    region: frankfurt
+    plan: 0.5c-512mb
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: beat
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fanid-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          name: fanid-redis
+          type: keyvalue
+          property: connectionString
+
+      - key: DJANGO_SECRET_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: DJANGO_SECRET_KEY
+      - key: JWT_SIGNING_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: JWT_SIGNING_KEY
+      - key: QR_SIGNING_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: QR_SIGNING_KEY
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: DJANGO_ALLOWED_HOSTS
+      - key: CSRF_TRUSTED_ORIGINS
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: CSRF_TRUSTED_ORIGINS
+
+      - key: NOTIFICATION_BACKEND
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: NOTIFICATION_BACKEND
+      - key: EMAIL_HOST
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_HOST
+      - key: EMAIL_PORT
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_PORT
+      - key: EMAIL_HOST_USER
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_HOST_USER
+      - key: EMAIL_HOST_PASSWORD
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_HOST_PASSWORD
+      - key: EMAIL_USE_TLS
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_USE_TLS
+      - key: EMAIL_USE_SSL
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: EMAIL_USE_SSL
+      - key: DEFAULT_FROM_EMAIL
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: DEFAULT_FROM_EMAIL
+
+      - key: PAYMENT_GATEWAY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: PAYMENT_GATEWAY
+      - key: STRIPE_SECRET_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: STRIPE_SECRET_KEY
+      - key: STRIPE_WEBHOOK_SECRET
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: STRIPE_WEBHOOK_SECRET
+
+      - key: OBJECT_STORAGE_BACKEND
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: OBJECT_STORAGE_BACKEND
+      - key: R2_ACCOUNT_ID
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_ACCOUNT_ID
+      - key: R2_BUCKET
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_BUCKET
+      - key: R2_ACCESS_KEY_ID
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_ACCESS_KEY_ID
+      - key: R2_SECRET_ACCESS_KEY
+        fromService:
+          name: fanid-api
+          type: web
+          envVarKey: R2_SECRET_ACCESS_KEY
+
+      - key: SECRET_PROVIDER
+        value: env
+      - key: LOG_LEVEL
+        value: INFO
+      - key: OTEL_ENVIRONMENT
+        value: production

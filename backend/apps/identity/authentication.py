@@ -44,7 +44,7 @@ from __future__ import annotations
 import functools
 import logging
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 
@@ -56,6 +56,10 @@ from .tokens import TokenInvalidError, TokenType, decode_token
 logger = logging.getLogger("fanid.identity")
 
 AUTH_SCHEME = b"bearer"
+
+JWT_PREAUTH_RESULT_ATTR = "_fanid_jwt_preauth_result"
+JWT_PREAUTH_ERROR_ATTR = "_fanid_jwt_preauth_error"
+_PREAUTH_MISSING = object()
 
 
 @functools.lru_cache(maxsize=1)
@@ -89,6 +93,35 @@ class JWTAuthentication(BaseAuthentication):
         return 'Bearer realm="api"'
 
     def authenticate(self, request: Any) -> tuple[Any, dict[str, Any]] | None:
+        raw_request = getattr(request, "_request", request)
+
+        cached_error = getattr(
+            raw_request,
+            JWT_PREAUTH_ERROR_ATTR,
+            None,
+        )
+        if cached_error is not None:
+            raise cached_error
+
+        cached_result = getattr(
+            raw_request,
+            JWT_PREAUTH_RESULT_ATTR,
+            _PREAUTH_MISSING,
+        )
+        if cached_result is not _PREAUTH_MISSING:
+            if cached_result is not None:
+                for attribute in ("auth_level", "session_id"):
+                    if hasattr(raw_request, attribute):
+                        setattr(
+                            request,
+                            attribute,
+                            getattr(raw_request, attribute),
+                        )
+            return cast(
+                tuple[Any, dict[str, Any]] | None,
+                cached_result,
+            )
+
         raw = self._extract_token(request)
         if raw is None:
             # Aucun en-tete `Bearer` : ce n est PAS une erreur. DRF essaiera les

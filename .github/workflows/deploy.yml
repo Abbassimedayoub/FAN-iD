@@ -1,43 +1,297 @@
-name: deploy
-
-# Coquille du Sprint 0 (§52 master prompt) : le déploiement AWS complet est
-# hors périmètre (§42/§78 Source B — S5). Ce pipeline valide dès maintenant
-# que l'image de PRODUCTION construit et démarre — ce n'est PAS un fichier
-# décoratif qui ne fait rien (§52 master prompt), mais il ne pousse vers
-# AUCUN environnement tant qu'un déploiement réel n'est pas explicitement
-# demandé et confirmé (§41/§42 master prompt : pas de ressource AWS coûteuse
-# sans confirmation explicite).
+name: deploy-production
 
 on:
+  pull_request:
+    paths:
+      - "render.yaml"
+      - "backend/**"
+      - ".github/workflows/deploy.yml"
   push:
-    branches: [main]
-    paths: ["backend/**", "docker-compose.yml"]
-  workflow_dispatch: {}
+    branches: [main, develop]
+    paths:
+      - "render.yaml"
+      - "backend/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
-  build-production-image:
+  validate-production:
+    name: Validate production deployment
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build image de production (stage prod, utilisateur non-root)
-        run: docker build -t fanid-api:prod-candidate --target prod backend
+      - name: Validate entrypoint shell syntax
+        run: bash -n backend/docker/entrypoint.sh
 
-      - name: Vérifier la taille de l'image (< 400 Mo, §5.2 Source B)
+      - name: Validate Render Blueprint schema and wiring
         run: |
-          SIZE_MB=$(docker image inspect fanid-api:prod-candidate --format='{{.Size}}' | awk '{print int($1/1024/1024)}')
-          echo "Taille de l'image : ${SIZE_MB} Mo"
+          python -m pip install --disable-pip-version-check --quiet PyYAML jsonschema
+
+          python - <<'PY_RENDER'
+          import json
+          from pathlib import Path
+          from urllib.request import urlopen
+
+          import yaml
+          from jsonschema.validators import validator_for
+
+          blueprint = yaml.safe_load(
+              Path("render.yaml").read_text(
+                  encoding="utf-8",
+              )
+          )
+
+          schema_url = (
+              "https://render.com/schema/render.yaml.json"
+          )
+
+          with urlopen(
+              schema_url,
+              timeout=30,
+          ) as response:
+              schema = json.load(response)
+
+          validator_class = validator_for(schema)
+          validator_class.check_schema(schema)
+
+          errors = sorted(
+              validator_class(schema).iter_errors(
+                  blueprint
+              ),
+              key=lambda error: [
+                  str(part)
+                  for part in error.absolute_path
+              ],
+          )
+
+          if errors:
+              messages = []
+
+              for error in errors:
+                  location = ".".join(
+                      str(part)
+                      for part in error.absolute_path
+                  ) or "<root>"
+
+                  messages.append(
+                      f"{location}: {error.message}"
+                  )
+
+              raise RuntimeError(
+                  "Render schema validation failed:\n"
+                  + "\n".join(messages)
+              )
+
+          services = blueprint.get(
+              "services",
+              [],
+          )
+          databases = blueprint.get(
+              "databases",
+              [],
+          )
+
+          service_map = {}
+          database_names = set()
+
+          for service in services:
+              name = service.get("name")
+
+              if not name:
+                  raise RuntimeError(
+                      "Render service without name"
+                  )
+
+              if name in service_map:
+                  raise RuntimeError(
+                      f"Duplicate Render service: {name}"
+                  )
+
+              service_map[name] = service
+
+          for database in databases:
+              name = database.get("name")
+
+              if not name:
+                  raise RuntimeError(
+                      "Render database without name"
+                  )
+
+              if name in database_names:
+                  raise RuntimeError(
+                      f"Duplicate Render database: {name}"
+                  )
+
+              database_names.add(name)
+
+          for service_name, service in service_map.items():
+              for env_var in service.get(
+                  "envVars",
+                  [],
+              ):
+                  from_service = env_var.get(
+                      "fromService"
+                  )
+
+                  if from_service:
+                      target = from_service.get(
+                          "name"
+                      )
+
+                      if target not in service_map:
+                          raise RuntimeError(
+                              f"{service_name}: "
+                              f"unknown fromService {target}"
+                          )
+
+                      expected_type = from_service.get(
+                          "type"
+                      )
+                      actual_type = service_map[
+                          target
+                      ].get("type")
+
+                      if (
+                          expected_type
+                          and expected_type
+                          != actual_type
+                      ):
+                          raise RuntimeError(
+                              f"{service_name}: "
+                              f"{target} type is "
+                              f"{actual_type}, expected "
+                              f"{expected_type}"
+                          )
+
+                  from_database = env_var.get(
+                      "fromDatabase"
+                  )
+
+                  if from_database:
+                      target = from_database.get(
+                          "name"
+                      )
+
+                      if target not in database_names:
+                          raise RuntimeError(
+                              f"{service_name}: "
+                              f"unknown fromDatabase {target}"
+                          )
+
+          print("RENDER_JSON_SCHEMA=PASS")
+          print("RENDER_SERVICE_REFERENCES=PASS")
+          print("RENDER_DATABASE_REFERENCES=PASS")
+          print("RENDER_BLUEPRINT_STATIC_VALIDATION=PASS")
+          PY_RENDER
+
+      - name: Build production image
+        run: |
+          docker build             -t fanid-api:prod-candidate             --target prod             backend
+
+      - name: Enforce production image size
+        run: |
+          SIZE_MB="$(
+            docker image inspect               fanid-api:prod-candidate               --format='{{.Size}}'               | awk '{print int($1/1024/1024)}'
+          )"
+
+          echo "Production image: ${SIZE_MB} MB"
+
           if [ "$SIZE_MB" -gt 400 ]; then
-            echo "::error::Image de production > 400 Mo (${SIZE_MB} Mo) — cible §5.2 Source B dépassée."
-            exit 1
+            echo "::error::Production image exceeds 400 MB (${SIZE_MB} MB)"
+            false
           fi
 
-      - name: Démarrage minimal de l'image (smoke test, sans dépendances externes)
+      - name: Smoke production image
         run: |
-          docker run --rm --entrypoint python fanid-api:prod-candidate -c "import django; print('django ok', django.get_version())"
+          docker run             --rm             --entrypoint python             fanid-api:prod-candidate             -c "import django; print('django ok', django.get_version())"
 
-      # --- Déploiement AWS réel : intentionnellement absent de ce Sprint 0 ---
-      # Provisionnement EC2/RDS/ElastiCache/S3/SSM différé au Sprint 5 (§78
-      # Source B), et à confirmation explicite de l'utilisateur avant toute
-      # ressource facturable (§41/§42 master prompt).
+  deploy-web:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate-production
+    name: Deploy web to Cloudflare Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the production branch
+        working-directory: .
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Validate deployment configuration
+        env:
+          VITE_API_URL: ${{ vars.PRODUCTION_API_URL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          test -n "$VITE_API_URL"
+          test "$VITE_API_URL" != "${VITE_API_URL#https://}"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_PAGES_PROJECT"
+
+      - run: npm ci
+
+      - name: Build production web bundle
+        env:
+          VITE_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: npm run build
+
+      - name: Reject localhost or source maps in production bundle
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("dist")
+          files = [path for path in root.rglob("*") if path.is_file()]
+
+          if not files:
+              raise RuntimeError("Production bundle is empty")
+
+          maps = [path for path in files if path.suffix == ".map"]
+
+          text = "\n".join(
+              path.read_text(encoding="utf-8", errors="ignore")
+              for path in files
+              if path.suffix in {".html", ".js", ".css", ".json"}
+          )
+
+          if maps:
+              raise RuntimeError("Source maps found in production bundle")
+
+          if "localhost" in text or "127.0.0.1" in text:
+              raise RuntimeError("Local API address leaked into production bundle")
+
+          print("PRODUCTION_BUNDLE_AUDIT=PASS")
+          PY
+
+      - name: Deploy Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          npx --yes wrangler@4 pages deploy dist             --project-name="$CLOUDFLARE_PAGES_PROJECT"             --branch=main             --commit-hash="$GITHUB_SHA"             --commit-dirty=false

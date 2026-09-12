@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import datetime
+import json
+import threading
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.db import connections
 from django.test import Client, override_settings
 from django.utils import timezone
 
@@ -261,3 +265,83 @@ def test_report_invalidates_the_previous_admission_session(ticket, buyer):
     assert second.id != first.id
 
     require_event_admission_open(event_id=event.id)
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(QR_SIGNING_KEY="test-qr-signing-key-which-is-long-enough")
+def test_two_concurrent_http_scans_admit_exactly_once(
+    ticket,
+    scanner,
+    buyer,
+):
+    EventScannerAssignment.objects.create(
+        event=ticket.event,
+        scanner_id=scanner.id,
+        assigned_by_id=buyer.id,
+    )
+
+    open_event_admission(
+        event_id=ticket.event_id,
+        opened_by_id=buyer.id,
+    )
+
+    token = issue_dynamic_ticket_qr(ticket=ticket).token
+
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcomes_lock = threading.Lock()
+
+    def worker() -> None:
+        connections.close_all()
+
+        try:
+            scanner_user = get_user_model().objects.get(pk=scanner.user_id)
+
+            client = Client()
+            client.force_login(scanner_user)
+
+            barrier.wait()
+
+            response = client.post(
+                "/api/v1/access/scans",
+                data=json.dumps({"token": token}),
+                content_type="application/json",
+            )
+
+            outcome = (
+                response.status_code,
+                response.content.decode(
+                    "utf-8",
+                    errors="replace",
+                ),
+            )
+        except Exception as exc:
+            outcome = (
+                599,
+                f"{type(exc).__name__}: {exc}",
+            )
+        finally:
+            connections.close_all()
+
+        with outcomes_lock:
+            outcomes.append(outcome)
+
+    threads = [
+        threading.Thread(target=worker),
+        threading.Thread(target=worker),
+    ]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    statuses = sorted(status for status, _ in outcomes)
+
+    assert statuses == [200, 409], outcomes
+
+    ticket.refresh_from_db()
+
+    assert ticket.status == TICKET_USED
+    assert TicketAdmission.objects.filter(ticket_id=ticket.id).count() == 1

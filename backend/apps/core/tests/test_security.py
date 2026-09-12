@@ -15,6 +15,37 @@ from django.core.exceptions import ImproperlyConfigured
 from apps.core.observability.logging import JsonFormatter
 
 
+def _set_required_production_environment(monkeypatch):
+    """Provide fake but structurally valid production configuration."""
+    values = {
+        "DJANGO_SECRET_KEY": "x" * 60,
+        "DJANGO_ALLOWED_HOSTS": "example.com",
+        "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
+        "REDIS_URL": "redis://localhost:6379/0",
+        "CELERY_BROKER_URL": "redis://localhost:6379/3",
+        "CELERY_RESULT_BACKEND": "redis://localhost:6379/4",
+        "JWT_SIGNING_KEY": "test-jwt-signing-key",
+        "QR_SIGNING_KEY": "test-qr-signing-key",
+        "CSRF_TRUSTED_ORIGINS": "https://app.example.test",
+        "CORS_ALLOWED_ORIGINS": "https://app.example.test",
+        "NOTIFICATION_BACKEND": "memory",
+        "PAYMENT_GATEWAY": "stripe",
+        "STRIPE_SECRET_KEY": "configured-test-value",
+        "STRIPE_WEBHOOK_SECRET": "configured-test-value",
+        "OBJECT_STORAGE_BACKEND": "r2",
+        "R2_ACCOUNT_ID": "0123456789abcdef0123456789abcdef",
+        "R2_ACCESS_KEY_ID": "configured-test-value",
+        "R2_SECRET_ACCESS_KEY": "configured-test-value",
+        "R2_BUCKET": "fanid-private",
+        "OTEL_ENVIRONMENT": "production",
+        "APP_VERSION": "security-test",
+        "COMMIT_SHA": "security-test",
+    }
+
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+
 def test_production_settings_module_defines_required_security_headers(monkeypatch):
     """
     Équivalent ciblé de `manage.py check --deploy` (§60 master prompt) : on
@@ -22,17 +53,7 @@ def test_production_settings_module_defines_required_security_headers(monkeypatc
     vérifier les valeurs telles que Django les verrait, avec l'environnement
     minimal requis fourni par le test (jamais de vrai secret).
     """
-    monkeypatch.setenv("DJANGO_SECRET_KEY", "x" * 60)
-    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "example.com")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost:5432/db")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("CELERY_BROKER_URL", "redis://localhost:6379/3")
-    monkeypatch.setenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/4")
-    # Ajoutée au Sprint 1 (S1-A.0) : dès que l'authentification s'appuie sur un
-    # cookie, une liste blanche CSRF explicite devient obligatoire. `prod.py` la
-    # lit SANS défaut (§41), le test doit donc la fournir comme les autres.
-    monkeypatch.setenv("CSRF_TRUSTED_ORIGINS", "https://app.example.test")
-    monkeypatch.setenv("NOTIFICATION_BACKEND", "memory")
+    _set_required_production_environment(monkeypatch)
 
     # `import_module` ne réexécute pas un module déjà dans `sys.modules` : on
     # vide le cache pour que le module soit VRAIMENT évalué avec l'environnement
@@ -70,13 +91,11 @@ def test_production_refuses_to_start_without_a_csrf_allowlist(monkeypatch):
     verrouille l'exigence : si quelqu'un lui donnait un jour un défaut par
     commodité, ce test le signalerait immédiatement.
     """
-    monkeypatch.setenv("DJANGO_SECRET_KEY", "x" * 60)
-    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "example.com")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost:5432/db")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("CELERY_BROKER_URL", "redis://localhost:6379/3")
-    monkeypatch.setenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/4")
-    monkeypatch.delenv("CSRF_TRUSTED_ORIGINS", raising=False)
+    _set_required_production_environment(monkeypatch)
+    monkeypatch.delenv(
+        "CSRF_TRUSTED_ORIGINS",
+        raising=False,
+    )
 
     # Garde-fou : si l'environnement fournissait encore la variable, le test
     # passerait sans rien prouver.

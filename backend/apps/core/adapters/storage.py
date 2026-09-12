@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import re
 import shutil
 import time
 import uuid
@@ -150,30 +151,45 @@ class LocalStorage(ObjectStorage):
         return "/api/v1/storage/local/" f"{token}"
 
 
-class S3Storage(ObjectStorage):
-    """Adaptateur S3 de production."""
+class R2Storage(ObjectStorage):
+    """Private Cloudflare R2 storage through its S3-compatible API."""
 
     def __init__(
         self,
         *,
         bucket: str,
-        region: str,
+        account_id: str,
+        access_key_id: str,
+        secret_access_key: str,
         client: Any | None = None,
     ) -> None:
         if not bucket:
-            raise ImproperlyConfigured("AWS_S3_BUCKET est requis.")
+            raise ImproperlyConfigured("R2_BUCKET is required.")
 
-        if not region:
-            raise ImproperlyConfigured("AWS_REGION est requis.")
+        if not re.fullmatch(
+            r"[0-9a-fA-F]{32}",
+            account_id,
+        ):
+            raise ImproperlyConfigured("R2_ACCOUNT_ID must be a 32-character hexadecimal ID.")
+
+        if not access_key_id:
+            raise ImproperlyConfigured("R2_ACCESS_KEY_ID is required.")
+
+        if not secret_access_key:
+            raise ImproperlyConfigured("R2_SECRET_ACCESS_KEY is required.")
 
         self.bucket = bucket
-        self.region = region
+        self.endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
+
         self.client = (
             client
             if client is not None
             else boto3.client(
                 "s3",
-                region_name=region,
+                endpoint_url=self.endpoint_url,
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                region_name="auto",
             )
         )
 
@@ -185,7 +201,6 @@ class S3Storage(ObjectStorage):
         file.seek(0)
 
         content_type, _ = mimetypes.guess_type(key)
-
         extra_args = {}
 
         if content_type:
@@ -203,7 +218,7 @@ class S3Storage(ObjectStorage):
             **kwargs,
         )
 
-        return f"s3://{self.bucket}/{key}"
+        return f"r2://{self.bucket}/{key}"
 
     def delete(
         self,
@@ -220,7 +235,7 @@ class S3Storage(ObjectStorage):
         ttl_seconds: int,
     ) -> str:
         if ttl_seconds <= 0:
-            raise ValueError("Le TTL doit être positif.")
+            raise ValueError("TTL must be positive.")
 
         return self.client.generate_presigned_url(
             "get_object",
@@ -256,56 +271,22 @@ def resolve_local_presigned_key(
 
 
 def build_object_storage() -> ObjectStorage:
-    """
-    Sélection fail-closed de l adaptateur.
-
-    - dev/test : disque local persistant ;
-    - prod : S3 obligatoire ;
-    - OBJECT_STORAGE_BACKEND permet un choix explicite.
-    """
-
-    configured = os.environ.get("OBJECT_STORAGE_BACKEND", "").strip().lower()
-
-    environment = (
-        str(
-            getattr(
-                settings,
-                "ENVIRONMENT",
-                "dev",
-            )
-        )
-        .strip()
-        .lower()
-    )
-
-    backend = configured or (
-        "s3"
-        if environment
-        in {
-            "prod",
-            "production",
-        }
-        else "local"
-    )
+    """Build only the explicitly selected object storage backend."""
+    backend = str(settings.OBJECT_STORAGE_BACKEND).strip().lower()
 
     if backend == "local":
-        configured_root = os.environ.get(
-            "OBJECT_STORAGE_LOCAL_ROOT",
-            "",
-        ).strip()
+        configured_root = str(settings.OBJECT_STORAGE_LOCAL_ROOT).strip()
 
-        root = Path(configured_root) if configured_root else (Path(settings.BASE_DIR) / "mediafiles")
+        root = Path(configured_root) if configured_root else Path(settings.BASE_DIR) / "mediafiles"
 
         return LocalStorage(root=root)
 
-    if backend == "s3":
-        bucket = os.environ.get("AWS_S3_BUCKET", "").strip()
-
-        region = os.environ.get("AWS_REGION", "").strip()
-
-        return S3Storage(
-            bucket=bucket,
-            region=region,
+    if backend == "r2":
+        return R2Storage(
+            bucket=str(settings.R2_BUCKET).strip(),
+            account_id=str(settings.R2_ACCOUNT_ID).strip(),
+            access_key_id=str(settings.R2_ACCESS_KEY_ID).strip(),
+            secret_access_key=str(settings.R2_SECRET_ACCESS_KEY).strip(),
         )
 
-    raise ImproperlyConfigured(("OBJECT_STORAGE_BACKEND doit " "valoir 'local' ou 's3'."))
+    raise ImproperlyConfigured("OBJECT_STORAGE_BACKEND must be 'local' or 'r2'.")

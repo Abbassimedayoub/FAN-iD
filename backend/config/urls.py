@@ -24,13 +24,21 @@ urlpatterns = [
     path("api/v1/devices/", include("apps.identity.urls_devices")),
     path("api/v1/organizers/", include("apps.organizing.urls")),
     path("api/v1/admin/organizers/", include("apps.organizing.urls_admin")),
-    path("api/v1/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path(
-        "swagger-ui/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
-        name="swagger-ui",
-    ),
 ]
+
+if settings.API_DOCS_ENABLED:
+    urlpatterns += [
+        path(
+            "api/v1/schema/",
+            SpectacularAPIView.as_view(),
+            name="schema",
+        ),
+        path(
+            "swagger-ui/",
+            SpectacularSwaggerView.as_view(url_name="schema"),
+            name="swagger-ui",
+        ),
+    ]
 
 if settings.DEBUG and "debug_toolbar" in settings.INSTALLED_APPS:
     import debug_toolbar
