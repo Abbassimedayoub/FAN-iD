@@ -51,7 +51,7 @@ case "$ROLE" in
     python -c 'import jwt; print("[entrypoint] PyJWT import OK")'
     # Planification statique (config.settings.base.CELERY_BEAT_SCHEDULE) : pas de
     # DatabaseScheduler au Sprint 0 (voir commentaire dans settings/base.py).
-    exec celery -A config beat --loglevel=INFO
+    exec celery -A config beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
     ;;
   *)
     echo "[entrypoint] rôle inconnu: ${ROLE} (attendu: api|ws|worker|beat)" >&2
