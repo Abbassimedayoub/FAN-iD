@@ -78,6 +78,8 @@ services:
         value: INFO
       - key: OTEL_ENVIRONMENT
         value: production
+      - key: OTEL_ENABLED
+        value: "false"
 
       - key: NOTIFICATION_BACKEND
         value: smtp
@@ -122,7 +124,7 @@ services:
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    dockerCommand: worker
+    dockerCommand: /app/docker/entrypoint.sh worker
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 60
     envVars:
@@ -263,6 +265,8 @@ services:
         value: INFO
       - key: OTEL_ENVIRONMENT
         value: production
+      - key: OTEL_ENABLED
+        value: "false"
 
   - type: worker
     name: fanid-beat
@@ -272,7 +276,7 @@ services:
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    dockerCommand: beat
+    dockerCommand: /app/docker/entrypoint.sh beat
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 30
     envVars:
@@ -413,3 +417,5 @@ services:
         value: INFO
       - key: OTEL_ENVIRONMENT
         value: production
+      - key: OTEL_ENABLED
+        value: "false"

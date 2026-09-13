@@ -379,6 +379,8 @@ OUTBOX_RETENTION_DAYS = env.int(
 )
 OUTBOX_BACKOFF_SCHEDULE_SECONDS = [2, 8, 32, 120, 480]
 
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 CELERY_BEAT_SCHEDULE = {
     "outbox-relay": {
         "task": "core.outbox.relay_batch",
@@ -491,4 +493,4 @@ OTEL_EXPORTER_OTLP_ENDPOINT = env(
     "OTEL_EXPORTER_OTLP_ENDPOINT",
     default="http://otel-collector:4317",
 )
-OTEL_ENABLED = True
+OTEL_ENABLED = env.bool("OTEL_ENABLED", default=True)
