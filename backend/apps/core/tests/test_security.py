@@ -67,6 +67,10 @@ def test_production_settings_module_defines_required_security_headers(monkeypatc
     assert prod_settings.X_FRAME_OPTIONS == "DENY"
     assert prod_settings.SECURE_REFERRER_POLICY == "strict-origin-when-cross-origin"
     assert prod_settings.SECURE_SSL_REDIRECT is True
+    assert prod_settings.SECURE_PROXY_SSL_HEADER == (
+        "HTTP_X_FORWARDED_PROTO",
+        "https",
+    )
     assert prod_settings.DEBUG is False
     assert prod_settings.SPECTACULAR_SETTINGS["SERVE_PUBLIC"] is False
 

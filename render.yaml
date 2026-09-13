@@ -24,7 +24,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     preDeployCommand: python manage.py migrate --noinput
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/health/
     autoDeployTrigger: checksPass
     maxShutdownDelaySeconds: 30
     envVars:
