@@ -3,6 +3,75 @@ import 'package:fanid_mobile/features/auth/data/datasources/auth_remote_data_sou
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('updatePhone normalizes a weak production ETag', () async {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: 'http://example.test',
+      ),
+    );
+
+    String? ifMatch;
+
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.method == 'GET') {
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                headers: Headers.fromMap(
+                  {
+                    'etag': ['W/"7"'],
+                  },
+                ),
+                data: const {
+                  'id': 'user-1',
+                  'email': 'fan@example.test',
+                  'first_name': 'Ines',
+                  'last_name': 'Bouzid',
+                  'role': 'FAN',
+                  'created_at': '2026-09-03T20:00:00Z',
+                  'must_change_password': false,
+                  'phone': null,
+                },
+              ),
+            );
+            return;
+          }
+
+          ifMatch = options.headers['If-Match'] as String?;
+
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: const {
+                'id': 'user-1',
+                'email': 'fan@example.test',
+                'first_name': 'Ines',
+                'last_name': 'Bouzid',
+                'role': 'FAN',
+                'created_at': '2026-09-03T20:00:00Z',
+                'must_change_password': false,
+                'phone': '+212612345678',
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    final dataSource = AuthRemoteDataSource(dio);
+
+    final user = await dataSource.updatePhone(
+      phone: ' +212612345678 ',
+    );
+
+    expect(ifMatch, '"7"');
+    expect(user.phone, '+212612345678');
+  });
+
   test('requestPhoneChange sends target phone and parses challenge', () async {
     final dio = Dio(
       BaseOptions(

@@ -12,6 +12,26 @@ class AuthRemoteDataSource {
 
   final Dio dio;
 
+  static String _normalizeIfMatch(String value) {
+    var normalized = value.trim();
+
+    if (normalized.startsWith('W/')) {
+      normalized = normalized.substring(2).trim();
+    }
+
+    final match = RegExp(
+      r'^(?:"([1-9][0-9]*)"|([1-9][0-9]*))$',
+    ).firstMatch(normalized);
+
+    final version = match?.group(1) ?? match?.group(2);
+
+    if (version == null) {
+      throw const ServerFailure();
+    }
+
+    return '"$version"';
+  }
+
   Future<AuthUser> register({
     required String email,
     required String password,
@@ -219,7 +239,7 @@ class AuthRemoteDataSource {
         },
         options: Options(
           headers: {
-            'If-Match': etag,
+            'If-Match': _normalizeIfMatch(etag),
           },
         ),
       );
