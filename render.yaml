@@ -23,7 +23,6 @@ services:
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    dockerCommand: api
     preDeployCommand: python manage.py migrate --noinput
     healthCheckPath: /api/v1/health
     autoDeployTrigger: checksPass
