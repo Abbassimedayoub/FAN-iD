@@ -128,3 +128,40 @@ def test_valid_production_uses_stripe_r2_and_hides_local_route():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("source_url", "database", "expected"),
+    [
+        (
+            "redis://render-redis:6379",
+            0,
+            "redis://render-redis:6379/0",
+        ),
+        (
+            "redis://render-redis:6379/9",
+            2,
+            "redis://render-redis:6379/2",
+        ),
+        (
+            "rediss://user:password@render-redis:6379?ssl=true",
+            1,
+            "rediss://user:password@render-redis:6379/1?ssl=true",
+        ),
+    ],
+)
+def test_render_style_redis_url_without_database_path(
+    monkeypatch,
+    source_url,
+    database,
+    expected,
+):
+    from config.settings import base as base_settings
+
+    monkeypatch.setattr(
+        base_settings,
+        "REDIS_URL",
+        source_url,
+    )
+
+    assert base_settings._redis_url_with_db(database) == expected

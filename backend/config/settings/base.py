@@ -8,6 +8,7 @@ un défaut silencieux en production est pire qu'un crash au démarrage.
 """
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import environ
 from corsheaders.defaults import default_headers
@@ -161,8 +162,8 @@ REDIS_LOCK_DB = env.int("REDIS_LOCK_DB", default=2)
 
 
 def _redis_url_with_db(db_index: int) -> str:
-    base = REDIS_URL.rsplit("/", 1)[0]
-    return f"{base}/{db_index}"
+    parsed = urlsplit(REDIS_URL)
+    return parsed._replace(path=f"/{db_index}").geturl()
 
 
 REDIS_LOCK_URL = _redis_url_with_db(REDIS_LOCK_DB)
