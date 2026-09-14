@@ -1,28 +1,30 @@
-# GDPR.md — FAN id
+# Personal data
 
-> Placeholder Sprint 0 (§78 master prompt — arborescence `docs/` cible).
-> Le Sprint 0 ne traite aucune donnée personnelle métier (aucune table
-> métier créée, §44 master prompt) — ce document sera rempli à partir du
-> Sprint 1 (identité : premières données personnelles réelles).
+FAN iD is an individual school project that processes account and ticketing data. This document describes the technical data scope; it is not a legal compliance certification or a complete privacy notice.
 
-## Portée prévue (à compléter)
+## Data categories
 
-- Registre des traitements (données collectées par bounded context : email,
-  nom, téléphone si applicable, données de paiement — jamais stockées en
-  clair, sous-traitées à Stripe).
-- Base légale par traitement (exécution du contrat pour l'achat de billets,
-  consentement pour les communications marketing).
-- Durées de conservation par table (déjà posées au niveau infrastructure :
-  `idempotency_record` 24h, `outbox_event` publiés purgés à 30 jours — voir
-  `docs/adr/ADR-S-03.md`, `ADR-S-06.md`).
-- Procédure d'anonymisation/suppression sur demande (droit à l'effacement) —
-  spécifiée dans le plan de développement, Sprint 5
-  (`plan-dev-v2/08-sprint-5-production.md`, algorithme d'anonymisation).
-- Sous-traitants (Stripe, AWS SES, hébergeur AWS) et transferts hors UE le
-  cas échéant.
-- DPO / point de contact.
+| Area | Examples |
+| --- | --- |
+| Account | Email, name, date of birth, phone and terms acceptance |
+| Authentication | Password hashes, sessions and device identifiers |
+| Ticketing | Reservations, orders, tickets and transfers |
+| Payments | Provider references, amounts and payment or refund status |
+| Admission | Ticket scans and event admission records |
+| Diagnostics | Request metadata and correlation identifiers |
 
-## État Sprint 0
+Payment details are entered through Stripe's payment interface. Payment credentials and client secrets must not be copied into public documentation.
 
-Aucune donnée personnelle traitée — coquilles de bounded contexts vides,
-aucune table métier (§44/§80 master prompt).
+## Storage and services
+
+PostgreSQL holds business records. Redis-compatible infrastructure supports cache, locks and background processing. The hosted environment also uses Render, Cloudflare Pages, Cloudflare R2, Stripe and SMTP delivery.
+
+Local and hosted environments are separate. Use demonstration data when possible and remove identifying information from shared screenshots.
+
+## Retention and requests
+
+Infrastructure cleanup settings do not define a complete personal-data retention policy. Account, transaction and admission records require an explicit retention review before wider use.
+
+Requests concerning personal data can be sent to [Mohamed Ayoub Abbassi](mailto:abbassimohamedayoub@gmail.com). Do not send passwords, access tokens or full payment details by email.
+
+See the [security notes](SECURITY.md) for handling precautions.

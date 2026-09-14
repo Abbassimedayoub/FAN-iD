@@ -55,6 +55,8 @@ The project connects event administration, ticket purchasing, payment confirmati
 
 ## Architecture
 
+See the [architecture overview](docs/adr/README.md) for the domain boundaries and design decisions.
+
 The backend is a modular monolith. Business domains share a deployment and database while keeping explicit application boundaries. External services are accessed through adapters.
 
 | Component | Technology | Responsibility |
@@ -93,6 +95,8 @@ PostgreSQL transactions protect business state. The transactional outbox support
 The server remains responsible for authorization, ticket validity and order confirmation. A successful client-side payment screen does not replace backend payment confirmation.
 
 ## API reference
+
+See the [API guide](docs/api/README.md) for authentication, request headers and response conventions.
 
 Business endpoints use the `/api/v1` prefix and generally do not have a trailing slash. Schema and Swagger routes are exceptions.
 
@@ -137,13 +141,15 @@ Permissions, request bodies and preconditions vary by endpoint. Consult the gene
 | `mobile/` | Flutter application, Android configuration and mobile tests |
 | `infra/` | Local infrastructure, Nginx and telemetry configuration |
 | `scripts/` | Quality checks and repository tooling |
-| `docs/adr/` | Architecture decisions |
-| `docs/api/` | API documentation |
-| `docs/runbooks/` | Operational documentation |
+| `docs/adr/README.md` | Architecture overview |
+| `docs/api/README.md` | API reference |
+| `docs/diagrams/README.md` | System and workflow diagrams |
 | `.github/workflows/` | CI and deployment workflow definitions |
 
 
 ## Local system diagram
+
+The [diagram reference](docs/diagrams/README.md) also covers purchasing, cancellation and admission validation.
 
 ```mermaid
 flowchart TD
@@ -411,12 +417,11 @@ Screenshots will be added after the final presentation capture session.
 
 ## Documentation
 
-- [Architecture decisions](docs/adr/)
-- [API documentation](docs/api/)
+- [Architecture](docs/adr/README.md)
+- [API reference](docs/api/README.md)
+- [System and workflow diagrams](docs/diagrams/README.md)
 - [Security notes](docs/SECURITY.md)
 - [Privacy and data handling](docs/GDPR.md)
-- [Observability](docs/OBSERVABILITY.md)
-- [Operational runbooks](docs/runbooks/)
 - [Hosted deployment guide](https://github.com/Abbassimedayoub/FAN-iD/blob/deploy/README.md)
 
 ## Project maintenance
