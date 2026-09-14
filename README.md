@@ -152,9 +152,9 @@ Permissions, request bodies and preconditions vary by endpoint. Consult the gene
 | `mobile/` | Flutter application, Android configuration and mobile tests |
 | `infra/` | Local infrastructure, Nginx and telemetry configuration |
 | `scripts/` | Quality checks and repository tooling |
-| `docs/adr/` | Architecture decisions |
-| `docs/api/` | API documentation |
-| `docs/runbooks/` | Operational documentation |
+| `docs/adr/README.md` | Architecture overview |
+| `docs/api/README.md` | API reference |
+| `docs/diagrams/README.md` | System and workflow diagrams |
 | `.github/workflows/` | CI and deployment workflow definitions |
 
 
@@ -469,12 +469,12 @@ Screenshots will be added after the final presentation capture session.
 
 ## Documentation
 
-- [Local development guide](https://github.com/Abbassimedayoub/FAN-iD/blob/main/README.md)
-- [Render Blueprint](render.yaml)
-- [Architecture decisions](docs/adr/)
+- [Architecture](docs/adr/README.md)
+- [API reference](docs/api/README.md)
+- [System and workflow diagrams](docs/diagrams/README.md)
 - [Security notes](docs/SECURITY.md)
 - [Privacy and data handling](docs/GDPR.md)
-- [Operational runbooks](docs/runbooks/)
+- [Hosted deployment guide](#render-deployment)
 
 ## Author
 
