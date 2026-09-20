@@ -47,11 +47,7 @@ def _latest_request(
 
 
 class OrganizerReactivationRequestView(APIView):
-    """
-    Lecture/création de la demande du propre organisateur.
-
-    Cette route ne réactive jamais le compte.
-    """
+    """Read or create the current organizer's reactivation request; this route never reactivates the account itself."""
 
     permission_classes = [
         IsAuthenticated,
@@ -119,14 +115,7 @@ class AdminOrganizerReactivationRequestView(APIView):
 
 
 class AdminOrganizerReactivationApproveView(APIView):
-    """
-    Seul ADMIN peut approuver.
-
-    Action.ORGANIZER_APPROVE exige déjà STEP_UP dans
-    la matrice d'autorisation : l'admin doit donc
-    confirmer l'OTP avant que cette méthode puisse
-    effectuer SUSPENDED -> APPROVED.
-    """
+    """Only administrators may approve; the authorization matrix already requires step-up before SUSPENDED can transition to APPROVED."""
 
     permission_classes = [
         IsAuthenticated,
