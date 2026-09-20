@@ -1,11 +1,9 @@
 """
-Adaptateurs DRF : la traduction requete -> decision, et rien d autre.
+DRF authorization adapters: request-to-decision translation only.
 
-La matrice elle-meme est prouvee dans `test_authz_matrix.py`, sans Django. Ce
-fichier verifie uniquement ce que la matrice ne peut pas couvrir : la resolution
-de l action depuis la vue, la designation de la ressource depuis l objet, la
-traduction du refus en reponse HTTP, et l ABSENCE de requete SQL sur le chemin
-d autorisation.
+The pure policy matrix is tested separately. These tests cover action
+resolution, resource mapping, HTTP denial translation, and the absence of SQL
+queries on the authorization path.
 """
 
 from __future__ import annotations
@@ -40,13 +38,7 @@ ORG_ID = uuid.UUID("33333333-3333-4333-8333-333333333333")
 
 
 def fake_user(role: str = "FAN", *, is_active: bool = True, anonymized: bool = False) -> SimpleNamespace:
-    """
-    Utilisateur minimal : uniquement les attributs que lit `subject_from_request`.
-
-    Un faux plutot qu un enregistrement reel parce que ces tests portent sur la
-    TRADUCTION, pas sur le modele. Le lien avec le vrai modele est verifie
-    separement, en base, par les deux derniers tests du fichier.
-    """
+    """Minimal user double containing only attributes read by subject_from_request; these tests exercise translation rather than model persistence."""
     return SimpleNamespace(
         pk=USER_ID,
         is_authenticated=True,
@@ -65,7 +57,7 @@ def make_request(user: object | None, *, method: str = "get", auth_level: int | 
 
 
 class _View(APIView):
-    """Vue nue : la permission lit `required_action` dessus."""
+    """Bare view whose required_action is read by the permission adapter."""
 
     required_action = Action.DEVICE_LIST_SELF
 
@@ -75,7 +67,7 @@ class _RevokeView(APIView):
 
 
 class _MisconfiguredView(APIView):
-    """Aucune action declaree — defaut de configuration delibere."""
+    """No declared action: deliberate configuration error."""
 
 
 # ===========================================================================
@@ -84,13 +76,7 @@ class _MisconfiguredView(APIView):
 
 
 def test_a_view_without_a_declared_action_is_refused_not_allowed():
-    """
-    Le cas le plus dangereux : personne n a decide, donc on refuse.
-
-    Autoriser « puisqu aucune regle ne s applique » est le comportement par
-    defaut de DRF (`AllowAny`) et la cause la plus banale d exposition
-    involontaire d un point de terminaison.
-    """
+    """Missing authorization configuration must fail closed rather than imply permission."""
     permission = BasePolicyPermission()
     assert permission.has_permission(make_request(fake_user()), _MisconfiguredView()) is False
     assert permission.code == "FORBIDDEN"
@@ -103,7 +89,7 @@ def test_action_permission_resolves_the_action_from_the_viewset_table():
 
 
 def test_a_viewset_method_absent_from_the_table_is_refused():
-    """Ajouter une methode sans lui donner d action la rend inaccessible."""
+    """Adding a method without assigning an action makes it inaccessible."""
     view = SimpleNamespace(action="export", policy_actions={"list": Action.SESSION_LIST_SELF})
     permission = ActionPermission()
     assert permission.get_action(make_request(fake_user()), view) is None
@@ -123,7 +109,7 @@ def test_method_scoped_permission_splits_read_from_write():
 
 
 # ===========================================================================
-# Le verdict vient du moteur
+# The verdict comes from the policy engine
 # ===========================================================================
 
 
@@ -138,8 +124,7 @@ def test_a_role_that_never_holds_the_action_is_refused_at_the_preflight():
     assert ActionPermission().has_permission(fan, view) is False
     assert ActionPermission().has_permission(admin, view) is True
 
-    # Meme administrateur, authentification simple : le pre-controle exige deja
-    # la verification renforcee, alors qu aucun objet n est charge.
+    # Even for an administrator, the pre-check enforces step-up before any object is loaded.
     weak = make_request(fake_user("ADMIN"), auth_level=AUTH_LEVEL_PASSWORD)
     permission = ActionPermission()
     assert permission.has_permission(weak, view) is False
@@ -159,12 +144,7 @@ def test_the_preflight_passes_but_the_object_check_refuses_someone_else_s_device
 
 
 def test_the_refusal_never_tells_the_client_whose_resource_it_was():
-    """
-    `NOT_OWNER` reste dans les journaux ; le client recoit `FORBIDDEN`.
-
-    Sans cette opacite, l API devient un oracle d existence : l attaquant
-    enumere les identifiants en lisant les codes d erreur.
-    """
+    """Detailed NOT_OWNER reasoning stays in logs while the client receives the opaque FORBIDDEN response."""
     permission = SelfResourcePermission()
     request = make_request(fake_user("FAN"))
     permission.has_object_permission(request, _View(), SimpleNamespace(user_id=OTHER_USER_ID))
@@ -172,7 +152,7 @@ def test_the_refusal_never_tells_the_client_whose_resource_it_was():
 
 
 def test_the_base_class_refuses_a_self_scoped_action_because_it_designates_no_resource():
-    """Le socle ne peut pas ouvrir un acces par omission."""
+    """The base adapter cannot grant access by omission."""
     permission = BasePolicyPermission()
     granted = permission.has_object_permission(
         make_request(fake_user("FAN")), _View(), SimpleNamespace(user_id=USER_ID)
@@ -189,17 +169,7 @@ def test_the_owner_lookup_can_target_the_user_object_itself():
 
 
 def test_an_organizer_scoped_resource_is_refused_while_no_organizer_is_resolved():
-    """
-    La requete ne porte pas d organisateur : le refus est la bonne reponse.
-
-    Depuis le lot S1-A.8a, `organizer_id` n est plus resolu par `identity` mais
-    POSE sur la requete par le contexte proprietaire (ADR-S1-05). Une requete
-    non enrichie — cas de la quasi-totalite de l API — donne donc un sujet sans
-    organisateur, et le moteur refuse avec `RESOURCE_ATTRIBUTE_MISSING`.
-
-    Ce test fige la garantie fail-closed : l oubli d enrichissement REFUSE, il
-    n ouvre pas par omission.
-    """
+    """A request with no organizer context must fail closed with missing-resource context rather than gaining owner scope."""
     view = SimpleNamespace(required_action=Action.TICKET_SCAN, action=None, policy_actions={})
     permission = OrganizerResourcePermission()
     request = make_request(fake_user("SCANNER"))
@@ -251,7 +221,7 @@ def test_revoking_a_device_requires_step_up_and_says_so_to_the_client():
 
 
 def test_a_request_without_any_declared_auth_level_falls_back_to_the_lowest():
-    """Contexte incomplet : on refuse l action renforcee, on ne l accorde pas."""
+    """Incomplete context denies step-up actions rather than granting them."""
     subject = subject_from_request(make_request(fake_user("FAN")))
     assert subject.auth_level == AUTH_LEVEL_PASSWORD
 
@@ -267,12 +237,7 @@ def test_an_anonymized_account_keeps_no_right_at_all():
 
 
 def test_an_unrecognised_role_id_yields_a_sentinel_role_not_an_anonymous_subject():
-    """
-    Le refus serait le meme ; le diagnostic, non.
-
-    Retomber sur « anonyme » enverrait le lecteur des journaux chercher un
-    probleme de jeton la ou la table des roles a derive du code.
-    """
+    """Unknown-role context and anonymous context both deny, but diagnostics must distinguish them."""
     user = fake_user()
     user.role_id = uuid.uuid4()
     subject = subject_from_request(make_request(user))
@@ -291,14 +256,7 @@ def test_every_seeded_role_id_resolves_to_its_name():
 
 @pytest.mark.django_db
 def test_authorizing_a_real_user_costs_zero_query(django_assert_num_queries, roles):
-    """
-    Le controle d autorisation ne doit JAMAIS toucher la base.
-
-    `user.role.name` couterait une requete par controle, donc plusieurs par
-    requete HTTP, sur le chemin le plus chaud de l API — et resterait invisible
-    tant qu on ne compte pas. C est pour permettre cette resolution hors base
-    que les identifiants de role sont des UUIDv5 figes.
-    """
+    """Authorization checks must never trigger database queries; role resolution uses already-loaded fixed identifiers."""
     from apps.identity.models import User
 
     user = User.objects.create_user(
@@ -319,7 +277,7 @@ def test_authorizing_a_real_user_costs_zero_query(django_assert_num_queries, rol
 
 
 class _ApproveView(APIView):
-    """Vue reelle, uniquement pour l essai de bout en bout ci-dessous."""
+    """Real view used only for the end-to-end adapter test below."""
 
     required_action = Action.ORGANIZER_APPROVE
     permission_classes = [ActionPermission]
@@ -330,26 +288,15 @@ class _ApproveView(APIView):
 
 @pytest.mark.django_db
 def test_the_drf_cycle_really_calls_the_policy_and_turns_a_refusal_into_403(roles):
-    """
-    Bout en bout, dans les deux sens.
-
-    Le cas passant compte autant que le cas refuse : une vue qui repondrait 403
-    a tout le monde satisferait un test de refus isole tout en etant cassee.
-
-    `force_authenticate` est indispensable — poser `request.user` a la main ne
-    suffit pas, DRF reconstruit l utilisateur a partir de ses classes
-    d authentification et retomberait sur un anonyme, ce qui ferait passer le
-    test pour la mauvaise raison.
-    """
+    """End-to-end coverage verifies both allowed and denied paths, using force_authenticate so DRF sees the intended subject."""
     from rest_framework.test import force_authenticate
 
     from apps.identity.models import User
 
     def call(user, auth_level):
-        # On reutilise `make_request` : il pose `auth_level` sur la requete nue,
+        # Reuse make_request so auth_level is installed on the raw request.
         # avant que DRF ne l enveloppe. Ni mise en sourdine de mypy ni
-        # `setattr` : la premiere masquerait un vrai probleme de type, le second
-        # est signale par bugbear (B010) et n apporte rien qu une affectation
+        # Use direct assignment rather than suppressing type issues or using unnecessary setattr.
         # directe ne fasse deja.
         request = make_request(user, auth_level=auth_level)
         force_authenticate(request, user=user)
