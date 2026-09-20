@@ -1,9 +1,9 @@
 """
-Points de terminaison HTTP du contexte `identity`.
+HTTP endpoints for the `identity` context.
 
-Une vue ne fait que trois choses : valider la forme, appeler un service,
-traduire le resultat en reponse. Toute logique qui ne rentre pas dans ces trois
-lignes appartient a un service.
+A view validates input shape, calls a service, and translates the result into a
+response. Business logic that does not belong to those responsibilities lives
+in services.
 """
 
 from __future__ import annotations
@@ -84,28 +84,21 @@ from .tokens import TokenInvalidError
 
 def build_authentication_service() -> AuthenticationService:
     """
-    Assemble le service de connexion.
+    Build the authentication service through a replaceable module-level seam.
 
-    Fonction de module plutot qu appel direct dans la vue : c est le seul point
-    que les tests ont besoin de remplacer pour injecter un verrou en memoire a
-    la place de Redis. Une construction en dur dans `post()` obligerait a
-    corriger un client Redis reel dans chaque test de bout en bout.
+    Tests can inject an in-memory lock here without constructing a real Redis
+    client inside every endpoint test.
     """
     return AuthenticationService(binding=default_binding_service())
 
 
 def set_refresh_cookie(response: Response, refresh: str) -> None:
     """
-    Depose le refresh dans un cookie HttpOnly — chemin web uniquement.
+    Store the refresh token in an HttpOnly cookie for web clients only.
 
-    Tout est pilote par l environnement (§70) : aucun domaine n est ecrit en
-    dur. `REFRESH_COOKIE_DOMAIN` vide donne un cookie lie a l hote, qui est le
-    bon defaut. `HttpOnly` n est PAS configurable : un refresh lisible en
-    JavaScript annulerait l interet du dispositif.
-
-    `path` limite l envoi aux routes d authentification : le cookie ne part donc
-    pas avec chaque appel de l API, ce qui reduit d autant sa surface
-    d exposition.
+    Cookie domain and path come from environment-backed settings. HttpOnly is
+    mandatory so JavaScript cannot read the refresh token, while the narrow path
+    limits where the browser sends it.
     """
     response.set_cookie(
         settings.REFRESH_COOKIE_NAME,
@@ -158,28 +151,12 @@ def enforce_web_refresh_origin(request: Request) -> None:
 
 class RegistrationView(APIView):
     """
-    `POST /api/v1/auth/register` — creation d un compte supporter.
+    `POST /api/v1/auth/register` — create a supporter account.
 
-    **`AllowAny` explicite.** Le defaut du projet est desormais `DenyAll` : une
-    vue sans politique est refusee. Cette ligne est donc obligatoire, et c est
-    exactement l effet recherche — l ouverture au public d un point de
-    terminaison devient une decision ecrite, visible en revue de code, au lieu
-    d etre l etat par defaut de tout ce qu on oublie de configurer.
-
-    **Limitation de debit dediee.** `AnonRateThrottle` (60/min) est calibre pour
-    de la lecture ; l inscription merite bien plus strict. Le seuil dedie borne
-    l enumeration d adresses rendue possible par la reponse
-    `EMAIL_ALREADY_EXISTS` : la divulgation n est pas supprimee, elle est rendue
-    couteuse (3 tentatives par heure et par adresse IP, plan §3.3).
-
-    **Pas d idempotence par cle.** `IdempotencyMiddleware` exige un utilisateur
-    authentifie — la cle est scopee par compte, faute de quoi deux clients
-    partageant la meme cle se voleraient leurs reponses. L inscription est
-    anonyme par nature : elle ne peut donc pas en beneficier. Son idempotence
-    vient d ailleurs, de l unicite `citext` de l adresse : rejouer la meme
-    requete renvoie 400 `EMAIL_ALREADY_EXISTS`, jamais un second compte. Ce
-    n est pas equivalent — le client ne recupere pas la reponse d origine —
-    mais l invariant qui compte, « un seul compte par adresse », tient.
+    `AllowAny` is explicit because the project defaults to deny-all permissions.
+    A dedicated throttle limits account enumeration. Registration does not use
+    authenticated idempotency keys; case-insensitive email uniqueness instead
+    guarantees that replaying the same address never creates a second account.
     """
 
     permission_classes = [AllowAny]
@@ -217,23 +194,13 @@ class RegistrationView(APIView):
 
 class LoginView(APIView):
     """
-    `POST /api/v1/auth/login` — ouverture de session.
+    `POST /api/v1/auth/login` — open a session.
 
-    **Deux axes de limitation, simultanement** (plan §3.3). `ScopedRateThrottle`
-    borne l origine — 5 par minute et par adresse IP. `LoginAccountRateThrottle`
-    borne la CIBLE — 10 par heure et par compte. Le second est indispensable :
-    sans lui, un attaquant disposant de mille adresses IP dispose de mille fois
-    le quota sur le compte qu il vise.
-
-    **Le transport du refresh est decide par le client** (`client: web|mobile`).
-    Web : cookie HttpOnly, et le jeton n apparait PAS dans le corps. Mobile :
-    corps de reponse, et aucun cookie n est pose. Les deux ne se cumulent
-    jamais — un refresh present dans le corps est lisible en JavaScript, et le
-    cookie HttpOnly ne protegerait alors plus rien.
-
-    `authentication_classes = []` : une connexion n a par definition aucun
-    appelant authentifie a resoudre, et `SessionAuthentication` imposerait un
-    jeton CSRF des lors qu un cookie de session traine dans le navigateur.
+    Rate limits apply both to the request origin and the target account. Refresh
+    transport is client-specific: web receives an HttpOnly cookie, while mobile
+    receives the token in the response body. The two transports never overlap.
+    Login itself has no authentication classes because the caller is not yet
+    authenticated.
     """
 
     permission_classes = [AllowAny]
@@ -302,29 +269,12 @@ class LoginView(APIView):
 
 class RefreshView(APIView):
     """
-    `POST /api/v1/auth/token/refresh` — rotation du jeton de rafraichissement.
+    `POST /api/v1/auth/token/refresh` — rotate a refresh token.
 
-    **La source de lecture est celle que le client declare, et elle seule.**
-    `client=web` lit le cookie et ne regarde pas le corps ; `client=mobile` lit
-    le corps et ne regarde pas le cookie. Essayer une source puis retomber sur
-    l autre serait plus souple et reintroduirait exactement le cumul que le lot
-    S1-A.6c a ferme : un jeton accepte depuis deux transports annule la
-    protection que le cookie HttpOnly est cense apporter.
-
-    `authentication_classes = []` : l access est probablement EXPIRE — c est la
-    raison meme de l appel. Exiger une authentification ici rendrait le
-    rafraichissement impossible au moment ou il sert.
-
-    **La protection CSRF repose sur `SameSite=Strict`** (pose au lot S1-A.6c).
-    Le navigateur joint le cookie automatiquement : sans cet attribut, une page
-    tierce pourrait declencher une rotation a l insu de l utilisateur. Elle
-    n en lirait pas le resultat, mais elle le ferait DECONNECTER, puisque la
-    rotation invalide le jeton que son onglet legitime detient encore.
-
-    Le cookie n est PAS efface sur un refus. Le jeton est deja mort cote
-    serveur ; brancher une suppression de cookie sur le chemin d erreur ferait
-    entrer une preoccupation de transport dans le gestionnaire d exception,
-    pour un gain nul.
+    Web reads only the refresh cookie; mobile reads only the request body. The
+    endpoint has no access-token authentication because refresh exists precisely
+    for expired access tokens. Browser-origin checks protect cookie-backed
+    refreshes, and error paths do not add transport-specific cleanup behavior.
     """
 
     permission_classes = [AllowAny]
@@ -402,15 +352,9 @@ class RefreshView(APIView):
 
 def clear_refresh_cookie(response: Response) -> None:
     """
-    Retire le cookie de rafraichissement.
+    Remove the refresh cookie using the same path and domain that created it.
 
-    Le chemin et le domaine DOIVENT etre ceux qui ont servi a le poser : un
-    `delete_cookie` sur un autre chemin depose un second cookie vide a cote de
-    l original, qui continue tranquillement d exister.
-
-    Appele sur la deconnexion et le changement de mot de passe — pas sur les
-    chemins d erreur, ou le jeton est deja mort cote serveur et ou brancher une
-    suppression ferait entrer le transport dans le gestionnaire d exception.
+    This helper is used for logout and password change, not generic error paths.
     """
     response.delete_cookie(
         settings.REFRESH_COOKIE_NAME,
@@ -421,17 +365,11 @@ def clear_refresh_cookie(response: Response) -> None:
 
 class LogoutView(APIView):
     """
-    `POST /api/v1/auth/logout` — ferme la session courante.
+    `POST /api/v1/auth/logout` — close the current session.
 
-    `IsAuthenticated` et non une permission « self » : il n y a aucun
-    identifiant de ressource dans la requete. La session fermee est celle que
-    porte le jeton presente, donc l appartenance est STRUCTURELLE — le client
-    n a aucun moyen de designer la session d autrui, et une regle de perimetre
-    n aurait rien a comparer.
-
-    Renvoie `204` sans corps. Un second appel renvoie `401` : la session est
-    deja revoquee et l authentification la refuse. C est le comportement
-    attendu et sans double effet (ADR-S1-03).
+    The token itself identifies the session, so there is no separate resource ID
+    to scope. Repeating logout is naturally rejected by authentication after the
+    first revocation.
     """
 
     permission_classes = [IsAuthenticated]
@@ -458,20 +396,11 @@ class LogoutView(APIView):
 
 class PasswordChangeView(APIView):
     """
-    `POST /api/v1/auth/password/change` — change le mot de passe et deconnecte
-    partout.
+    `POST /api/v1/auth/password/change` — change the password and revoke all sessions.
 
-    Le mot de passe actuel est exige : sans lui, un jeton vole suffirait a
-    verrouiller le compte de sa victime, ce qui transformerait un vol de session
-    en prise de controle definitive.
-
-    Toutes les sessions tombent, **y compris celle de l appelant** : le client
-    doit se reconnecter. `204` sans corps, cookie de rafraichissement retire.
-
-    Le quota de 5/h porte sur le COMPTE et non sur l adresse IP —
-    `ScopedRateThrottle` se cale sur la cle primaire des lors que l appelant est
-    authentifie, ce qui est le bon axe ici, contrairement a la connexion ou il
-    ne l etait pas encore.
+    The current password is required so a stolen session alone cannot take over
+    the account. The caller's session is revoked too and the client must log in
+    again. Rate limiting is account-scoped because the caller is authenticated.
     """
 
     permission_classes = [IsAuthenticated]
@@ -498,9 +427,8 @@ class PasswordChangeView(APIView):
         serializer.is_valid(raise_exception=True)
 
         build_authentication_service().change_password(
-            # `request.user` est type comme un utilisateur abstrait par les
-            # stubs ; `IsAuthenticated` garantit deja qu il s agit d un compte
-            # reel, la conversion ne fait que le dire au verificateur.
+            # Type stubs expose an abstract user; IsAuthenticated guarantees a real account,
+            # so this cast only communicates that fact to the type checker.
             user=cast(User, request.user),
             current_password=serializer.validated_data["current_password"],
             new_password=serializer.validated_data["new_password"],
@@ -512,7 +440,7 @@ class PasswordChangeView(APIView):
 
 
 def build_password_reset_service() -> PasswordResetService:
-    """Point d'assemblage remplaçable dans les tests."""
+    """Replaceable service-construction seam for tests."""
     return PasswordResetService()
 
 
@@ -614,7 +542,7 @@ class PasswordResetConfirmView(APIView):
 
 
 def build_step_up_service() -> StepUpService:
-    """Assemble le service STEP_UP — point remplacable par les tests."""
+    """Build the step-up service through a replaceable test seam."""
     return StepUpService(sender=build_notification_sender())
 
 
@@ -688,7 +616,7 @@ class StepUpConfirmView(APIView):
 
 
 def build_device_reset_service() -> DeviceResetService:
-    """Assemble le service de reinitialisation — seul point remplace par les tests."""
+    """Build the device-reset service through the test replacement seam."""
     return DeviceResetService(binding=default_binding_service(), sender=build_notification_sender())
 
 
@@ -796,19 +724,19 @@ class DeviceResetConfirmView(APIView):
 
 
 # ---------------------------------------------------------------------------
-# Libre-service du compte — fermeture du §3.3
+# Account self-service
 # ---------------------------------------------------------------------------
 
 logger = logging.getLogger("fanid.identity")
 
 
 def build_profile_service() -> ProfileService:
-    """Assemble le service de profil — point unique remplaçable par les tests."""
+    """Build the profile service through a replaceable test seam."""
     return ProfileService()
 
 
 def build_phone_change_service() -> PhoneChangeService:
-    """Assemble le service de changement de téléphone."""
+    """Build the phone-change service."""
     return PhoneChangeService(
         sender=build_notification_sender(),
     )
@@ -821,8 +749,7 @@ class MeView(APIView):
     read_action = Action.USER_READ_SELF
     write_action = Action.USER_UPDATE_SELF
 
-    # La lecture garde le quota authentifié général (300/min), tandis que
-    # l'écriture porte la portée dédiée 20/h du §3.3.
+    # Reads use the general authenticated quota while writes use the dedicated profile-update scope.
     throttle_scope = "profile_update"
 
     def get_throttles(self) -> list[Any]:
@@ -944,9 +871,8 @@ class MeView(APIView):
                         }
                     ) from exc
 
-        # Un PATCH vide ou composé uniquement de champs hors contrat est un
-        # no-op : pas de nouvelle version artificielle. La précondition reste
-        # néanmoins vérifiée, comme pour toute écriture optimiste.
+        # An empty PATCH, or one containing no effective contract fields, is a no-op.
+        # Still verify the optimistic-lock precondition without creating a new version.
         if not changes:
             if expected_version != user.version:
                 raise StaleResourceError(details={"current_version": user.version})
@@ -984,7 +910,7 @@ class MeView(APIView):
 
 
 class SessionListView(APIView):
-    """GET /api/v1/auth/sessions — sessions actives du sujet uniquement."""
+    """GET /api/v1/auth/sessions — active sessions for the current subject only."""
 
     permission_classes = [IsAuthenticated, ActionPermission]
     required_action = Action.SESSION_LIST_SELF
@@ -1016,7 +942,7 @@ class SessionListView(APIView):
 
 
 class SessionRevokeView(APIView):
-    """DELETE /api/v1/auth/sessions/{id} — révocation self-service."""
+    """DELETE /api/v1/auth/sessions/{id} — self-service session revocation."""
 
     permission_classes = [IsAuthenticated, SelfResourcePermission]
     required_action = Action.SESSION_REVOKE_SELF
@@ -1024,8 +950,7 @@ class SessionRevokeView(APIView):
     throttle_scope = "session_revoke"
 
     def get_object(self, request: Request, session_id: Any) -> Session:
-        # Filtrer AVANT le lookup évite de révéler par 403 l'existence d'une
-        # session appartenant à un autre compte.
+        # Scope by owner before lookup so a 403 cannot reveal another account's session.
         session = Session.objects.for_user(cast(User, request.user)).filter(pk=session_id).first()
         if session is None:
             raise NotFoundBusinessError()
@@ -1065,7 +990,7 @@ class SessionRevokeView(APIView):
 
 
 class DeviceMeView(APIView):
-    """GET /api/v1/devices/me — appareil actif et historique récent."""
+    """GET /api/v1/devices/me — active device and recent device history."""
 
     permission_classes = [IsAuthenticated, ActionPermission]
     required_action = Action.DEVICE_LIST_SELF
@@ -1101,10 +1026,9 @@ class DeviceMeView(APIView):
 
 class PhoneChangeRequestView(APIView):
     """
-    Demande un OTP pour remplacer un téléphone déjà enregistré.
+    Request an OTP before replacing an already-registered phone number.
 
-    L'ancien numéro reste l'unique valeur persistée jusqu'à la
-    confirmation.
+    The old number remains the only persisted value until confirmation succeeds.
     """
 
     permission_classes = [
@@ -1217,7 +1141,7 @@ class PhoneChangeRequestView(APIView):
 
 
 class PhoneChangeConfirmView(APIView):
-    """Valide l'OTP puis remplace atomiquement le téléphone."""
+    """Validate the OTP and atomically replace the phone number."""
 
     permission_classes = [
         IsAuthenticated,
