@@ -1,14 +1,10 @@
 """
-Reinitialisation d appareil — l oracle, le compteur, et la deliaison.
+Device-reset tests cover enumeration resistance, attempt counting, and device
+unbinding.
 
-Trois tests portent le lot :
-
-- `test_an_unknown_address_gets_the_same_shape_as_a_success` : sans lui, la
-  presence du `challenge_id` dirait si le compte existe ;
-- `test_a_wrong_code_really_increments_the_counter` : sans lui, un increment
-  annule par la transaction laisserait le plafond de cinq inatteignable ;
-- `test_three_concurrent_requests_leave_one_usable_challenge` : exigence §6.3
-  du plan.
+Key cases verify that unknown accounts return the same public shape, failed-code
+attempts really persist, and concurrent reset requests leave only one usable
+challenge.
 """
 
 from __future__ import annotations
@@ -74,31 +70,25 @@ def fan(db, roles) -> User:
 
 
 def code_from(sender: InMemorySender) -> str:
-    """Extrait le code du dernier courriel capture."""
+    """Extract the code from the last captured email."""
     body = sender.emails_sent[-1]["body"]
     return "".join(c for c in body.split("est ")[1][:6])
 
 
 def bind(auth: AuthenticationService, fan: User):
-    """Ouvre une session avec un appareil lie — le point de depart du parcours."""
+    """Open a session with a bound device as the reset-flow starting point."""
     return auth.login(
         LoginCommand(email=fan.email, password=PASSWORD, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     )
 
 
 # ===========================================================================
-# Anti-enumeration
+# Enumeration resistance
 # ===========================================================================
 
 
 def test_an_unknown_address_gets_the_same_shape_as_a_success(service, fan):
-    """
-    **Le test qui ferme l oracle.**
-
-    Ne renvoyer un `challenge_id` qu en cas de succes ferait de sa PRESENCE le
-    signal que le compte existe — exactement ce que le corps identique et le
-    temps identique cherchaient a empecher.
-    """
+    """Unknown addresses must receive the same challenge-shaped response as successful requests."""
     known = service.request(email="supporter@example.test", password=PASSWORD)
     unknown = service.request(email="jamais-inscrit@example.test", password=PASSWORD)
 
@@ -117,11 +107,7 @@ def test_a_wrong_password_creates_nothing_and_sends_nothing(service, fan, sender
 
 
 def test_an_unknown_address_still_pays_the_price_of_a_hash(service, roles, monkeypatch):
-    """
-    Sans hachage factice, une adresse inconnue repondrait en une milliseconde la
-    ou une adresse connue coute le temps d Argon2id. On compte l appel plutot
-    que le temps : l environnement de test installe un hacheur rapide.
-    """
+    """Unknown-address requests must still execute the decoy password check to avoid a timing oracle."""
     calls: list[str] = []
     import apps.identity.services.device_reset as module
 
@@ -154,7 +140,7 @@ def test_a_fake_challenge_id_is_refused_like_a_wrong_code(service, fan):
 
 
 # ===========================================================================
-# Emission
+# Issuance
 # ===========================================================================
 
 
@@ -179,7 +165,7 @@ def test_the_code_is_six_digits_and_reaches_the_account(service, fan, sender):
 
 
 def test_a_new_request_invalidates_the_previous_code(service, fan, sender):
-    """§3.1 : emettre un nouveau code invalide les precedents."""
+    """Issuing a new reset code invalidates previous open challenges."""
     first = service.request(email="supporter@example.test", password=PASSWORD)
     old_code = code_from(sender)
     service.request(email="supporter@example.test", password=PASSWORD)
@@ -198,11 +184,7 @@ def test_only_one_challenge_stays_open(service, fan):
 
 
 def test_three_concurrent_requests_leave_one_usable_challenge(service, fan):
-    """
-    Exigence §6.3 du plan. Le verrou sur la ligne du compte serialise les
-    demandes : sans lui, les trois liraient un etat ou aucun defi n existe et en
-    laisseraient trois ouverts, donc trois codes valides.
-    """
+    """The account-row lock serializes concurrent requests so only one challenge remains usable."""
     for _ in range(3):
         service.request(email="supporter@example.test", password=PASSWORD)
 
@@ -225,20 +207,12 @@ def test_the_fake_path_publishes_nothing(service, fan):
 
 
 # ===========================================================================
-# Le compteur de tentatives
+# Attempt counter
 # ===========================================================================
 
 
 def test_a_wrong_code_really_increments_the_counter(service, fan):
-    """
-    **Le test qui porte le lot.**
-
-    Compter la tentative PUIS lever l exception a l interieur de la transaction
-    annulerait l increment : le compteur resterait a zero, le plafond de cinq ne
-    serait jamais atteint, et le code se forcerait tranquillement. L erreur
-    serait pourtant bien levee — donc invisible a un test qui se contente de
-    verifier le refus.
-    """
+    """A failed-code attempt must commit its counter increment before the public error is raised."""
     opened = service.request(email="supporter@example.test", password=PASSWORD)
 
     with pytest.raises(OtpInvalidError):
@@ -262,16 +236,13 @@ def test_the_fifth_failure_consumes_the_challenge_for_good(service, fan, sender)
     assert challenge.attempts == OTP_MAX_ATTEMPTS
     assert challenge.consumed_at is not None
 
-    # Meme le BON code ne rouvre plus rien.
+    # Even the correct code cannot reopen an exhausted challenge.
     with pytest.raises(OtpInvalidError):
         service.confirm(challenge_id=opened.challenge_id, code=good)
 
 
 def test_an_expired_challenge_is_refused_like_an_unknown_one(service, fan, sender):
-    """
-    `OTP_EXPIRED` existe au §3.4 mais reste inutilise : distinguer « expire »
-    confirmerait qu un defi a existe pour cet identifiant.
-    """
+    """Expired and otherwise invalid challenges intentionally share the same public error."""
     opened = service.request(email="supporter@example.test", password=PASSWORD)
     good = code_from(sender)
     MfaChallenge.objects.filter(pk=opened.challenge_id).update(
@@ -292,7 +263,7 @@ def test_a_consumed_challenge_cannot_be_replayed(service, fan, sender):
 
 
 # ===========================================================================
-# Deliaison
+# Device unbinding
 # ===========================================================================
 
 
@@ -307,7 +278,7 @@ def test_a_confirmed_reset_unbinds_the_device(service, auth, fan, sender):
 
 
 def test_the_slot_is_free_for_a_new_device(service, auth, fan, sender):
-    """Le but du parcours : pouvoir se reconnecter depuis un autre telephone."""
+    """The recovery flow must allow a later login from another device."""
     bind(auth, fan)
     opened = service.request(email="supporter@example.test", password=PASSWORD)
     service.confirm(challenge_id=opened.challenge_id, code=code_from(sender))
@@ -332,7 +303,7 @@ def test_all_sessions_fall_with_the_device(service, auth, fan, sender):
 
 
 def test_a_reset_without_any_bound_device_still_succeeds(service, fan, sender):
-    """Rien a delier n est pas une erreur : le compte reste utilisable."""
+    """Having no active device to unbind is not an error."""
     opened = service.request(email="supporter@example.test", password=PASSWORD)
 
     result = service.confirm(challenge_id=opened.challenge_id, code=code_from(sender))
@@ -352,10 +323,7 @@ def test_a_confirmation_publishes_one_event_without_personal_data(service, auth,
 
 
 def test_no_token_is_issued_by_a_reset(service, auth, fan, sender):
-    """
-    La preuve apportee vaut pour cette action, pas au-dela. Emettre une paire
-    ici creerait une seconde porte d entree a l authentification.
-    """
+    """Reset proof authorizes only this action; confirmation must not issue authentication tokens."""
     bind(auth, fan)
     opened = service.request(email="supporter@example.test", password=PASSWORD)
 
@@ -366,7 +334,7 @@ def test_no_token_is_issued_by_a_reset(service, auth, fan, sender):
 
 
 def test_the_auth_level_is_never_raised(service, auth, fan, sender):
-    """ADR-S1-04 : aucune session a elever, la preuve est consommee sur place."""
+    """No session is elevated; the reset proof is consumed by this operation."""
     bind(auth, fan)
     opened = service.request(email="supporter@example.test", password=PASSWORD)
     service.confirm(challenge_id=opened.challenge_id, code=code_from(sender))
