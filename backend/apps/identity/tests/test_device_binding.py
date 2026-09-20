@@ -1,11 +1,8 @@
 """
-Liaison d appareil : un seul appareil actif, et aucune panne qui ouvre l acces.
+Device binding: at most one active device and no infrastructure failure may open access.
 
-Le test decisif est `test_binding_still_works_when_redis_is_down` : il simule la
-panne par un backend qui LEVE, plutot qu en arretant un conteneur. C est plus
-fiable — pas de conteneur a redemarrer, pas de test qui echoue selon l ordre
-d execution — et strictement equivalent du point de vue du service, qui ne voit
-de Redis que les exceptions qu il produit.
+Redis outages are simulated through a backend that raises the same transient
+failure seen by the service, keeping the test deterministic.
 """
 
 from __future__ import annotations
@@ -29,26 +26,13 @@ TABLET = "b" * 64
 
 
 def bound(device: Device | None) -> Device:
-    """
-    Restreint `Device | None` a `Device`.
-
-    `bind()` et `assert_matches()` renvoient `None` pour les roles exemptes du
-    verrou (ADR-03). Ce n est donc pas une precaution de typage : le `None` est
-    un cas metier reel, et l assertion dit explicitement qu on ne l attend PAS
-    ici. Un `# type: ignore` aurait masque la difference.
-    """
+    """Narrow `Device | None` to Device in test cases where an exempt-role result is not expected."""
     assert device is not None, "un appareil etait attendu, aucun n a ete lie"
     return device
 
 
 class BrokenLock(DeviceLockBackend):
-    """
-    Redis injoignable : toute operation leve.
-
-    `OSError` plutot que `redis.exceptions.RedisError` pour que le test ne
-    depende pas de la presence du client Redis — les deux figurent dans
-    `TRANSIENT_FAILURES`, et c est precisement ce que ce test doit prouver.
-    """
+    """Simulate an unreachable Redis backend with a transient OSError without depending on the Redis client package."""
 
     def acquire(self, *args, **kwargs):
         raise OSError("redis injoignable")
@@ -99,13 +83,7 @@ def service() -> DeviceBindingService:
     ],
 )
 def test_a_malformed_fingerprint_is_refused(service, bad, why):
-    """
-    On REFUSE plutot que de normaliser.
-
-    Mettre l empreinte en minuscules a la volee masquerait un client qui envoie
-    n importe quoi — et le jour ou ce client changera de forme, le probleme
-    apparaitra ailleurs, sans lien apparent.
-    """
+    """Reject malformed fingerprint casing instead of silently normalizing client mistakes."""
     with pytest.raises(InvalidFingerprintError):
         service.validate_fingerprint(bad)
 
@@ -149,11 +127,7 @@ def test_binding_the_same_device_twice_does_not_create_a_second_row(service, fan
 
 @pytest.mark.django_db
 def test_a_second_device_is_refused_with_enough_detail_to_be_recognised(service, fan):
-    """
-    Le corps du refus doit permettre a l utilisateur de reconnaitre son ancien
-    telephone — sinon le message est inutilisable — sans renseigner quelqu un
-    qui viendrait de prouver le mot de passe d autrui. D ou le libelle tronque.
-    """
+    """The refusal includes only a truncated label: enough for recognition without unnecessary disclosure."""
     service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID, label="Pixel 8 de Ines")
 
     with pytest.raises(DeviceLockedError) as caught:
@@ -169,10 +143,7 @@ def test_a_second_device_is_refused_with_enough_detail_to_be_recognised(service,
 
 @pytest.mark.django_db
 def test_a_revoked_device_frees_the_slot(service, fan):
-    """
-    L unicite est PARTIELLE : elle ne porte que sur les appareils actifs.
-    L historique reste, ce qui permet l audit d une rotation d appareils.
-    """
+    """Partial uniqueness applies only to active devices so revoked-device history remains available."""
     first = service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     service.revoke(first, DEVICE_REVOKED_USER_RESET)
 
@@ -187,11 +158,7 @@ def test_a_revoked_device_frees_the_slot(service, fan):
 @pytest.mark.django_db
 @pytest.mark.parametrize("role", ["ORGANIZER", "ADMIN"])
 def test_the_exempt_roles_are_never_bound_to_a_device(roles, service, role):
-    """
-    ADR-03. Un organisateur travaille depuis un poste fixe, un telephone, et
-    parfois la machine d un collaborateur : lui imposer un appareil unique
-    transformerait chaque changement de poste en parcours de reinitialisation.
-    """
+    """Organizer and administrator roles are intentionally exempt from the single-device lock."""
     user = make_user(roles, role=role)
 
     assert service.bind(user=user, fingerprint=PHONE, platform=PLATFORM_ANDROID) is None
@@ -206,11 +173,7 @@ def test_the_exempt_roles_are_never_bound_to_a_device(roles, service, role):
 
 @pytest.mark.django_db
 def test_last_seen_is_not_rewritten_on_every_request(service, fan):
-    """
-    Sans cette paresse, CHAQUE requete de l API produirait une ecriture sur
-    `identity_device`. Au pic de connexions — l ouverture des portes — c est la
-    base qui sature, pour une donnee dont personne ne lit la minute exacte.
-    """
+    """Lazy last-seen updates avoid writing identity_device on every API request."""
     device = service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     original = Device.objects.get(pk=device.pk).last_seen_at
 
@@ -230,7 +193,7 @@ def test_last_seen_is_refreshed_once_the_delay_has_passed(service, fan):
 
 
 # ===========================================================================
-# Verification a chaque requete
+# Per-request verification
 # ===========================================================================
 
 
@@ -247,11 +210,7 @@ def test_the_bound_device_is_accepted_and_any_other_is_refused(service, fan):
 
 @pytest.mark.django_db
 def test_a_mismatched_device_is_a_401_not_a_403(service, fan):
-    """
-    Un jeton presente depuis un autre appareil est un jeton probablement vole.
-    La bonne reponse est « cette identite n est pas prouvee », pas « vous n avez
-    pas le droit » : c est un probleme d authentification, pas d autorisation.
-    """
+    """A token presented from another device is treated as authentication failure because it may be stolen."""
     service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     with pytest.raises(DeviceMismatchError) as caught:
@@ -263,10 +222,7 @@ def test_a_mismatched_device_is_a_401_not_a_403(service, fan):
 
 @pytest.mark.django_db
 def test_an_empty_cache_authorizes_nothing_by_itself(fan):
-    """
-    Cache froid : le service relit la verite en base. Un verrou absent ne doit
-    JAMAIS valoir autorisation — c est la forme la plus courante du fail-open.
-    """
+    """A cold cache falls back to database truth; a missing cache lock never means authorization."""
     service = DeviceBindingService(lock=FakeDeviceLock())
     device = bound(service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID))
 
@@ -283,16 +239,13 @@ def test_a_user_without_any_device_matches_nothing(service, fan):
 
 
 # ===========================================================================
-# Panne de Redis — jamais fail-open
+# Redis outage — never fail open
 # ===========================================================================
 
 
 @pytest.mark.django_db
 def test_binding_still_works_when_redis_is_down(fan):
-    """
-    Redis n est qu un cache de decision : sa panne coute une requete SQL, pas un
-    droit. La verite reste `UNIQUE(user_id) WHERE revoked_at IS NULL`.
-    """
+    """Redis is only a decision cache; an outage costs a SQL lookup, not a security guarantee."""
     degraded = DeviceBindingService(
         lock=ResilientDeviceLock(primary=BrokenLock(), fallback=PostgresDeviceLock())
     )
@@ -305,14 +258,7 @@ def test_binding_still_works_when_redis_is_down(fan):
 
 @pytest.mark.django_db
 def test_a_redis_outage_never_opens_the_lock(fan):
-    """
-    Le test qui compte. Redis muet, un appareil deja lie : un SECOND appareil
-    doit toujours etre refuse.
-
-    Le chemin le plus tentant a coder — `except: return True` — passerait tous
-    les tests nominaux et ouvrirait le compte a n importe quel appareil le jour
-    d une panne.
-    """
+    """With Redis unavailable and one device already bound, a second device must still be rejected."""
     degraded = DeviceBindingService(
         lock=ResilientDeviceLock(primary=BrokenLock(), fallback=PostgresDeviceLock())
     )
@@ -326,12 +272,7 @@ def test_a_redis_outage_never_opens_the_lock(fan):
 
 
 def test_when_the_fallback_fails_too_the_error_propagates():
-    """
-    Fail-closed jusqu au bout : si les deux backends tombent, l exception
-    remonte, la requete part en erreur et l acces est refuse. Renvoyer `True`
-    « pour ne pas bloquer les utilisateurs » serait exactement la mauvaise
-    reponse.
-    """
+    """If both primary and fallback backends fail, propagate the error and deny access rather than failing open."""
     doomed = ResilientDeviceLock(primary=BrokenLock(), fallback=BrokenLock())
 
     with pytest.raises(OSError):
@@ -341,7 +282,7 @@ def test_when_the_fallback_fails_too_the_error_propagates():
 
 
 # ===========================================================================
-# Le repli PostgreSQL, isole
+# PostgreSQL fallback in isolation
 # ===========================================================================
 
 
@@ -357,12 +298,7 @@ def test_the_postgres_lock_reads_the_single_source_of_truth(service, fan):
 
 @pytest.mark.django_db
 def test_releasing_the_postgres_lock_does_not_unbind_anything(service, fan):
-    """
-    `release()` est sans effet, deliberement : liberer le verrou signifierait
-    revoquer l appareil, une operation metier qui exige un motif et laisse une
-    trace. Un `release()` silencieux offrirait un chemin de deliaison sans l un
-    ni l autre.
-    """
+    """Database-backed release is intentionally a no-op because device revocation is a separate audited business operation."""
     device = service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     lock = PostgresDeviceLock()
 
