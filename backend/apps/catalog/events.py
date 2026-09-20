@@ -1,7 +1,7 @@
 """
-Evenements publics emis par le contexte `catalog`.
+Public events emitted by the `catalog` context.
 
-Seules les transitions utiles aux autres contextes sont publiees ici.
+Only transitions useful to other contexts are published here.
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ def event_status_payload(
     status: str,
 ) -> dict[str, Any]:
     """
-    Charge utile minimale.
+    Minimal event payload.
 
-    L identifiant de l evenement est deja porte par aggregate_id.
-    Les consommateurs recupereront les donnees supplementaires via
-    le contrat public du catalogue plutot que dupliquer le modele.
+    The event identifier is already carried by `aggregate_id`; consumers fetch
+    additional data through the public catalog contract rather than duplicating
+    the model.
     """
 
     return {
@@ -48,11 +48,10 @@ def event_lifecycle_payload(
     previous_ends_at: Any = None,
 ) -> dict[str, Any]:
     """
-    Contrat Outbox sans donnée personnelle.
+    Outbox contract without personal data.
 
-    Les adresses des acheteurs ne sont jamais copiées dans l événement.
-    Le futur consommateur Ordering/Notifying résoudra les destinataires
-    à partir de l identifiant aggregate_id.
+    Buyer addresses are never copied into the event. Consumers resolve
+    recipients from `aggregate_id` through their own context contracts.
     """
 
     payload = event_status_payload(
