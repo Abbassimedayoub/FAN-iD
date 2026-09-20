@@ -1,6 +1,6 @@
 /**
- * Taxonomie des erreurs côté client (§4.2 Source B) — le message affiché
- * dépend de la CLASSE d'erreur, jamais du code HTTP brut affiché tel quel.
+ * Client-side error taxonomy. The displayed message depends on the error
+ * class, never directly on the raw HTTP status code.
  */
 export type AppErrorClass =
   "network" | "auth" | "permission" | "not_found" | "business" | "server" | "unknown";
@@ -52,9 +52,8 @@ function isApiErrorBody(data: unknown): data is ApiErrorBody {
 }
 
 /**
- * Traduit une erreur Axios en `AppError` typée, selon le contrat d'erreur
- * gelé au Sprint 0 (`{ error: { code, message, details, correlation_id,
- * trace_id } }`, §17 master prompt / §3.3 Source B).
+ * Convert an Axios error into a typed `AppError` using the stable API error
+ * envelope: `{ error: { code, message, details, correlation_id, trace_id } }`.
  */
 export function toAppError(error: unknown): AppError {
   if (isAppError(error)) {
@@ -100,7 +99,7 @@ function classify(httpStatus: number, _code: string): AppErrorClass {
   return "unknown";
 }
 
-// Types utilitaires minimaux pour ne pas dépendre directement du type Axios ici.
+// Minimal utility types keep this module independent from Axios' concrete type.
 interface MaybeAxiosError {
   response?: { status?: number; data?: unknown };
 }
