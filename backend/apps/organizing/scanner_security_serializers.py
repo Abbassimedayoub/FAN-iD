@@ -14,7 +14,7 @@ class ScannerSecurityCodeConfirmSerializer(serializers.Serializer):
     challenge_id = serializers.UUIDField()
 
     # Volontairement max_length uniquement :
-    # une mauvaise forme compte comme tentative OTP.
+    # Malformed values still count as OTP attempts.
     code = serializers.CharField(
         max_length=16,
         trim_whitespace=True,
