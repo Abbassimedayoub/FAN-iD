@@ -28,7 +28,10 @@ REFRESH_LIFETIME = datetime.timedelta(days=7)
 
 
 def now() -> datetime.datetime:
-    """Use the current instant with explicit offsets rather than a fixed issue date that eventually makes every token expired."""
+    """
+    Use the current instant with explicit offsets rather than a fixed issue date that eventually
+    makes every token expired.
+    """
     return datetime.datetime.now(datetime.timezone.utc)
 
 
@@ -60,7 +63,10 @@ def test_an_access_token_round_trips_with_its_business_claims(settings):
 
 
 def test_the_identifier_and_expiry_are_returned_rather_than_re_read(settings):
-    """Return jti and expiration directly so callers can persist exactly what was signed without re-decoding the token."""
+    """
+    Return jti and expiration directly so callers can persist exactly what was signed without
+    re-decoding the token.
+    """
     moment = now()
     token, jti, expires_at = issue(at=moment, lifetime=REFRESH_LIFETIME)
 
@@ -83,7 +89,10 @@ def test_two_tokens_issued_in_the_same_instant_have_different_identifiers(settin
 
 
 def test_a_refresh_token_is_refused_where_an_access_token_is_expected(settings):
-    """A refresh token must never be accepted as an access token, or long-lived tokens would bypass rotation entirely."""
+    """
+    A refresh token must never be accepted as an access token, or long-lived tokens would bypass
+    rotation entirely.
+    """
     refresh, _, _ = issue(TokenType.REFRESH, lifetime=REFRESH_LIFETIME, family=str(uuid.uuid4()))
 
     with pytest.raises(TokenInvalidError):
@@ -139,7 +148,8 @@ def test_a_token_signed_with_another_algorithm_is_refused(settings):
             "exp": int((now() + ACCESS_LIFETIME).timestamp()),
             "iss": settings.JWT_ISSUER,
         },
-        # Use a longer key only to avoid PyJWT's SHA-512 key-length warning; the test targets algorithm rejection.
+        # Use a longer key only to avoid PyJWT's SHA-512 key-length warning; the test targets
+        # algorithm rejection.
         # qu il annonce.
         (settings.JWT_SIGNING_KEY * 4)[:64],
         algorithm="HS512",
@@ -186,7 +196,10 @@ def test_a_tampered_payload_breaks_the_signature(settings):
 
 
 def test_an_expired_token_is_reported_as_expired_not_as_invalid(settings):
-    """Expired tokens keep a distinct public error so clients know to refresh instead of forcing a new login."""
+    """
+    Expired tokens keep a distinct public error so clients know to refresh instead of forcing a new
+    login.
+    """
     settings.JWT_LEEWAY_SECONDS = 0
     long_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
     token, _, _ = issue(at=long_ago)
@@ -217,7 +230,10 @@ def test_the_clock_tolerance_is_bounded_and_explicit(settings):
 
 @pytest.mark.parametrize("missing", REQUIRED_CLAIMS)
 def test_a_token_missing_any_required_claim_is_refused(settings, missing):
-    """Require exp, jti, and token_type explicitly so tokens cannot become immortal, irrevocable, or interchangeable."""
+    """
+    Require exp, jti, and token_type explicitly so tokens cannot become immortal, irrevocable, or
+    interchangeable.
+    """
     payload = {
         "sub": str(SUBJECT),
         "token_type": "access",
@@ -260,7 +276,10 @@ def test_garbage_is_refused_without_raising_anything_else(settings):
 
 
 def test_no_secret_ever_reaches_the_payload(settings):
-    """JWT payloads are signed, not encrypted; keep the emitted claim set intentionally minimal and auditable."""
+    """
+    JWT payloads are signed, not encrypted; keep the emitted claim set intentionally minimal and
+    auditable.
+    """
     token, _, _ = issue(role="FAN", did="d-1", sid="s-1", auth_level=1)
     claims = decode_token(token, expected_type=TokenType.ACCESS)
 
