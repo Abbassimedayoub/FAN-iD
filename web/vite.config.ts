@@ -8,7 +8,7 @@ export default defineConfig({
     alias: { "@": "/src" },
   },
   build: {
-    // Budget bundle initial < 200 Ko gzip, vérifié en CI (§4.3 Source B).
+    // Initial bundle budget: < 200 KB gzip, enforced in CI.
     chunkSizeWarningLimit: 200,
   },
   test: {
