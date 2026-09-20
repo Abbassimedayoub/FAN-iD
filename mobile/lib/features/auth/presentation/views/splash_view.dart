@@ -4,19 +4,19 @@ import 'package:fanid_mobile/design_system/design_system.dart';
 
 /// FAN-01 · Splash — **vue purement visuelle**.
 ///
-/// ## Ce que cette vue ne fait pas, et ne doit jamais faire
+/// ## What this view does not do
 ///
-/// * aucun `Timer`, aucun `initState`, aucun `Future` ;
-/// * aucun `context.go`, aucun import `go_router` ;
-/// * aucune lecture de l etat d authentification.
+/// * no `Timer`, `initState`, or `Future`;
+/// * no `context.go` and no `go_router` import;
+/// * no authentication-state lookup.
 ///
-/// Elle **affiche**, elle ne **decide** pas. La decision — rester ici, aller
+/// It **renders**; it does not **decide** navigation.
 /// vers Login, aller vers l accueil — appartient au `redirect` du routeur, qui
 /// observe deja `authControllerProvider`. Deux autorites de navigation
 /// concurrentes (un `Timer` local et un `redirect`) finissent toujours par se
-/// contredire, et le bug qui en resulte n apparait que sur un reseau lent.
+/// Keeping those responsibilities separate avoids timing-dependent navigation bugs.
 ///
-/// ## Integration attendue dans le vrai depot
+/// ## Expected integration
 ///
 /// ```dart
 /// GoRoute(
@@ -24,13 +24,12 @@ import 'package:fanid_mobile/design_system/design_system.dart';
 ///   builder: (_, __) => const SplashView(),
 /// )
 /// ```
-/// puis, dans le `redirect` global, router selon
+/// Route from the global redirect according to authentication state.
 /// `ref.watch(authControllerProvider)` :
-/// `AsyncLoading` => rester sur `/` ; `AsyncData(null)` => `/login` ;
+/// `AsyncLoading` stays on `/`; `AsyncData(null)` goes to `/login`.
 /// `AsyncData(session)` => l accueil.
 ///
-/// La vue accepte un [statusLabel] optionnel pour annoncer au lecteur d ecran
-/// ce qui se passe. Elle ne le devine pas : c est l appelant qui le sait.
+/// The view accepts an optional [statusLabel] for assistive-technology announcements; the caller supplies the actual state.
 class SplashView extends StatelessWidget {
   const SplashView({
     this.statusLabel = 'Vérification de votre session…',
@@ -41,7 +40,7 @@ class SplashView extends StatelessWidget {
   /// Texte annonce par [LoadingView] (region vivante). Purement descriptif.
   final String statusLabel;
 
-  /// Affiche en pied d ecran. L appelant y injecte la version reelle.
+  /// Displayed in the footer; the caller injects the real version.
   final String versionLabel;
 
   static const String tagline = 'Votre billet. Votre identité. Zéro fraude.';
@@ -51,9 +50,7 @@ class SplashView extends StatelessWidget {
     return Scaffold(
       body: NavyBackdrop(
         child: SafeArea(
-          // Defilement plutot que `Spacer` : a une echelle de texte de 2.0, la
-          // baseline et le mot-symbole doublent de hauteur. Un `Column` rigide
-          // produirait la bande jaune et noire de Flutter ; ici l ecran
+          // Use scrolling rather than Spacer so large text scales without overflow.
           // defile, et reste centre tant qu il tient.
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
