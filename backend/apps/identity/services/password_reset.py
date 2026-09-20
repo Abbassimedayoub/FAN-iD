@@ -1,16 +1,12 @@
 """
-Récupération universelle du mot de passe FANID.
+Universal FANID password-recovery flow.
 
-Le parcours est volontairement identique pour FAN, ORGANIZER, SCANNER et ADMIN.
+The same flow applies to FAN, ORGANIZER, SCANNER, and ADMIN accounts. A signed
+magic link or six-digit fallback code proves the same single-use challenge.
 
-Deux preuves donnent accès au même challenge à usage unique :
-
-- lien magique signé reçu par e-mail ;
-- code de secours à six chiffres.
-
-Le code est déterministe à partir de l'identifiant aléatoire du challenge et
-d'un HMAC serveur. Il peut donc être reconstruit par le worker Celery au moment
-de l'envoi sans être stocké en clair ni placé dans l'Outbox.
+The fallback code is derived deterministically from the random challenge
+identifier and a server HMAC, so a Celery worker can reconstruct it for delivery
+without storing plaintext or copying it into the Outbox.
 """
 
 from __future__ import annotations
@@ -73,12 +69,7 @@ class PasswordResetResult:
 def derive_password_reset_code(
     challenge_id: uuid.UUID,
 ) -> str:
-    """
-    Recrée le code à six chiffres sans stocker le secret en clair.
-
-    La sécurité ne repose pas sur les six chiffres seuls : cinq essais maximum,
-    challenge UUID aléatoire, expiration et quotas HTTP complètent la preuve.
-    """
+    """Recreate the six-digit code without storing it in plaintext; bounded attempts, random challenge ID, expiry, and HTTP quotas provide the surrounding controls."""
     digest = salted_hmac(
         RESET_CODE_SALT,
         str(challenge_id),
@@ -108,12 +99,7 @@ def build_password_reset_magic_token(
     challenge_id: uuid.UUID,
     user_id: uuid.UUID,
 ) -> str:
-    """
-    Produit un lien signé.
-
-    L'expiration réelle reste celle de la ligne MfaChallenge : signer plus tard
-    dans le worker ne prolonge donc jamais la durée du challenge.
-    """
+    """Produce a signed link without extending the challenge lifetime stored in MfaChallenge."""
     return signing.dumps(
         {
             "cid": str(challenge_id),
@@ -159,11 +145,7 @@ def _invalid_reset_error() -> ValidationBusinessError:
 
 
 class PasswordResetService:
-    """
-    Service anonyme de récupération du mot de passe.
-
-    Aucun rôle n'est filtré : tout compte actif FANID peut récupérer son accès.
-    """
+    """Anonymous password-recovery service available to every active FANID role."""
 
     def request(
         self,
