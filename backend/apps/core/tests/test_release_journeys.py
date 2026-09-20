@@ -110,7 +110,10 @@ def _paid_event_with_tickets(*, context, quantity: int) -> tuple[Event, list[Tic
 def test_release_journey_sale_scan_double_scan_and_final_report(
     release_context,
 ):
-    """Main journey: paid sale, ticket issuance, admission opening, scan, duplicate scan, automatic completion, and final statistics."""
+    """
+    Main journey: paid sale, ticket issuance, admission opening, scan, duplicate scan, automatic
+    completion, and final statistics.
+    """
     event, tickets = _paid_event_with_tickets(
         context=release_context,
         quantity=2,
@@ -220,7 +223,10 @@ def test_release_journey_postponement_preserves_paid_ticket_and_qr(
 def test_release_journey_cancellation_refunds_and_voids_paid_tickets(
     release_context,
 ):
-    """Refund processing uses FakeGateway: no real Stripe interaction, while amount, idempotency, and ticket invalidation behavior remain the same."""
+    """
+    Refund processing uses FakeGateway: no real Stripe interaction, while amount, idempotency, and
+    ticket invalidation behavior remain the same.
+    """
     event, tickets = _paid_event_with_tickets(
         context=release_context,
         quantity=2,
