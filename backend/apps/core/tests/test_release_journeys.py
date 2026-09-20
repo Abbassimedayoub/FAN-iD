@@ -110,10 +110,7 @@ def _paid_event_with_tickets(*, context, quantity: int) -> tuple[Event, list[Tic
 def test_release_journey_sale_scan_double_scan_and_final_report(
     release_context,
 ):
-    """
-    Parcours principal : vente payée, émission, ouverture, scan, double scan,
-    fin automatique et statistiques finales.
-    """
+    """Main journey: paid sale, ticket issuance, admission opening, scan, duplicate scan, automatic completion, and final statistics."""
     event, tickets = _paid_event_with_tickets(
         context=release_context,
         quantity=2,
@@ -172,7 +169,7 @@ def test_release_journey_sale_scan_double_scan_and_final_report(
 def test_release_journey_postponement_preserves_paid_ticket_and_qr(
     release_context,
 ):
-    """Un report garde les billets vendus et ne rend pas le QR inutilisable."""
+    """Postponement keeps sold tickets valid and does not invalidate the QR version."""
     event, tickets = _paid_event_with_tickets(
         context=release_context,
         quantity=1,
@@ -214,9 +211,8 @@ def test_release_journey_postponement_preserves_paid_ticket_and_qr(
 
     assert event.status == Event.POSTPONED
     assert ticket.status == TICKET_VALID
-    # Chaque QR dynamique a un jti neuf et est donc différent à chaque appel.
-    # En revanche, le report ne change pas qv : le QR déjà émis reste accepté
-    # jusqu’à son expiration normale.
+    # Each dynamic QR gets a fresh jti and therefore differs on every call.
+    # Postponement does not change qv, so an already-issued QR remains valid until its normal expiration.
     assert previous_claims["qv"] == current_claims["qv"] == ticket.qr_version
 
 
@@ -224,10 +220,7 @@ def test_release_journey_postponement_preserves_paid_ticket_and_qr(
 def test_release_journey_cancellation_refunds_and_voids_paid_tickets(
     release_context,
 ):
-    """
-    La phase remboursement est exécutée avec FakeGateway : aucune interaction
-    Stripe réelle, mais mêmes montants, idempotence et invalidation billet.
-    """
+    """Refund processing uses FakeGateway: no real Stripe interaction, while amount, idempotency, and ticket invalidation behavior remain the same."""
     event, tickets = _paid_event_with_tickets(
         context=release_context,
         quantity=2,
