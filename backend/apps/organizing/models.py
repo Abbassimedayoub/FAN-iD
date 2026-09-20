@@ -1,26 +1,14 @@
 """
-Contexte borne `organizing` — l organisateur et son dossier de validation.
+Bounded context `organizing`: organizer records and their validation dossier.
 
-## Ce que ce module N IMPORTE PAS
+This module deliberately does not import `apps.identity.models`. The account
+foreign key uses `settings.AUTH_USER_MODEL`, which Django resolves lazily, so
+the Python dependency graph remains acyclic even though a database foreign key
+still connects the two contexts.
 
-Ni `apps.identity.models`, ni quoi que ce soit d autre de ce contexte. La cle
-etrangere vers le compte passe par `settings.AUTH_USER_MODEL`, une CHAINE que
-le registre Django resout paresseusement : aucun import n existe, et le graphe
-de dependances reste acyclique (ADR-S1-05).
-
-Consequence honnete a connaitre : `import-linter` ne voit pas ce couplage. La
-contrainte de cle etrangere existe bien en base, entre deux contextes. C est
-une limite de l outil, pas une faille du modele — mais elle merite d etre
-ecrite plutot que decouverte.
-
-## Suppression : PROTECT, jamais CASCADE
-
-`user` est protege : supprimer un compte qui porte un organisateur effacerait
-ses evenements, ses ventes et ses journaux de scan. L effacement RGPD passe par
-l anonymisation (S5, ADR-13), pas par un `DELETE`.
-
-`validated_by` est en `SET_NULL` : le depart d un administrateur ne doit pas
-effacer la trace d une decision, seulement son auteur.
+Deletion rules are intentional: `user` uses PROTECT so business history is not
+removed with an account, while `validated_by` uses SET_NULL so a decision
+remains recorded even if its administrator account disappears.
 """
 
 from __future__ import annotations
@@ -45,22 +33,17 @@ from .constants import (
 )
 from .querysets import OrganizerQuerySet
 
-#: Taux par defaut. Le plan §3.1 fixe le type `numeric(5,4)` et la contrainte
-#: `BETWEEN 0 AND 1`, mais ni valeur par defaut ni qui la renseigne — et
-#: `apply` ne peut pas la recevoir du client. Zero est la seule valeur qui
-#: n invente aucune regle commerciale : aucune commission tant qu elle n a pas
-#: ete posee explicitement. Ecart consigne, a trancher au lot S1-A.8b.
+#: Default rate. Zero is the neutral value until a commission is explicitly
+#: agreed; it does not invent a commercial rule.
 DEFAULT_COMMISSION_RATE = Decimal("0.0000")
 
 
 class Organizer(UUIDModel, TimeStampedModel, VersionedModel):
     """
-    Dossier d organisateur (plan S1 §3.1).
+    Organizer dossier.
 
-    `VersionedModel` fournit le verrouillage optimiste exige par le plan : deux
-    administrateurs validant simultanement le meme dossier ne doivent pas
-    s ecraser en silence — le second recoit `409 STALE_RESOURCE`. Le champ est
-    pose ici, son EXPLOITATION appartient au lot S1-A.8b.
+    `VersionedModel` provides optimistic locking so concurrent administrative
+    updates cannot silently overwrite each other.
     """
 
     user = models.OneToOneField(
@@ -96,10 +79,8 @@ class Organizer(UUIDModel, TimeStampedModel, VersionedModel):
     class Meta:
         db_table = "organizing_organizer"
         constraints = [
-            # Unicite INSENSIBLE A LA CASSE : « Stade de France » et « stade de
-            # france » designent le meme organisateur. Une unicite simple
-            # laisserait creer les deux, et le doublon ne se verrait qu au
-            # moment ou un acheteur choisit le mauvais.
+            # Case-insensitive uniqueness prevents duplicate organizer names that differ
+            # only by letter case.
             models.UniqueConstraint(Lower("org_name"), name="uq_organizer_org_name_ci"),
             models.CheckConstraint(
                 condition=models.Q(commission_rate__gte=0) & models.Q(commission_rate__lte=1),
@@ -111,7 +92,7 @@ class Organizer(UUIDModel, TimeStampedModel, VersionedModel):
             ),
         ]
         indexes = [
-            # Filtre principal de la console d administration (§3.1).
+            # Primary filter used by the administration console.
             models.Index(fields=["validation_status"], name="ix_organizer_status"),
         ]
 
@@ -124,11 +105,10 @@ class OrganizerCommissionProposal(
     TimeStampedModel,
 ):
     """
-    Proposition structuree de commission.
+    Structured commission proposal.
 
-    Une nouvelle negociation cree toujours une nouvelle ligne.
-    Le taux, l'auteur et la sequence ne sont jamais reecrits.
-    L'acceptation renseigne uniquement accepted_at/accepted_by.
+    Each negotiation creates a new row. Rate, author, and sequence are immutable;
+    acceptance only fills `accepted_at` and `accepted_by`.
     """
 
     organizer = models.ForeignKey(
@@ -206,9 +186,9 @@ class Scanner(
     VersionedModel,
 ):
     """
-    Scanner rattaché à un organisateur.
+    Scanner attached to an organizer.
 
-    PROTECT conserve la traçabilité métier.
+    PROTECT preserves business traceability.
     """
 
     organizer = models.ForeignKey(
@@ -229,8 +209,7 @@ class Scanner(
         related_name="scanner_invitations_sent",
     )
 
-    # Snapshot métier conservé pour la traçabilité
-    # après anonymisation du compte identité.
+    # Business snapshot kept for traceability after identity-account anonymization.
     invited_first_name = models.CharField(
         max_length=150,
         null=True,
@@ -392,10 +371,9 @@ class ScannerCredentialRequest(
     TimeStampedModel,
 ):
     """
-    Demande de nouveau mot de passe temporaire
-    initiée par un scanner.
+    Scanner-initiated request for a new temporary password.
 
-    Aucun mot de passe n'est stocké ici.
+    No password is stored here.
     """
 
     scanner = models.ForeignKey(
@@ -556,11 +534,10 @@ class OrganizerReactivationRequest(
     TimeStampedModel,
 ):
     """
-    Demande persistante de réouverture d'un organisateur suspendu.
+    Persistent request to reactivate a suspended organizer.
 
-    Le statut de l'Organizer reste SUSPENDED pendant PENDING
-    et REJECTED. Seule une décision administrative APPROVED
-    peut déclencher SUSPENDED -> APPROVED.
+    The organizer remains SUSPENDED while the request is PENDING or REJECTED.
+    Only an APPROVED administrative decision may transition it back to APPROVED.
     """
 
     STATUS_PENDING = "PENDING"
