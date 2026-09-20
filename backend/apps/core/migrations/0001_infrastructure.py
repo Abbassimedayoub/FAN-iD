@@ -1,13 +1,11 @@
 """
-Migration `0001_infrastructure` — les 3 tables d'infrastructure du Sprint 0
-(§3.1 Source B / §44 master prompt) : idempotency_record, outbox_event,
-consumed_event. AUCUNE table métier.
+Migration `0001_infrastructure` creates only the three infrastructure tables:
+`idempotency_record`, `outbox_event`, and `consumed_event`. It creates no
+business tables.
 
-Écrite à la main (voir identity/migrations/0001_initial.py pour la raison :
-pas d'accès réseau pour installer Django dans ce sandbox). La séquence
-`outbox_event_sequence_seq` est créée par SQL brut et attachée en DEFAULT à
-la colonne `sequence`, car Django n'autorise qu'un seul AutoField par modèle
-(la PK `id`, UUID) — voir le commentaire dans outbox/models.py.
+The migration is handwritten. The `outbox_event_sequence_seq` sequence is
+created with raw SQL and attached as the DEFAULT for `sequence` because Django
+allows only one AutoField per model and the primary key is already a UUID.
 """
 import uuid
 
@@ -109,7 +107,7 @@ class Migration(migrations.Migration):
             ],
             options={"db_table": "consumed_event"},
         ),
-        # --- Séquence PostgreSQL réelle pour outbox_event.sequence (BIGSERIAL manuel) ---
+        # Real PostgreSQL sequence for outbox_event.sequence.
         migrations.RunSQL(
             sql=[
                 "CREATE SEQUENCE outbox_event_sequence_seq OWNED BY outbox_event.sequence;",
@@ -121,7 +119,7 @@ class Migration(migrations.Migration):
                 "DROP SEQUENCE IF EXISTS outbox_event_sequence_seq;",
             ],
         ),
-        # --- Contraintes CHECK explicites (§20/§21 master prompt) ---
+        # Explicit CHECK constraints and indexes.
         migrations.AddConstraint(
             model_name="idempotencyrecord",
             constraint=models.UniqueConstraint(fields=("key", "user"), name="uq_idempotency_key_user"),
