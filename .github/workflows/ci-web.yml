@@ -58,7 +58,7 @@ jobs:
         working-directory: .
         run: python3 scripts/coverage_gate.py check --stack web
 
-      - name: Build (budget bundle < 200 Ko gzip, §4.3 Source B)
+      - name: Build (budget bundle < 200 Ko gzip)
         run: npm run build
 
       - name: npm audit (haute sévérité)
