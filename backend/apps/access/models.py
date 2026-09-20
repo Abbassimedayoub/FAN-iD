@@ -6,8 +6,8 @@ from apps.core.models import TimeStampedModel, UUIDModel
 
 class EventAdmissionSession(UUIDModel, TimeStampedModel):
     """
-    Période pendant laquelle les scanners peuvent valider les billets
-    d'un événement. Une seule session ouverte est autorisée par événement.
+    Period during which scanners may validate tickets for an event.
+    Only one open admission session is allowed per event.
     """
 
     event = models.ForeignKey(
@@ -77,7 +77,7 @@ class EventAdmissionSession(UUIDModel, TimeStampedModel):
 
 
 class ScannerPresence(UUIDModel, TimeStampedModel):
-    """Dernier signal reçu d'une application Scanner active."""
+    """Most recent heartbeat received from an active scanner application."""
 
     scanner = models.OneToOneField(
         "organizing.Scanner",
@@ -91,7 +91,7 @@ class ScannerPresence(UUIDModel, TimeStampedModel):
 
 
 class TicketAdmission(UUIDModel, TimeStampedModel):
-    """Trace immuable de l'admission réussie d'un billet."""
+    """Immutable record of a successful ticket admission."""
 
     ticket = models.OneToOneField(
         "ticketing.Ticket",
@@ -117,10 +117,10 @@ class TicketAdmission(UUIDModel, TimeStampedModel):
 
 class EventFinalReport(UUIDModel, TimeStampedModel):
     """
-    Snapshot financier et opérationnel immuable à la clôture d'un événement.
+    Immutable financial and operational snapshot created when an event closes.
 
-    Les données sources peuvent évoluer techniquement après coup ; le rapport
-    final reste la trace de référence remise à l'Organizer.
+    Source data may evolve later, while this final report remains the reference
+    record delivered to the organizer.
     """
 
     event = models.OneToOneField(
