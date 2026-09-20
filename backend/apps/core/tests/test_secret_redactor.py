@@ -1,4 +1,4 @@
-"""SecretRedactor : masque tous les motifs, y compris imbriqués (§55 master prompt)."""
+"""SecretRedactor must mask every sensitive pattern, including nested values."""
 
 import json
 import logging
