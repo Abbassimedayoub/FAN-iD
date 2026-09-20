@@ -199,7 +199,10 @@ def get_scanner_assignment_summary(
     scanner_id: uuid.UUID,
     assignable_only: bool = False,
 ) -> ScannerAssignmentSummary | None:
-    """Return a scanner strictly owned by organizer_id; assignment mode accepts only operationally eligible scanners."""
+    """
+    Return a scanner strictly owned by organizer_id; assignment mode accepts only operationally
+    eligible scanners.
+    """
 
     queryset = Scanner.objects.filter(
         pk=scanner_id,
@@ -259,7 +262,10 @@ def list_scanner_assignment_summaries(
     slots=True,
 )
 class ScannerPortalContext:
-    """Return the minimal scanner identity required by the operational portal after temporary-password replacement and organizer approval."""
+    """
+    Return the minimal scanner identity required by the operational portal after temporary-password
+    replacement and organizer approval.
+    """
 
     id: uuid.UUID
     organizer_id: uuid.UUID
