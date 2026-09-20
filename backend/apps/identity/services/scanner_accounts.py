@@ -30,13 +30,7 @@ def derive_scanner_temporary_password(
     invitation_id: uuid.UUID,
     generation: int = 1,
 ) -> str:
-    """
-    Dérive le secret temporaire sans le stocker
-    en clair.
-
-    La génération permet de créer un nouveau
-    mot de passe et d'invalider l'ancien.
-    """
+    """Derive a temporary secret without storing it in plaintext; changing generation invalidates the previous password."""
 
     if generation < 1:
         raise ValueError("generation must be >= 1")
@@ -62,9 +56,9 @@ def derive_scanner_temporary_password(
 
     characters.extend(alphabet[value % len(alphabet)] for value in digest[4:24])
 
-    # Mélange déterministe basé sur le HMAC :
-    # le secret reste reconstructible sans stockage en clair,
-    # mais aucun préfixe/suffixe visuel n'est constant.
+    # Deterministic HMAC-based mixing:
+    # the secret remains reconstructible without plaintext storage,
+    # while no visible prefix or suffix remains constant.
     for index in range(len(characters) - 1, 0, -1):
         swap_index = digest[(index + 7) % len(digest)] % (index + 1)
         characters[index], characters[swap_index] = (
@@ -82,10 +76,7 @@ def create_invited_scanner_account(
     last_name: str,
     temporary_password: str,
 ) -> uuid.UUID:
-    """
-    Crée un compte SCANNER avec un mot de passe
-    temporaire valable cinq minutes.
-    """
+    """Create a SCANNER account with a temporary password valid for five minutes."""
 
     user = User(
         email=User.objects.normalize_email(email),
@@ -119,15 +110,7 @@ def rotate_scanner_temporary_password(
     user_id: uuid.UUID,
     invitation_id: uuid.UUID,
 ) -> int:
-    """
-    Génère une nouvelle génération de secret.
-
-    Le secret précédent devient immédiatement
-    invalide grâce au nouveau hash stocké.
-
-    Retourne uniquement le numéro de génération,
-    jamais le mot de passe en clair.
-    """
+    """Create a new secret generation, immediately invalidating the previous hash; return only the generation number, never plaintext."""
 
     with transaction.atomic():
         user = User.objects.select_for_update().select_related("role").get(pk=user_id)
@@ -181,12 +164,7 @@ def deactivate_scanner_account(
     *,
     user_id: uuid.UUID,
 ) -> int:
-    """
-    Désactive et anonymise un compte SCANNER.
-
-    Son historique métier reste conservé et
-    l'adresse e-mail initiale peut être réutilisée.
-    """
+    """Deactivate and anonymize a SCANNER account while preserving business history and allowing the original email to be reused."""
 
     with transaction.atomic():
         user = User.objects.select_for_update().select_related("role").get(pk=user_id)
