@@ -1,46 +1,17 @@
 """
-`TokenService` — cycle de vie des jetons : emission, rotation, revocation.
+`TokenService` manages token issuance, rotation, and revocation.
 
-`tokens.py` sait signer et verifier. Ce module sait ce qu un jeton VAUT : quelle
-session il represente, s il a deja servi, et quoi faire quand il ressert.
+The lower-level token module signs and verifies JWTs; this service attaches
+tokens to persistent sessions and enforces strict single-use refresh rotation.
 
-## Le modele : usage unique strict, revocation par famille
+One login creates a token family represented by an `identity_session` row.
+Each successful rotation replaces the current refresh `jti`. Replaying an old
+refresh therefore revokes the entire family because the server cannot know
+which holder is legitimate.
 
-Une connexion ouvre une FAMILLE. La famille est materialisee par une ligne
-`identity_session` qui porte le `jti` du refresh COURANT. Chaque rotation
-remplace ce `jti` : l ancien ne correspond alors plus a aucune ligne.
-
-Rejouer un refresh deja tourne est donc detectable par une simple absence — et
-c est tout l interet du dispositif. La reponse n est pas de refuser ce jeton,
-mais de **revoquer la famille entiere**, y compris le refresh legitime emis une
-seconde plus tot. La raison est qu on ne sait pas lequel des deux porteurs est
-l attaquant : celui qui rejoue peut etre le voleur comme la victime. Deconnecter
-les deux est le seul choix sur.
-
-## Ce que cela coute, et pourquoi on l accepte
-
-Deux rafraichissements LEGITIMES concurrents — l onglet qui recharge pendant
-qu une requete de fond expire — sont **indiscernables** d un vol. Le perdant de
-la course declenche la revocation, donc une deconnexion.
-
-C est le comportement attendu (RFC 6819 §5.2.2.3), et la parade est cote client :
-le plan impose de serialiser les rafraichissements derriere un seul verrou en
-vol (§ « Points d attention React »). Adoucir la regle cote serveur — une fenetre
-de grace de quelques secondes pendant laquelle l ancien `jti` reste valable —
-rendrait le vol indetectable exactement dans la fenetre ou il est le plus
-probable, juste apres l interception.
-
-## Verrou pessimiste, pas optimiste
-
-`SELECT ... FOR UPDATE` sur la ligne de session pendant la rotation. Sans lui,
-deux rotations concurrentes liraient la meme ligne et ecriraient deux `jti`
-differents : **deux refresh valides pour une seule session**, ce qui supprime
-purement et simplement la detection de reutilisation.
-
-Le verrouillage optimiste (`version`) ne conviendrait pas : il detecte le
-conflit APRES coup, en refusant la seconde ecriture, alors qu ici il faut que la
-seconde transaction RELISE l etat mis a jour pour constater que le `jti` a
-change. C est precisement ce que fait `FOR UPDATE` en lecture confirmee.
+Rotation uses `SELECT ... FOR UPDATE` so concurrent refreshes cannot both read
+and replace the same current `jti`. The second transaction observes the state
+written by the first and correctly detects reuse.
 """
 
 from __future__ import annotations
@@ -66,11 +37,11 @@ logger = logging.getLogger("fanid.identity")
 
 class _ReuseSignal(Exception):
     """
-    Signal INTERNE : une reutilisation vient d etre constatee.
+    Internal signal that refresh-token reuse was detected.
 
-    Il ne sort jamais de ce module. Son unique role est de faire remonter le
-    constat HORS de la transaction de rotation, parce que la revocation qui en
-    decoule ne doit surtout pas etre annulee avec elle (voir `rotate`).
+    It never escapes this module. Its only purpose is to carry the finding
+    outside the rotation transaction so the resulting revocation cannot be
+    rolled back with that transaction.
     """
 
     def __init__(self, family_id: uuid.UUID) -> None:
@@ -79,7 +50,7 @@ class _ReuseSignal(Exception):
 
 
 def _as_uuid(value: Any) -> uuid.UUID | None:
-    """Convertit un claim en UUID, ou `None` si la valeur n en est pas un."""
+    """Convert a claim to UUID, or return `None` when it is not a valid UUID."""
     try:
         return uuid.UUID(str(value))
     except (AttributeError, TypeError, ValueError):
@@ -88,7 +59,7 @@ def _as_uuid(value: Any) -> uuid.UUID | None:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class IssuedPair:
-    """Une paire de jetons et la session qui la porte."""
+    """A token pair together with the session that owns it."""
 
     access: str
     refresh: str
@@ -106,9 +77,9 @@ def _refresh_lifetime() -> datetime.timedelta:
 
 
 class TokenService:
-    """Emission, rotation et revocation des jetons."""
+    """Issue, rotate, and revoke authentication tokens."""
 
-    # -- emission -----------------------------------------------------------
+    # -- issuance -----------------------------------------------------------
 
     @staticmethod
     @transaction.atomic
@@ -124,13 +95,11 @@ class TokenService:
         now: datetime.datetime | None = None,
     ) -> IssuedPair:
         """
-        Ouvre une session et emet la paire correspondante.
+        Open a session and issue its token pair.
 
-        La ligne `session` est construite AVANT la signature : son identifiant
-        alimente le claim `sid`, et son `refresh_jti` doit valoir exactement le
-        `jti` du refresh emis. C est possible sans aller-retour en base parce que
-        toutes les cles primaires du projet sont des UUID a valeur par defaut —
-        l identifiant existe des la construction de l objet, avant l INSERT.
+        The session object is built before signing so its identifier can populate
+        the `sid` claim and its `refresh_jti` can exactly match the issued
+        refresh token.
         """
         moment = now or timezone.now()
         session = Session(
@@ -140,8 +109,8 @@ class TokenService:
             family_id=family_id or uuid.uuid4(),
             auth_level=auth_level,
             ip=ip,
-            # Tronque plutot que rejete : un `User-Agent` de 300 caracteres est
-            # une curiosite d audit, pas une raison de refuser une connexion.
+            # Truncate rather than reject an oversized User-Agent; it is audit metadata,
+            # not a reason to refuse authentication.
             user_agent=(user_agent or "")[:255],
             issued_at=moment,
             last_used_at=moment,
@@ -163,11 +132,10 @@ class TokenService:
         now: datetime.datetime,
     ) -> IssuedPair:
         """
-        Signe une paire pour une session donnee et aligne la ligne dessus.
+        Sign a pair for an existing session object and align its token fields.
 
-        Mute `session` sans la sauvegarder : l appelant choisit le moment de
-        l ecriture, ce qui permet a `issue_pair` de faire un INSERT et a
-        `rotate` un UPDATE cible, tous deux dans une transaction deja ouverte.
+        The method mutates `session` without saving it so callers control whether
+        the surrounding transaction performs an INSERT or targeted UPDATE.
         """
         refresh, refresh_jti, refresh_expires_at = encode_token(
             token_type=TokenType.REFRESH,
@@ -181,10 +149,8 @@ class TokenService:
             subject=user.pk,
             lifetime=_access_lifetime(),
             claims={
-                # Le role voyage dans le jeton : sans lui, chaque controle
-                # d autorisation couterait une requete (plan §3.5). Corollaire
-                # assume : un changement de role ne prend effet qu au
-                # rafraichissement suivant, soit 15 minutes au pire.
+                # The role is carried in the access token to avoid an extra lookup for every
+                # authorization check; a refreshed token receives the latest role.
                 "role": user.role.name,
                 "did": str(device.pk) if device is not None else None,
                 "sid": str(session.pk),
@@ -208,10 +174,10 @@ class TokenService:
     @staticmethod
     def rotate(raw_refresh: str, *, now: datetime.datetime | None = None) -> IssuedPair:
         """
-        Consomme un refresh et en emet un nouveau. Usage unique strict.
+        Consume one refresh token and issue a new one with strict single use.
 
-        Leve `TokenReuseDetectedError` — et revoque la famille — si le jeton
-        presente a deja ete tourne.
+        If the presented token was already rotated, revoke the family and raise
+        `TokenReuseDetectedError`.
         """
         claims = decode_token(raw_refresh, expected_type=TokenType.REFRESH)
         moment = now or timezone.now()
@@ -227,16 +193,9 @@ class TokenService:
                 )
                 session.save(update_fields=["refresh_jti", "expires_at", "last_used_at"])
         except _ReuseSignal as signal:
-            # LA REVOCATION DOIT SURVIVRE AU REJET DE LA ROTATION.
-            #
-            # Revoquer a l interieur du bloc `atomic` serait annule par la remontee
-            # de l exception : la famille resterait vivante, et l attaquant
-            # pourrait rejouer indefiniment un jeton que le systeme declare
-            # pourtant compromis. Le controle passe donc au vert — l erreur est
-            # bien levee — pendant que la protection ne s applique jamais.
-            #
-            # On sort donc de la transaction AVANT de revoquer, en signalant le
-            # constat par une exception interne.
+            # Revocation must survive the failed rotation transaction. Revoking inside
+            # the atomic block would be rolled back with the exception, leaving a
+            # compromised family alive. Carry the finding outside first, then revoke.
             revoked = TokenService.revoke_family(signal.family_id, SESSION_REVOKED_ROTATION_REUSE, now=moment)
             fanid_auth_token_reuse_detected_total.inc()
             logger.warning(
@@ -251,19 +210,14 @@ class TokenService:
     @staticmethod
     def _lock_current_session(claims: dict[str, Any], now: datetime.datetime) -> Session:
         """
-        Verrouille la session dont ce refresh est le jeton COURANT.
+        Lock the session whose current refresh token matches the presented claims.
 
-        En lecture confirmee, `SELECT ... FOR UPDATE` bloque sur une ligne
-        verrouillee puis **reevalue la condition** apres liberation. C est ce qui
-        fait que le perdant d une course ne trouve plus la ligne : le gagnant a
-        change `refresh_jti` entre-temps. La detection de reutilisation tombe
-        donc juste, sans horodatage ni comparaison de dates.
+        `SELECT ... FOR UPDATE` serializes concurrent rotations. After waiting,
+        the losing transaction re-evaluates the row condition and sees that the
+        winning rotation already changed `refresh_jti`.
         """
-        # Les deux identifiants sont convertis AVANT toute requete. Django
-        # leverait `ValidationError` — donc une 500 — sur un UUID mal forme
-        # passe a un `UUIDField`. Un jeton signe par nous ne devrait jamais en
-        # contenir, mais « ne devrait jamais » n est pas une garantie : c est le
-        # genre d hypothese qui transforme une anomalie en erreur serveur.
+        # Convert identifiers before querying so malformed UUID claims map to token
+        # invalidity rather than surfacing as database-field validation errors.
         jti = _as_uuid(claims.get("jti"))
         family_id = _as_uuid(claims.get("family"))
         if jti is None:
@@ -271,18 +225,9 @@ class TokenService:
 
         try:
             return (
-                # `of=("self",)` : on verrouille la ligne de SESSION, et elle seule.
-                #
-                # Sans cette precision, PostgreSQL refuse carrement la requete —
-                # « FOR UPDATE cannot be applied to the nullable side of an outer
-                # join » — parce que `device` est nullable, donc joint en LEFT
-                # JOIN. Le refus est une chance : sans lui, la version verrouillant
-                # toutes les tables jointes serait passee, et chaque rotation
-                # aurait verrouille la ligne de `identity_role` correspondante.
-                # Quatre lignes de role pour toute la plateforme : TOUTES les
-                # rotations des supporters se seraient serialisees derriere un
-                # unique verrou global, avec un effondrement du debit visible
-                # seulement en charge.
+                # Lock only the session row. The nullable device relation uses a LEFT JOIN,
+                # and locking joined rows would either be rejected by PostgreSQL or
+                # create unnecessary contention on shared related rows.
                 Session.objects.select_for_update(of=("self",))
                 .select_related("user", "user__role", "device")
                 .get(refresh_jti=jti, revoked_at__isnull=True, expires_at__gt=now)
@@ -291,14 +236,12 @@ class TokenService:
             pass
 
         if family_id and Session.objects.filter(family_id=family_id, revoked_at__isnull=True).exists():
-            # Le jeton est bien signe par nous, sa famille est vivante, mais il
-            # n est plus le refresh courant : il a donc DEJA ete tourne.
-            # La revocation est confiee a `rotate`, hors transaction.
+            # The token is validly signed and its family is still live, but it is no
+            # longer current. It was already rotated; revoke outside this transaction.
             raise _ReuseSignal(family_id)
 
-        # Famille inconnue ou deja revoquee : rien a apprendre a l appelant.
-        # Un jeton de session close ne merite pas un motif distinct — le
-        # distinguer dirait a un attaquant que sa cible s est deconnectee.
+        # Unknown or already-revoked families get the same opaque invalid-token result;
+        # do not reveal session state to the caller.
         raise TokenInvalidError()
 
     # -- revocation ---------------------------------------------------------
@@ -311,12 +254,10 @@ class TokenService:
         now: datetime.datetime | None = None,
     ) -> int:
         """
-        Revoque toute la lignee issue d une connexion. Renvoie le nombre de
-        sessions touchees.
+        Revoke the full lineage created by one login and return the row count.
 
-        Une seule requete `UPDATE ... WHERE family_id = %s AND revoked_at IS
-        NULL` : la revocation d urgence ne doit pas dependre d une boucle Python
-        qui pourrait s interrompre a mi-parcours.
+        A single UPDATE keeps emergency revocation atomic instead of relying on
+        an interruptible Python loop.
         """
         return Session.objects.filter(family_id=family_id, revoked_at__isnull=True).update(
             revoked_at=now or timezone.now(), revoked_reason=reason
@@ -324,7 +265,7 @@ class TokenService:
 
     @staticmethod
     def revoke_session(session: Session, reason: str, *, now: datetime.datetime | None = None) -> int:
-        """Revoque une session precise — deconnexion d un seul appareil."""
+        """Revoke one specific session."""
         return Session.objects.filter(pk=session.pk, revoked_at__isnull=True).update(
             revoked_at=now or timezone.now(), revoked_reason=reason
         )
@@ -332,11 +273,10 @@ class TokenService:
     @staticmethod
     def revoke_all_for_user(user: User, reason: str, *, now: datetime.datetime | None = None) -> int:
         """
-        Revoque toutes les sessions actives d un compte.
+        Revoke every active session for an account.
 
-        Utilise au changement de mot de passe (`PASSWORD_CHANGE`) : un mot de
-        passe change parce qu on le croit compromis ne sert a rien si les
-        sessions ouvertes avec l ancien survivent.
+        Password changes use this so sessions authenticated with the previous
+        credential cannot remain active.
         """
         return Session.objects.filter(user=user, revoked_at__isnull=True).update(
             revoked_at=now or timezone.now(), revoked_reason=reason
