@@ -1,6 +1,6 @@
 /**
- * État `error` (§4.2 Source B) : message selon la CLASSE d'erreur + bouton
- * Réessayer + correlation_id en petit. Jamais de trace technique brute.
+ * Error state: class-based message, retry action, and compact correlation ID.
+ * Never display a raw technical trace.
  */
 import type { AppError } from "@/lib/errors";
 
@@ -11,7 +11,7 @@ const MESSAGES_BY_CLASS: Record<AppError["errorClass"], string> = {
   auth: "Votre session a expiré, merci de vous reconnecter.",
   permission: "Vous n'avez pas accès à cette ressource.",
   not_found: "Cet élément n'existe plus.",
-  business: "", // le message métier vient directement de error.message (catalogue par code)
+  business: "", // business message comes directly from error.message
   server: "Un problème est survenu de notre côté.",
   unknown: "Une erreur inattendue est survenue.",
 };
