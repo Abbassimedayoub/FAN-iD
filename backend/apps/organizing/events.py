@@ -17,7 +17,10 @@ AGGREGATE_ORGANIZER: Final = "organizer"
 
 
 def organizer_decision_payload(*, status: str) -> dict[str, Any]:
-    """Minimal payload with no business name, email address, rejection reason, or other personal data duplicated into the Outbox."""
+    """
+    Minimal payload with no business name, email address, rejection reason, or other personal data
+    duplicated into the Outbox.
+    """
     return {"status": status}
 
 
