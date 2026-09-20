@@ -18,9 +18,7 @@ def _metadata_to_dict(metadata: Any) -> dict[str, Any]:
 
 
 class FakeGateway(PaymentGateway):
-    """
-    Tests — aucun appel réseau vers Stripe.
-    """
+    """Test payment gateway with no network calls to Stripe."""
 
     provider_name = "fake"
 
@@ -70,13 +68,11 @@ class FakeGateway(PaymentGateway):
 
 
 class StripeWebhookSignatureError(ValueError):
-    """La signature d'un webhook Stripe est absente ou invalide."""
+    """The Stripe webhook signature is missing or invalid."""
 
 
 class StripeGateway(PaymentGateway):
-    """
-    Adaptateur Stripe : les clés sont uniquement lues depuis l'environnement.
-    """
+    """Stripe adapter whose keys are read only from environment-backed settings."""
 
     provider_name = "stripe"
 
