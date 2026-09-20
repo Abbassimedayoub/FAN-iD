@@ -1,8 +1,7 @@
 """
-Evenements publics emis par le contexte `organizing`.
+Public events emitted by the `organizing` context.
 
-Seules les decisions explicitement prevues comme evenements Outbox vivent ici.
-La candidature reste un journal applicatif dans ce lot.
+Only decisions explicitly modeled as Outbox events live here.
 """
 
 from __future__ import annotations
@@ -18,12 +17,7 @@ AGGREGATE_ORGANIZER: Final = "organizer"
 
 
 def organizer_decision_payload(*, status: str) -> dict[str, Any]:
-    """
-    Charge utile minimale.
-
-    Aucun nom commercial, courriel, motif de rejet ni autre donnee personnelle
-    n est duplique dans l outbox.
-    """
+    """Minimal payload with no business name, email address, rejection reason, or other personal data duplicated into the Outbox."""
     return {"status": status}
 
 
@@ -33,9 +27,7 @@ AGGREGATE_SCANNER: Final = "scanner"
 
 
 def scanner_invited_payload() -> dict[str, Any]:
-    """
-    Aucun e-mail et aucun secret dans l'Outbox.
-    """
+    """No email address or secret is placed in the Outbox."""
 
     return {}
 
@@ -88,10 +80,7 @@ def scanner_invitation_reissued_payload(
     *,
     generation: int,
 ) -> dict[str, Any]:
-    """
-    Aucun mot de passe n'entre dans l'Outbox.
-    La génération n'est pas un secret.
-    """
+    """No password enters the Outbox; the generation number is not a secret."""
 
     return {
         "generation": generation,
@@ -103,17 +92,12 @@ SCANNER_LEAVE_REJECTED_EVENT: Final = "organizing.scanner.leave_rejected"
 
 
 def scanner_leave_request_payload() -> dict[str, Any]:
-    """
-    Aucun nom, e-mail ou autre donnée personnelle dans l'Outbox.
-    """
+    """No name, email address, or other personal data is placed in the Outbox."""
 
     return {}
 
 
 def scanner_leave_rejected_payload() -> dict[str, Any]:
-    """
-    La décision est portée par le type d'événement.
-    Aucune donnée personnelle n'est dupliquée.
-    """
+    """The event type carries the decision; no personal data is duplicated."""
 
     return {}
