@@ -1,56 +1,22 @@
 #!/usr/bin/env python3
 """
-Porte de non-regression de couverture, commune aux trois piles.
+Coverage non-regression gate shared by all supported application stacks.
 
-Source de l exigence : `FAN_id_Technical_Architecture_FR.pdf` §16.2, ligne
-« Tests » — *« Pytest, Vitest, Flutter test — merge bloque si echec OU
-couverture en baisse »*. La regle porte sur les TROIS executeurs, et elle
-enonce une NON-REGRESSION, pas un plancher : le §17 fixe l objectif de 80 %
-« concentre sur le coeur critique », explicitement pas une couverture uniforme
-par pile.
+The script compares current line coverage against a versioned baseline. It does
+not define a universal coverage threshold; its purpose is to prevent an
+unreviewed decrease from the committed reference.
 
-Ce script ne connait donc aucun seuil. Il compare une mesure a une reference
-versionnee, et rien d autre.
+A versioned baseline is used instead of an ephemeral CI cache so every change is
+visible in repository history. Coverage values use `Decimal`, never binary
+floating point, and are quantized with an explicit HALF_UP policy for
+deterministic comparisons.
 
-## Pourquoi une reference versionnee plutot qu un cache de CI
+The comparison policy is hard-coded here and must match the metadata declared by
+the baseline file. Missing or malformed reports, unknown stacks, invalid
+baselines, and policy mismatches all fail closed.
 
-Un artefact ou un cache d execution est effacable, expire, et n apparait dans
-aucun diff. Une reference qui peut disparaitre sans laisser de trace ne prouve
-rien le jour ou elle manque. Le depot a deja ce motif avec `.secrets.baseline`,
-que `security.yml` compare avant et apres le scan.
-
-## Pourquoi `Decimal` et jamais `float`
-
-Une couverture est un ratio dont l ecriture decimale n est pas representable en
-binaire : `95.42` vaut en realite 95.4199999999999875... en virgule flottante.
-Comparer deux mesures identiques avec `>=` finit tot ou tard par echouer sur une
-difference de l ordre de 1e-13, sans qu une seule ligne ait change. `Decimal`
-plus une quantification explicite en HALF_UP rendent la comparaison
-deterministe et, surtout, EXPLICABLE — ce qui compte autant en soutenance qu en
-production.
-
-Le JSON est relu avec `parse_float=Decimal` : la valeur du fichier devient un
-`Decimal` exact, sans jamais transiter par un `float`.
-
-## Politique verrouillee
-
-La politique de comparaison — metrique `line`, arrondi `HALF_UP`, 2 decimales —
-est codee EN DUR ici pour qu une edition du JSON ne puisse pas l affaiblir. Le
-fichier de reference doit neanmoins la declarer a l identique : toute divergence
-est un `GateError`, jamais un avertissement ignore. Une politique declaree
-different de la politique appliquee est le pire des deux mondes — le lecteur du
-diff croit lire la regle en vigueur alors qu il lit autre chose.
-
-## Fail-closed
-
-Rapport absent, illisible, vide, sans compteur de lignes, pile inconnue de la
-reference, reference elle-meme absente ou invalide : le script ECHOUE. Un
-fichier de couverture manquant ne doit jamais se lire comme « aucune
-regression » — c est precisement ainsi qu une porte de securite devient muette
-tout en restant verte.
-
-Bibliotheque standard uniquement. Aucune dependance a installer sur les
-runners, y compris sur le job Flutter.
+The implementation uses only the Python standard library so every CI runner can
+execute the same gate without installing another dependency.
 """
 
 from __future__ import annotations
@@ -64,16 +30,13 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-#: Le script vit dans `<racine>/scripts/`. La racine se deduit donc de son
-#: propre emplacement, et JAMAIS du repertoire courant : `ci-web.yml` et
-#: `ci-mobile.yml` declarent un `working-directory` different de la racine, et
-#: une resolution par `cwd` donnerait un chemin faux selon le pipeline appelant.
-#: Tous les chemins — reference, rapports, invocations `git` — partent d ici.
+#: The script lives under `<root>/scripts/`, so repository paths are resolved from
+#: this file's location rather than the caller's working directory.
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE_PATH = ROOT / ".coverage-baseline.json"
 BASELINE_NAME = ".coverage-baseline.json"
 
-#: Politique appliquee. Le JSON doit la declarer a l identique (cf. `check_policy`).
+#: Applied comparison policy. The JSON baseline must declare the same values.
 METRIC = "line"
 ROUNDING_NAME = "HALF_UP"
 DECIMALS = 2
@@ -87,27 +50,23 @@ EXPECTED_REPORTS = {
 
 
 class GateError(Exception):
-    """Echec de porte. Le message est destine au journal de CI, pas a un client."""
+    """Coverage-gate failure intended for CI logs rather than an end user."""
 
 
 # ===========================================================================
-# Quantification
+# Quantization
 # ===========================================================================
 
 
 def quantize(value: Decimal) -> Decimal:
-    """Arrondit a 2 decimales en HALF_UP — la regle inscrite dans la reference."""
+    """Round to two decimal places with HALF_UP, matching the baseline policy."""
     return value.quantize(QUANTUM, rounding=ROUND_HALF_UP)
 
 
 def ratio_percent(covered: int, total: int) -> Decimal:
     """
-    Pourcentage a partir des COMPTEURS, jamais d un pourcentage deja arrondi.
-
-    Les trois formats exposent un pourcentage pre-calcule (`line-rate`, `pct`).
-    On ne l utilise pas quand les compteurs sont disponibles : un pourcentage
-    deja arrondi par l outil producteur ferait subir DEUX arrondis successifs a
-    la mesure, et deux outils differents n arrondissent pas de la meme facon.
+    Compute coverage percentage from counters instead of an already-rounded
+    percentage exposed by the producing tool, avoiding double rounding.
     """
     if total <= 0:
         raise GateError("rapport sans ligne mesurable (total = 0) — mesure impossible")
@@ -119,19 +78,16 @@ def ratio_percent(covered: int, total: int) -> Decimal:
 
 
 # ===========================================================================
-# Lecture et validation de la reference
+# Baseline loading and validation
 # ===========================================================================
 
 
 def load_baseline(text: str | None = None, origin: str | None = None) -> dict[str, Any]:
     """
-    Charge ET valide la reference.
+    Load and validate a baseline.
 
-    `parse_float=Decimal` : aucune valeur ne passe par un `float`, donc aucune
-    perte avant la comparaison.
-
-    `origin` sert uniquement a nommer la source dans les messages d erreur —
-    le fichier de travail, ou une revision `git`.
+    `parse_float=Decimal` avoids precision loss before comparison. `origin`
+    is used only to name the source in diagnostics.
     """
     label = origin or BASELINE_NAME
     if text is None:
@@ -155,13 +111,7 @@ def load_baseline(text: str | None = None, origin: str | None = None) -> dict[st
 
 
 def check_policy(document: dict[str, Any], label: str) -> None:
-    """
-    La politique declaree doit etre EXACTEMENT la politique appliquee.
-
-    Fail-closed dans les deux sens : une valeur absente est aussi refusee qu une
-    valeur divergente. On ne lit pas ces champs pour s en servir — la politique
-    reste en dur — on les lit pour interdire qu ils mentent.
-    """
+    """The declared policy must exactly match the hard-coded applied policy; missing or divergent values fail closed."""
     metric = document.get("metric")
     if metric != METRIC:
         raise GateError(
@@ -182,7 +132,7 @@ def check_policy(document: dict[str, Any], label: str) -> None:
         )
 
     decimals = comparison.get("decimals")
-    # `2` peut arriver en `int` (entier JSON) ; un `2.0` deviendrait `Decimal`.
+    # JSON may parse `2` as int while `2.0` becomes Decimal.
     if not isinstance(decimals, (int, Decimal)) or isinstance(decimals, bool):
         raise GateError(f"{label} : `comparison.decimals` non numerique : {decimals!r}")
     if Decimal(decimals) != Decimal(DECIMALS):
@@ -192,7 +142,7 @@ def check_policy(document: dict[str, Any], label: str) -> None:
 
 
 def baseline_entry(document: dict[str, Any], stack: str, label: str = BASELINE_NAME) -> dict[str, Any]:
-    """Entree d une pile. Une pile absente est un ECHEC, jamais un defaut implicite."""
+    """Return one stack entry; a missing stack is an error, never an implicit default."""
     stacks = document.get("stacks")
     if not isinstance(stacks, dict):
         raise GateError(f"{label} : bloc `stacks` absent ou mal forme")
@@ -225,12 +175,7 @@ def baseline_percent(document: dict[str, Any], stack: str, label: str = BASELINE
 
 
 def baseline_report(document: dict[str, Any], stack: str) -> Path:
-    """
-    Chemin du rapport, TOUJOURS resolu depuis la racine deduite du script.
-
-    Un chemin absolu ou remontant hors du depot est refuse : la reference
-    designe des artefacts du depot, pas un fichier arbitraire du runner.
-    """
+    """Resolve the report path from repository root and reject absolute or escaping paths."""
     raw = baseline_entry(document, stack)["report"]
     if not isinstance(raw, str) or not raw.strip():
         raise GateError(f"{BASELINE_NAME} : `report` vide ou non textuel pour {stack!r}")
@@ -256,17 +201,12 @@ def baseline_report(document: dict[str, Any], stack: str) -> Path:
 
 
 # ===========================================================================
-# Lecture des rapports — un format par pile
+# Coverage report readers — one format per stack
 # ===========================================================================
 
 
 def measure_backend(path: Path) -> Decimal:
-    """
-    Cobertura produit par `coverage.py` (`pytest --cov-report=xml`).
-
-    Les compteurs `lines-covered` / `lines-valid` sont preferes a `line-rate`,
-    qui est deja arrondi par l outil.
-    """
+    """Read Cobertura XML from coverage.py, preferring raw line counters over the pre-rounded rate."""
     try:
         root = ElementTree.parse(path).getroot()
     except ElementTree.ParseError as exc:
@@ -290,7 +230,7 @@ def measure_backend(path: Path) -> Decimal:
 
 
 def measure_web(path: Path) -> Decimal:
-    """Istanbul `json-summary`, produit par `@vitest/coverage-v8`."""
+    """Read Istanbul json-summary output produced by @vitest/coverage-v8."""
     try:
         document = json.loads(path.read_text(encoding="utf-8"), parse_float=Decimal)
     except json.JSONDecodeError as exc:
@@ -322,14 +262,7 @@ def measure_web(path: Path) -> Decimal:
 
 
 def measure_mobile(path: Path) -> Decimal:
-    """
-    LCOV produit par `flutter test --coverage`.
-
-    `LF:` = lignes trouvees, `LH:` = lignes atteintes, une paire par fichier.
-    On somme sur l ensemble des enregistrements : c est la seule facon
-    d obtenir un pourcentage GLOBAL, un fichier a la fois n en donnant qu un
-    local.
-    """
+    """Read LCOV from Flutter tests and aggregate LF/LH counters globally across files."""
     found = 0
     hit = 0
     seen = False
@@ -362,7 +295,7 @@ MEASURERS = {
 
 
 def measure(document: dict[str, Any], stack: str) -> Decimal:
-    """Mesure la couverture courante de la pile, depuis le rapport declare."""
+    """Measure current coverage for a stack from its declared report."""
     if stack not in MEASURERS:
         raise GateError(f"pile non supportee : {stack!r}")
     report = baseline_report(document, stack)
@@ -381,22 +314,17 @@ def measure(document: dict[str, Any], stack: str) -> Decimal:
 
 
 # ===========================================================================
-# Ecriture de la reference
+# Baseline writing
 # ===========================================================================
 
 
 def write_baseline(document: dict[str, Any]) -> None:
     """
-    Reecrit la reference.
+    Rewrite the baseline.
 
-    `float()` a l ecriture est sur ICI, et seulement ici : les valeurs sont
-    quantifiees a 2 decimales, et `repr` d un tel float redonne exactement la
-    meme ecriture decimale. La relecture repasse par `Decimal`.
-
-    Consequence assumee : une valeur entiere en centiemes s ecrit `96.0` et non
-    `96.00`. JSON n a pas de notation a virgule fixe, et les deux ecritures sont
-    egales apres requantification. On n ajoute pas d encodeur maison pour une
-    question de presentation.
+    Conversion to float happens only at JSON serialization after values have
+    already been quantized to two decimals; loading converts them back through
+    Decimal.
     """
 
     def encode(value: Any) -> Any:
@@ -415,22 +343,16 @@ def write_baseline(document: dict[str, Any]) -> None:
 
 
 # ===========================================================================
-# Commandes
+# Commands
 # ===========================================================================
 
 
 def command_check(stack: str) -> int:
     """
-    La couverture courante ne doit jamais etre inferieure a la reference versionnee.
+    Require current coverage to remain at or above the versioned baseline.
 
-    Une hausse est acceptee : la reference versionnee reste un plancher
-    conservateur et reproductible entre environnements. Cela evite qu une petite
-    variation positive propre au runner GitHub Actions rende le pipeline rouge,
-    tout en conservant la regle essentielle : aucune baisse sous la reference.
-
-    Echecs possibles, tous fail-closed : reference HEAD absente ou invalide,
-    politique divergente, pile absente de HEAD, rapport absent / vide /
-    illisible.
+    Increases are accepted while missing/invalid baselines, policy divergence,
+    unknown stacks, and unreadable reports all fail closed.
     """
     document = load_baseline()
     reference = baseline_percent(document, stack)
@@ -457,13 +379,7 @@ def command_check(stack: str) -> int:
     return 0
 
 def command_bump(stack: str) -> int:
-    """
-    Releve la reference a la mesure courante. REFUSE toute baisse.
-
-    Ce refus est une commodite, pas la garantie : une edition manuelle du JSON
-    contourne cette commande. La garantie est `guard-baseline`, qui s exerce
-    sur le diff en CI.
-    """
+    """Raise the baseline to current coverage while refusing any decrease."""
     document = load_baseline()
     reference = baseline_percent(document, stack)
     current = measure(document, stack)
@@ -487,19 +403,12 @@ def command_bump(stack: str) -> int:
 
 
 def _git(*arguments: str) -> subprocess.CompletedProcess[str]:
-    """Invocation `git` ancree sur la racine du depot, jamais sur le cwd du job."""
+    """Run git commands from repository root rather than the CI job's current directory."""
     return subprocess.run(["git", *arguments], cwd=ROOT, capture_output=True, text=True)
 
 
 def require_commit(base: str) -> None:
-    """
-    Le SHA de base doit designer un commit REELLEMENT present dans ce clone.
-
-    Verifie AVANT toute autre chose : sans elle, `git show` echoue de la meme
-    facon pour « commit inconnu » et pour « fichier absent », et les deux se
-    confondraient en un bootstrap silencieux. Un clone superficiel neutraliserait
-    alors la porte sans le moindre message.
-    """
+    """Require the base SHA to identify a commit actually present in the clone before inspecting baseline history."""
     if not base or not base.strip():
         raise GateError("--base vide : aucun commit de comparaison fourni")
     if _git("cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
@@ -513,19 +422,11 @@ def require_commit(base: str) -> None:
 
 
 def read_baseline_at(base: str) -> dict[str, Any] | None:
-    """
-    Reference telle qu elle existait au commit de base.
-
-    Retourne `None` UNIQUEMENT quand le fichier n existait pas a ce commit —
-    seul cas de bootstrap legitime. Tout autre echec remonte en `GateError` :
-    un fichier present mais illisible, ou declarant une politique divergente,
-    ne doit jamais se lire comme un fichier absent, sinon il suffirait de
-    commiter un JSON casse a la base pour basculer en bootstrap.
-    """
+    """Load the baseline as it existed at the base commit; return None only when the file genuinely did not exist there."""
     require_commit(base)
 
     if _git("cat-file", "-e", f"{base}:{BASELINE_NAME}").returncode != 0:
-        # Le commit existe (verifie ci-dessus) : c est bien le fichier qui manque.
+        # The commit exists, so this branch means the baseline file itself is missing.
         return None
 
     shown = _git("show", f"{base}:{BASELINE_NAME}")
@@ -546,16 +447,8 @@ def read_baseline_at(base: str) -> dict[str, Any] | None:
 
 def inherited_merge_bootstrap_origin(base: str, stack: str) -> str | None:
     """
-    Detecte le cas tres precis du premier merge d une branche historique vers une
-    branche dont le premier parent ne possedait pas encore cette reference.
-
-    L exception n est valable que si :
-    - `base` est un merge a exactement deux parents ;
-    - le premier parent ne possedait pas la pile concernee ;
-    - le second parent possedait la pile ;
-    - le merge a herite EXACTEMENT de la valeur du second parent.
-
-    Ainsi, un commit normal ulterieur ne peut jamais reutiliser ce bootstrap.
+    Detect the one-time migration case where a merge inherited a stack baseline
+    from its second parent while the first parent did not yet contain that stack.
     """
 
     parents = _git("rev-list", "--parents", "-n", "1", base)
@@ -567,7 +460,7 @@ def inherited_merge_bootstrap_origin(base: str, stack: str) -> str | None:
 
     fields = parents.stdout.strip().split()
 
-    # SHA du commit + exactement deux parents.
+    # Commit SHA plus exactly two parents.
     if len(fields) != 3:
         return None
 
@@ -616,21 +509,11 @@ def inherited_merge_bootstrap_origin(base: str, stack: str) -> str | None:
 
 def command_guard_baseline(stack: str, base: str) -> int:
     """
-    Protege la reference versionnee contre toute baisse.
+    Protect the versioned baseline from decreases.
 
-    Cas ordinaires :
-    - pile deja presente a la base : HEAD >= BASE ;
-    - pile nouvelle : HEAD == mesure courante.
-
-    Cas exceptionnel de migration par merge :
-    une reference heritee du second parent d un merge peut etre re-bootstrappee
-    une seule fois si le premier parent ne possedait pas cette pile et si le
-    merge a repris exactement la valeur du second parent.
-
-    Pour ce bootstrap herite uniquement, une mesure courante superieure a la
-    reference est acceptee : la reference reste alors conservatrice. Une reference
-    superieure a la mesure reste interdite. Cette exception ne s applique jamais
-    aux commits ordinaires.
+    Existing stacks require HEAD >= BASE. New stacks must bootstrap from current
+    measured coverage. A narrowly validated merge-migration case may inherit a
+    conservative second-parent baseline once.
     """
 
     head = load_baseline()
@@ -717,7 +600,7 @@ def command_guard_baseline(stack: str, base: str) -> int:
 
 
 # ===========================================================================
-# Entree
+# Entry point
 # ===========================================================================
 
 
