@@ -45,7 +45,10 @@ def test_a_view_without_an_explicit_policy_refuses_even_an_authenticated_caller(
 
 
 def test_the_openapi_schema_stays_reachable_without_authentication():
-    """Guard that the OpenAPI schema endpoint keeps using its explicit serve permissions despite the project-wide deny default."""
+    """
+    Guard that the OpenAPI schema endpoint keeps using its explicit serve permissions despite the
+    project-wide deny default.
+    """
     response = APIClient().get("/api/v1/schema/")
 
     assert response.status_code == 200
@@ -61,6 +64,9 @@ def test_the_platform_probes_stay_reachable_without_authentication(path, db):
 
 
 def test_the_sprint_0_policy_shell_no_longer_exists():
-    """The old core policy shell must stay removed so identity authorization remains the single policy source of truth."""
+    """
+    The old core policy shell must stay removed so identity authorization remains the single policy
+    source of truth.
+    """
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("apps.core.policy.engine")
