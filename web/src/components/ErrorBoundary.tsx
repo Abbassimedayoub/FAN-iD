@@ -12,10 +12,10 @@ const REDACTED = "***REDACTED***";
 
 function redactSensitiveText(value: string): string {
   return value
-    .replace(/\bBearer\s+[^\s,;]+/gi, `Bearer ${REDACTED}`)
-    .replace(/\b(fanid_refresh|sessionid|csrftoken)=([^;\s]+)/gi, `$1=${REDACTED}`)
-    .replace(/\b(password|token|secret|authorization|otp)\s*[:=]\s*[^\s,;]+/gi, `$1=${REDACTED}`)
-    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, REDACTED);
+    .replace(/Bearers+[^s,;]+/gi, `Bearer ${REDACTED}`)
+    .replace(/(fanid_refresh|sessionid|csrftoken)=([^;s]+)/gi, `$1=${REDACTED}`)
+    .replace(/(password|token|secret|authorization|otp)s*[:=]s*[^s,;]+/gi, `$1=${REDACTED}`)
+    .replace(/eyJ[A-Za-z0-9_-]{8,}.[A-Za-z0-9_-]{8,}.[A-Za-z0-9_-]{8,}/g, REDACTED);
 }
 
 export function sanitizeErrorForLogging(
@@ -34,9 +34,8 @@ export function sanitizeErrorForLogging(
 }
 
 /**
- * Filet de sécurité ultime — capture les erreurs de rendu React non gérées
- * par le contrat d'états d'écran (§4.2 Source B). Ne remplace PAS la gestion
- * d'état `error` par écran, qui reste la voie normale.
+ * Last-resort safety net for unhandled React render errors.
+ * It does not replace normal per-screen error-state handling.
  */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
