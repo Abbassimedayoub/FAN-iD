@@ -1,4 +1,4 @@
-"""custom_exception_handler : chaque classe d'erreur produit le bon corps et le bon statut (§55)."""
+"""custom_exception_handler: each error class produces the expected body and status."""
 
 import pytest
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied
@@ -92,5 +92,5 @@ def test_unhandled_exception_returns_500_without_technical_detail():
 
     assert response.status_code == 500
     assert response.data["error"]["code"] == "INTERNAL_ERROR"
-    # Le message technique de l'exception Python NE DOIT JAMAIS fuiter au client.
+    # The raw Python exception message must never leak to the client.
     assert "détail technique sensible" not in str(response.data)
