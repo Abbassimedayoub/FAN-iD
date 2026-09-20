@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """
-Vérification STATIQUE (sans Django installé) de la cohérence entre les
-migrations manuscrites et les modèles qu'elles sont censées refléter.
+Static consistency check between handwritten migrations and the models they are
+expected to represent, without importing Django.
 
-Ceci NE REMPLACE PAS `python manage.py makemigrations --check --dry-run`
-(la seule preuve faisant réellement autorité, cf. SPRINT_TEST_REPORT.md) —
-c'est un filet de sécurité supplémentaire, exécutable dans un environnement
-sans accès réseau, qui détecte au moins les champs manquants/en trop entre
-`models.py` et la migration correspondante, via une analyse AST du code
-source (aucune exécution, aucun import Django).
+This does not replace `makemigrations --check --dry-run`; it is an additional
+offline safety net that compares model and migration fields through AST analysis
+without executing project code.
 """
 
 from __future__ import annotations
@@ -27,14 +24,13 @@ def _field_names_from_class(class_node: ast.ClassDef) -> set[str]:
             target = node.targets[0].id
             if target.startswith("_") or target in {"Meta"}:
                 continue
-            # Ne garder que les assignations qui ressemblent à un champ Django
+            # Keep only assignments that look like Django model fields.
             # (appel de fonction, ex. models.CharField(...), TextChoices exclu).
             if isinstance(node.value, ast.Call):
                 callee = node.value.func
                 callee_name = callee.attr if isinstance(callee, ast.Attribute) else getattr(callee, "id", "")
-                # `objects = UserManager()` n'est PAS un champ : un manager ou un
-                # queryset est un attribut de classe, absent des migrations. Sans
-                # cette exclusion, le vérificateur le signalerait comme manquant.
+                # `objects = UserManager()` is not a field; managers and querysets are class
+                # attributes and therefore absent from migrations.
                 if callee_name.endswith(("Manager", "QuerySet")) or callee_name in {
                     "as_manager",
                     "from_queryset",
@@ -68,13 +64,7 @@ def extract_model_fields(models_path: Path) -> dict[str, set[str]]:
 
 
 def extract_migration_fields(migration_path: Path) -> dict[str, set[str]]:
-    """Champs d'un fichier de migration : CreateModel ET AddField.
-
-    Depuis le Sprint 1, un modèle n'est plus décrit par sa seule migration
-    initiale : `identity.User` reçoit ses champs métier par `AddField` dans
-    `0002`/`0004`. Ne lire que `CreateModel` ferait signaler comme manquants
-    des champs parfaitement migrés.
-    """
+    """Fields declared by both CreateModel and AddField operations in a migration file."""
     tree = ast.parse(migration_path.read_text(encoding="utf-8"))
     result: dict[str, set[str]] = {}
     for node in ast.walk(tree):
@@ -100,8 +90,7 @@ def extract_migration_fields(migration_path: Path) -> dict[str, set[str]]:
                         names.add(first.value)
             result[model_name] = names
 
-        # `AddField(model_name="user", name="date_of_birth", ...)` — le nom du
-        # modèle y est en minuscules, d'où la normalisation à la comparaison.
+        # AddField stores model_name in lowercase, so comparison normalizes the name.
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -119,13 +108,11 @@ def extract_migration_fields(migration_path: Path) -> dict[str, set[str]]:
     return result
 
 
-# Un modèle peut être décrit par PLUSIEURS migrations : on compare aux champs
-# cumulés de toutes celles listées.
+# One model may span several migrations, so compare against the union of their fields.
 CHECKS = [
     (
         BACKEND_DIR / "apps/identity/models.py",
-        # Toutes les migrations de l'app, découvertes automatiquement : lister
-        # les fichiers à la main obligerait à modifier ce script à chaque lot.
+        # Discover all app migrations automatically instead of maintaining a manual file list.
         sorted((BACKEND_DIR / "apps/identity/migrations").glob("0*.py")),
         {
             "User": "User",
@@ -147,23 +134,21 @@ CHECKS = [
     ),
 ]
 
-# Champs hérités de AbstractUser que le modèle `identity.User` ne redéclare
-# pas explicitement dans son corps de classe (ils viennent de la classe
-# parente Python) mais qui DOIVENT être présents dans la migration.
+# Fields inherited from AbstractUser are not redeclared in identity.User but must still exist in migrations.
 IMPLICIT_PK_FIELDS: dict[str, set[str]] = {
-    # `UUIDModel` est abstrait et apporte `id` aux modèles qui en héritent.
+    # UUIDModel is abstract and contributes the id field to subclasses.
     "Device": {"id"},
     "Session": {"id"},
     "MfaChallenge": {"id"},
-    # Modèles dont le corps de classe ne déclare AUCUNE clé primaire
+    # Models whose class body declares no primary key
     # explicite : Django ajoute alors implicitement un "id" (BigAutoField,
-    # cf. DEFAULT_AUTO_FIELD dans settings/base.py), qui apparaît donc dans
-    # la migration sans exister comme assignation dans models.py.
+    # use DEFAULT_AUTO_FIELD from settings/base.py, which therefore appears in
+    # the migration without a corresponding assignment in models.py.
     "ConsumedEvent": {"id"},
 }
 
-# Champs apportés par les mixins du socle (`TimeStampedModel`,
-# `VersionedModel`) ou par `AbstractUser`, absents du corps de la classe.
+# Fields contributed by core mixins (`TimeStampedModel`,
+# `VersionedModel`) or AbstractUser and absent from the class body.
 INHERITED_FIELDS = {
     "User": {
         "created_at",
