@@ -1,4 +1,4 @@
-"""Tests unitaires des modèles de base (§55 master prompt)."""
+"""Unit tests for the shared base models."""
 
 import uuid
 
@@ -7,8 +7,7 @@ from django.db import models
 from apps.core.models import TimeStampedModel, UUIDModel, VersionedModel
 
 
-# Modèles concrets de test — jamais migrés en production, utilisés uniquement
-# pour exercer les classes abstraites du socle.
+# Concrete test-only models used to exercise the abstract base classes.
 class _DummyUUIDModel(UUIDModel):
     class Meta:
         app_label = "core"
@@ -30,13 +29,10 @@ class _DummyVersionedModel(VersionedModel):
 
 
 class _DummyUuidVersionedModel(UUIDModel, VersionedModel):
-    """Combinaison REELLE du projet : PK UUID a defaut + compteur de version.
+    """Project-realistic combination: UUID primary key default plus version counter.
 
-    identity.User, Organizer, Event et Category utilisent tous cette combinaison.
-    Elle seule revele le defaut : default=uuid.uuid4 renseigne la cle primaire des
-    la construction, donc le test if self.pk est vrai AVANT le premier INSERT.
-    _DummyVersionedModel porte un AutoField implicite : sa PK reste None tant que
-    la ligne est absente, ce qui masquait completement le probleme.
+    This setup exposes insert/update detection bugs because `default=uuid.uuid4`
+    populates the primary key before the first INSERT.
     """
 
     name = models.CharField(max_length=50, default="x")
@@ -69,20 +65,11 @@ def test_versioned_model_default_version_is_one():
 
 def test_versioned_model_does_not_use_f_expression_on_insert():
     """
-    Non-régression : une instance NEUVE ne doit jamais recevoir `F("version")+1`.
+    Regression guard: a NEW instance must never receive `F("version") + 1`.
 
-    Django refuse une expression `F()` sur un `INSERT` — elle référence une
-    colonne de la ligne, qui n'existe pas encore. Le code d'origine testait
-    `if self.pk`, or toutes les PK du projet ont `default=uuid.uuid4` : une
-    instance neuve porte déjà une PK, donc TOUTE création partait sur le chemin
-    « mise à jour » et échouait avec :
-
-        ValueError: Failed to insert expression "Col(...) + Value(1)".
-        F() expressions can only be used to update, not to insert.
-
-    Le défaut est resté invisible tant qu'aucun modèle concret n'héritait de
-    `VersionedModel`. `identity.User` est le premier — au Sprint 2 il aurait
-    fait tomber le verrouillage optimiste de `event` et `category`.
+    Django rejects `F()` expressions on INSERT because they reference a row that
+    does not yet exist. UUID defaults make `self.pk` truthy before insertion, so
+    insert/update detection must rely on model state instead.
     """
     import unittest.mock as mock
 
@@ -101,22 +88,16 @@ def test_versioned_model_does_not_use_f_expression_on_insert():
 
 
 def test_versioned_model_save_uses_f_expression_when_updating():
-    # `_DummyVersionedModel` n'est pas migré (classe de test locale) : on
-    # vérifie donc la LOGIQUE de save() sans toucher de vraie table. La
-    # validation bout-en-bout du versioning (incrément réellement persisté,
-    # conflit 409 STALE_RESOURCE) est faite au Sprint 2 sur `event`/`category`,
-    # premières ressources réellement optimistes (Source A ADR-S-05) — Sprint 0
-    # ne livre que le socle, pas un scénario métier complet (§80 master prompt).
+    # `_DummyVersionedModel` is not migrated, so this test verifies save() logic
+    # without touching a real table.
     instance = _DummyVersionedModel(name="a")
     instance.pk = uuid.uuid4()
-    # Une instance persistee se simule par _state.adding = False, PAS seulement
-    # par une PK renseignee : toutes les PK du projet ont default=uuid.uuid4,
-    # donc une instance NEUVE porte deja une PK. Ce test encodait la meme
-    # hypothese fausse que le code — voila pourquoi il ne detectait rien.
+    # Simulate persistence with `_state.adding = False`, not merely by assigning a
+    # primary key, because UUID defaults populate new instances immediately.
     instance._state.adding = False
     assert instance.version == 1
-    # save() sur une instance avec PK doit transformer version en F("version")+1
-    # avant l'appel réel à la base — on vérifie l'expression sans DB réelle.
+    # Updating a persisted instance must turn version into an F-expression before
+    # the real database write; verify that expression without a real table.
     import unittest.mock as mock
 
     with (
