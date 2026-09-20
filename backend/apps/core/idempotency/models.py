@@ -1,11 +1,8 @@
 """
-Table `idempotency_record` (§20 master prompt / §3.1 Source B).
+Database model for idempotency records.
 
-Garantit l'invariant I-5 (une requête rejouée ne produit qu'un effet).
-L'INSERTION elle-même sert de verrou distribué via la contrainte
-`UNIQUE(key, user_id)` : un `IntegrityError` à l'insertion signifie
-"quelqu'un traite déjà cette clé" — jamais de SELECT-puis-INSERT (fenêtre de
-course), voir `service.py`.
+The unique `(key, user_id)` constraint makes the INSERT itself the distributed
+lock. An `IntegrityError` means another request already owns that key.
 """
 
 import uuid
@@ -26,22 +23,19 @@ class IdempotencyRecord(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="idempotency_records"
     )
     endpoint = models.CharField(max_length=120)
-    request_hash = models.CharField(max_length=64)  # SHA-256 hexdigest
+    request_hash = models.CharField(max_length=64)  # SHA-256 hex digest
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.IN_PROGRESS)
     response_status = models.PositiveSmallIntegerField(null=True, blank=True)
     response_body = models.JSONField(null=True, blank=True)
-    # Sous-ensemble whitelisté d'en-têtes HTTP "clés" (Content-Type, Location,
-    # Retry-After...) restitués lors d'un rejeu — voir
-    # middleware.REPLAYABLE_RESPONSE_HEADERS. Jamais l'intégralité des
-    # en-têtes originaux (Set-Cookie, X-Correlation-ID... ne sont jamais rejoués).
+    # Only a small allowlist of replay-safe HTTP response headers is stored.
+    # Headers such as Set-Cookie and X-Correlation-ID are never replayed.
     response_headers = models.JSONField(null=True, blank=True, default=dict)
     locked_at = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
 
     class Meta:
-        # Rattaché aux migrations de l'app `core`
-        # (Source B §3.1 : core/migrations/0001_infrastructure.py).
+        # This model is attached to the `core` app migrations.
         app_label = "core"
         db_table = "idempotency_record"
         constraints = [
