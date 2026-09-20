@@ -27,17 +27,11 @@ EVENT_STATUSES = (
 
 
 class Category(UUIDModel, TimeStampedModel, VersionedModel):
-    """
-    Catégorie d'événement éditable.
+    """Editable event category using VersionedModel for optimistic-locking support."""
 
-    VersionedModel prépare le verrouillage optimiste pour les éditions
-    administrateur (Sprint 2).
-    """
-
-    # NULL = catégorie système / historique.
-    # Une catégorie personnalisée appartient à l'organisateur
-    # qui l'a créée. Cet organizer_id permet aussi d'appliquer
-    # la permission OWN_ORGANIZER lors de la suppression.
+    # NULL denotes a system or legacy category.
+    # A custom category belongs to the organizer that created it; organizer_id also
+    # supports OWN_ORGANIZER authorization on deletion.
     organizer = models.ForeignKey(
         "organizing.Organizer",
         on_delete=models.PROTECT,
@@ -69,12 +63,7 @@ class Category(UUIDModel, TimeStampedModel, VersionedModel):
 
 
 class Event(UUIDModel, TimeStampedModel, VersionedModel):
-    """
-    Événement du catalogue.
-
-    Le catalogue ne gère pas encore la vente :
-    il expose uniquement la ressource éditable.
-    """
+    """Editable catalog event resource; ticket sales remain owned by other contexts."""
 
     DRAFT = EVENT_DRAFT
     PUBLISHED = EVENT_PUBLISHED
@@ -108,7 +97,7 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
 
-    # Dernière programmation remplacée lors d'un report.
+    # Previous schedule replaced by a postponement.
     postponed_from_starts_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -118,7 +107,7 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
         blank=True,
     )
 
-    # Nouvelle programmation annoncée.
+    # Newly announced schedule.
     # Null signifie : nouvelle date encore inconnue.
     postponed_to_starts_at = models.DateTimeField(
         null=True,
@@ -154,14 +143,14 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
         blank=True,
     )
 
-    # Fenêtre commerciale de vente.
+    # Commercial sales window.
     #
-    # NULL conserve le comportement historique :
-    # - sales_starts_at NULL => vente possible dès publication ;
-    # - sales_ends_at NULL => vente possible jusqu'au début de l'événement.
+    # NULL retains legacy behavior:
+    # - null sales_starts_at means sales may start at publication;
+    # - null sales_ends_at means sales may continue until the event begins.
     #
-    # Les règles d'éligibilité réelles restent centralisées dans
-    # apps.catalog.lifecycle et seront utilisées par ordering.
+    # Actual sale eligibility rules remain centralized in apps.catalog.lifecycle
+    # and are shared with ordering.
     sales_starts_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -234,11 +223,10 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
     @property
     def operational_status(self) -> str:
         """
-        Phase métier calculée à l'instant courant.
+        Compute the current business phase.
 
-        `status` reste la source de vérité structurelle en base.
-        Les phases temporelles ne sont pas persistées afin d'éviter
-        des transitions cron inutiles et des états périmés.
+        `status` remains the structural source of truth; temporal phases are
+        derived rather than persisted to avoid stale scheduled transitions.
         """
         from .lifecycle import EventLifecycleLike, event_operational_status
 
@@ -250,14 +238,11 @@ class Event(UUIDModel, TimeStampedModel, VersionedModel):
 
 class TicketCategory(UUIDModel, TimeStampedModel, VersionedModel):
     """
-    Catégorie de vente d un événement.
+    Sale category for an event.
 
-    Elle appartient au catalogue : elle décrit ce qui peut être vendu et
-    combien de places existent. Le contexte ticketing restera propriétaire
-    des billets effectivement émis.
-
-    `sold_count` est matérialisé pour permettre plus tard l achat atomique
-    sous verrou pessimiste sans compter les commandes à chaque requête.
+    Catalog owns what may be sold and available capacity, while ticketing owns
+    issued tickets. `sold_count` is materialized to support atomic inventory
+    updates without recounting orders on every request.
     """
 
     event = models.ForeignKey(
@@ -305,12 +290,7 @@ class TicketCategory(UUIDModel, TimeStampedModel, VersionedModel):
 
     @property
     def organizer_id(self):
-        """
-        Primitive de propriété exposée au moteur ABAC.
-
-        TicketCategory appartient à Event ; Event appartient à Organizer.
-        Aucun organizer_id redondant n est stocké en base.
-        """
+        """Ownership primitive for ABAC, derived through Event without storing a redundant organizer_id."""
         return self.event.organizer_id
 
     def __str__(self) -> str:
@@ -322,14 +302,11 @@ class EventScannerAssignment(
     TimeStampedModel,
 ):
     """
-    Affectation manuelle d'un scanner à un événement.
+    Manual scanner assignment to an event.
 
-    `scanner_id` est volontairement une référence UUID et non
-    une ForeignKey Python vers organizing.Scanner :
-    catalog ne dépend des règles organizing qu'au travers
-    de apps.organizing.api.
-
-    Une désaffectation conserve la ligne pour la traçabilité.
+    `scanner_id` is a UUID reference rather than a Python ForeignKey to keep
+    catalog dependent on organizing only through its public API. Unassignment
+    keeps the row for traceability.
     """
 
     event = models.ForeignKey(
