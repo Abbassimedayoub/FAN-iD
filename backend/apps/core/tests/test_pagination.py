@@ -1,4 +1,4 @@
-"""Pagination par curseur : stabilité de l'ordre même à timestamps égaux (§55)."""
+"""Cursor pagination must remain stable even when timestamps are equal."""
 
 from apps.core.pagination import CursorPagination, StandardPagination
 
@@ -9,10 +9,9 @@ def test_standard_pagination_default_page_size():
 
 
 def test_cursor_pagination_orders_on_created_at_then_id_for_stability():
-    # Le tie-break sur `id` (second champ d'`ordering`) est ce qui garantit
-    # qu'aucune ligne n'est sautée ni dupliquée entre deux pages quand
-    # plusieurs lignes partagent exactement le même `created_at` — cas
-    # fréquent sur `scan_log` en cas d'écritures en rafale (Sprint 4).
+    # The `id` tie-breaker, as the second ordering field, prevents rows from
+    # being skipped or duplicated across pages when multiple rows share the same
+    # `created_at` timestamp.
     assert CursorPagination.ordering == ("-created_at", "-id")
 
 
