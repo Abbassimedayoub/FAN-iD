@@ -1,25 +1,25 @@
 """
-Service d'idempotence (ADR-S-06).
+Idempotency service.
 
-Le quadruplet **(user, key, endpoint, request_hash)** est validé
-explicitement — pas seulement (user, key) — car une même valeur de clé
-soumise par erreur (ou par un client bogué) sur DEUX endpoints différents ne
-doit JAMAIS pouvoir rejouer la réponse de l'un sur l'autre : c'est une fuite
-de réponse inter-endpoints, potentiellement inter-fonctionnalités (ex. la
-réponse d'un `POST /tickets/purchase` rejouée sur un `POST
-/tickets/transfer` qui partagerait accidentellement la même clé client).
+The tuple **(user, key, endpoint, request_hash)** is validated explicitly —
+not just (user, key) — because the same key value submitted by mistake or by
+a buggy client to TWO different endpoints must NEVER replay one endpoint's
+response on another. That would leak responses across endpoints and possibly
+across features.
 
-Règles fines (§3.1 Source B / §20 master prompt) :
-- clé déjà vue sur un endpoint DIFFÉRENT (même si le hash coïncide) ⇒
-  `IdempotencyKeyReuseError` (422) — vérifié EN PREMIER, avant toute
-  logique par statut : ce cas ne doit jamais atteindre un chemin de rejeu.
-- clé déjà vue, COMPLETED, même endpoint, même empreinte de requête ⇒
-  réponse mémorisée rejouée.
-- clé déjà vue, même endpoint, empreinte DIFFÉRENTE ⇒ IdempotencyKeyReuseError (422).
-- clé IN_PROGRESS, non orpheline (< délai de garde) ⇒ RequestInProgressError (409).
-- clé IN_PROGRESS, orpheline (processus tué entre IN_PROGRESS et COMPLETED,
-  `locked_at` + 60s dépassé) ⇒ reprise, avec log WARNING.
-- L'INSERTION est le verrou : pas de SELECT puis INSERT (fenêtre de course).
+Rules:
+- a key already seen on a DIFFERENT endpoint, even when the hash matches,
+  raises `IdempotencyKeyReuseError` (422). This check happens first, before
+  any status-specific logic, so it can never enter a replay path.
+- a COMPLETED key with the same endpoint and request fingerprint replays the
+  stored response.
+- a key with the same endpoint and a DIFFERENT fingerprint raises
+  `IdempotencyKeyReuseError` (422).
+- a non-orphaned IN_PROGRESS key raises `RequestInProgressError` (409).
+- an orphaned IN_PROGRESS key is recovered after the guard period, with a
+  WARNING log.
+- INSERT is the lock; do not SELECT and then INSERT because that creates a
+  race window.
 """
 
 import hashlib
@@ -41,12 +41,12 @@ logger = logging.getLogger("fanid.idempotency")
 
 
 def compute_request_hash(body: bytes) -> str:
-    """Empreinte SHA-256 du corps canonique de la requête."""
+    """Return the SHA-256 fingerprint of the canonical request body."""
     return hashlib.sha256(body or b"").hexdigest()
 
 
 class IdempotencyOutcome:
-    """Résultat de `begin()` : soit une réponse rejouée, soit un enregistrement à compléter."""
+    """Result of `begin()`: either a replayed response or a record to complete."""
 
     def __init__(self, record: IdempotencyRecord, replayed: bool):
         self.record = record
@@ -61,11 +61,11 @@ def _is_orphaned(record: IdempotencyRecord) -> bool:
 @transaction.atomic
 def begin(*, key: str, user_id: Any, endpoint: str, request_hash: str) -> IdempotencyOutcome:
     """
-    Démarre (ou rejoue) une opération idempotente.
+    Start or replay an idempotent operation.
 
-    L'insertion est tentée directement ; une IntegrityError signifie qu'un
-    enregistrement existe déjà pour (key, user_id) — c'est le mécanisme de
-    verrou, pas un SELECT préalable.
+    Insertion is attempted directly. An IntegrityError means a record already
+    exists for (key, user_id); this is the locking mechanism, rather than a
+    preliminary SELECT.
     """
     expires_at = timezone.now() + timedelta(hours=settings.IDEMPOTENCY_RETENTION_HOURS)
 
@@ -83,18 +83,17 @@ def begin(*, key: str, user_id: Any, endpoint: str, request_hash: str) -> Idempo
     except IntegrityError:
         pass
 
-    # Un enregistrement existe déjà : verrouillage pessimiste pour la décision.
+    # A record already exists: take a pessimistic lock before deciding what to do.
     record = IdempotencyRecord.objects.select_for_update().get(
         key=key,
         user_id=user_id,
     )
 
-    # Validation du quadruplet (user, key, endpoint, request_hash) — PREMIÈRE
-    # vérification, avant toute branche par statut. Un endpoint différent est
-    # TOUJOURS un rejet, quel que soit le statut de l'enregistrement existant
-    # (COMPLETED, IN_PROGRESS ou FAILED) : ré-utiliser une clé sur un autre
-    # endpoint n'est jamais une "reprise" légitime, c'est soit un bug client,
-    # soit une tentative de faire rejouer la réponse d'un autre endpoint.
+    # Validate (user, key, endpoint, request_hash) FIRST, before branching on
+    # status. A different endpoint is ALWAYS rejected regardless of the
+    # existing record's status (COMPLETED, IN_PROGRESS, or FAILED). Reusing a
+    # key across endpoints is never a legitimate recovery; it is either a
+    # client bug or an attempt to replay another endpoint's response.
     if record.endpoint != endpoint:
         fanid_idempotency_conflicts_total.labels(reason="endpoint_mismatch").inc()
         logger.warning(
@@ -133,7 +132,7 @@ def begin(*, key: str, user_id: Any, endpoint: str, request_hash: str) -> Idempo
         fanid_idempotency_conflicts_total.labels(reason="in_progress").inc()
         raise RequestInProgressError(details={"key": key, "endpoint": endpoint})
 
-    # FAILED : autoriser une nouvelle tentative propre (nouvel état IN_PROGRESS).
+    # FAILED: allow a clean retry by returning the record to IN_PROGRESS.
     record.status = IdempotencyRecord.Status.IN_PROGRESS
     record.locked_at = timezone.now()
     record.request_hash = request_hash
@@ -149,11 +148,11 @@ def complete(
     response_headers: dict | None = None,
 ) -> None:
     """
-    Mémorise le résultat pour un rejeu futur. `response_headers` ne contient
-    QU'un sous-ensemble d'en-têtes "clés" (whitelist, voir
-    `middleware.REPLAYABLE_RESPONSE_HEADERS`) — jamais l'intégralité des
-    en-têtes de la réponse originale (certains, comme `Set-Cookie` ou
-    `X-Correlation-ID`, ne doivent jamais être rejoués tels quels).
+    Store the result for future replay. `response_headers` contains only a
+    whitelist of important headers (see
+    `middleware.REPLAYABLE_RESPONSE_HEADERS`), never every header from the
+    original response. Headers such as `Set-Cookie` and
+    `X-Correlation-ID` must not be replayed verbatim.
     """
     record.status = IdempotencyRecord.Status.COMPLETED
     record.response_status = response_status
@@ -168,7 +167,7 @@ def fail(record: IdempotencyRecord) -> None:
 
 
 def purge_expired() -> int:
-    """Purge des enregistrements expirés (§20 master prompt — tâche Beat quotidienne)."""
+    """Purge expired records as part of the daily Beat task."""
     deleted, _ = IdempotencyRecord.objects.filter(expires_at__lt=timezone.now()).delete()
     return deleted
 
