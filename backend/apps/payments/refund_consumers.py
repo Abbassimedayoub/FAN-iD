@@ -8,7 +8,7 @@ from .refund_tasks import process_cancelled_event_refunds
 
 
 class EventCancellationRefundConsumer(BaseConsumer):
-    """Planifie les remboursements après l'annulation d'un événement."""
+    """Schedule refunds after an event is cancelled."""
 
     name = "payments.event_cancellation_refunds"
     handled_event_types = {CATALOG_EVENT_CANCELLED}
