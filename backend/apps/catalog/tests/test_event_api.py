@@ -12,9 +12,9 @@ from apps.catalog.models import Category, Event
 
 User = get_user_model()
 
-# Valeurs du contrat HTTP utilisées par ces tests d intégration.
-# Le modèle organizing est obtenu via le registre Django afin que le module
-# de test catalog ne crée pas de dépendance Python vers les internals
+# HTTP contract values used by these integration tests.
+# Resolve the organizing model through Django's app registry so catalog tests
+# do not create a direct Python dependency on organizing internals.
 # d un autre bounded context.
 ORGANIZER_APPROVED = "APPROVED"
 ORGANIZER_PENDING = "PENDING"
@@ -134,7 +134,7 @@ def test_approved_organizer_creates_owned_draft(
 
     body = event_payload(category)
 
-    # Ces champs ne font pas partie du contrat d écriture.
+    # These fields are not part of the write contract.
     body["status"] = "PUBLISHED"
     body["organizer_id"] = "00000000-0000-4000-8000-000000000999"
 
@@ -229,7 +229,7 @@ def test_list_contains_only_current_organizer_events(
         ends_at=(timezone.now() + datetime.timedelta(hours=2)),
     )
 
-    # Legacy : aucune propriété, donc invisible.
+    # Legacy row: no ownership, therefore not visible.
     Event.objects.create(
         organizer=None,
         category=category,
