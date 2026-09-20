@@ -1,17 +1,12 @@
 """
-Rattachement de `user.role` (plan S1 §3.1 : `FK role_id ON DELETE PROTECT`).
+Attach `user.role` through a protected foreign key.
 
-Migration séparée du seed : ADR-S-08 interdit de mêler l'ajout d'une colonne et
-le peuplement des données dont elle dépend. Les rôles existent donc déjà quand
-cette migration s'exécute, et la valeur par défaut peut pointer un identifiant
-réel.
+This migration is separate from the role seed so the referenced role rows
+already exist when the column is added.
 
-`default` = FAN, immédiatement retiré (`preserve_default=False`). Le rôle FAN est
-celui de l'inscription publique (master prompt §11) : c'est le défaut le moins
-privilégié possible, jamais ADMIN.
-
-`PROTECT` et non `CASCADE` : supprimer un rôle ne doit jamais supprimer en
-cascade les utilisateurs qui le portent.
+The temporary default is FAN and is removed immediately with
+`preserve_default=False`. FAN is the least-privileged public registration
+role. `PROTECT` prevents role deletion from cascading into user deletion.
 """
 import django.db.models.deletion
 from django.db import migrations, models
