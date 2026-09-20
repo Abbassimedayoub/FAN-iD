@@ -12,9 +12,9 @@ EVENT_IMAGE_URL_TTL_SECONDS = 300
 
 class FanCatalogCategorySerializer(serializers.Serializer):
     """
-    Contrat de lecture du Catalogue Fan.
+    Read contract for the fan catalog.
 
-    Les informations d'ownership Organizer ne sont pas exposées.
+    Organizer ownership information is not exposed.
     """
 
     id = serializers.UUIDField(read_only=True)
@@ -31,10 +31,10 @@ class FanCatalogTicketCategorySerializer(serializers.Serializer):
 
 class FanCatalogEventSerializer(serializers.Serializer):
     """
-    Contrat de lecture d'un événement pour le Fan.
+    Fan-facing event read contract.
 
-    Le statut réel et ses informations associées restent visibles afin
-    que le Mobile puisse représenter correctement tous les états métier.
+    The actual event status and related information remain visible so clients
+    can represent every business state correctly.
     """
 
     id = serializers.UUIDField(read_only=True)
