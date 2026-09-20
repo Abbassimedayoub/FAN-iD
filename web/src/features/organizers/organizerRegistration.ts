@@ -73,11 +73,11 @@ export async function registerOrganizerAccount(input: AccountRegistrationInput):
     }
 
     /*
-     * Le compte peut avoir été créé lors d'une tentative précédente alors que
-     * la candidature organisateur n'a jamais été terminée.
+     * The account may already exist from an earlier attempt even though the
+     * organizer application was never completed.
      *
-     * On ne contourne jamais l'authentification : l'utilisateur doit prouver
-     * qu'il connaît le mot de passe de l'adresse déjà inscrite.
+     * Authentication is never bypassed: the user must prove knowledge of the
+     * password for the already-registered address.
      */
     const loginResult = await loginWeb({
       email: input.email,
