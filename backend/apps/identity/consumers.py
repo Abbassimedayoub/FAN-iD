@@ -8,11 +8,7 @@ from .tasks import send_password_changed_email, send_password_reset_email, send_
 
 
 class PasswordResetEmailConsumer(BaseConsumer):
-    """
-    Réagit aux événements de récupération appartenant au contexte identity.
-
-    Aucun appel SMTP n'est effectué dans la transaction Outbox.
-    """
+    """Handle identity recovery events without performing SMTP calls inside the Outbox transaction."""
 
     name = "identity.password_reset_email"
 
