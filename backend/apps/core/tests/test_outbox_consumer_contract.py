@@ -1,4 +1,7 @@
-"""Ensure deferred network side effects run only after the relay transaction commits, never while SKIP LOCKED row locks are held."""
+"""
+Ensure deferred network side effects run only after the relay transaction commits, never while SKIP
+LOCKED row locks are held.
+"""
 
 import uuid
 
@@ -28,7 +31,10 @@ class _DeferringConsumer(BaseConsumer):
 
 
 class OutboxDeferredSideEffectTests(TransactionTestCase):
-    """Use TransactionTestCase so transaction.on_commit callbacks actually execute and pre/post-commit behavior can be observed."""
+    """
+    Use TransactionTestCase so transaction.on_commit callbacks actually execute and pre/post-commit
+    behavior can be observed.
+    """
 
     def test_deferred_callback_runs_only_after_relay_transaction_commits(self):
         consumer = _DeferringConsumer()
@@ -43,7 +49,8 @@ class OutboxDeferredSideEffectTests(TransactionTestCase):
                     payload={},
                 )
 
-            # relay_batch() is atomic; when it returns, its transaction has committed and deferred callbacks may have run.
+            # relay_batch() is atomic; when it returns, its transaction has committed and deferred
+            # callbacks may have run.
             result = relay.relay_batch(batch_size=10)
 
             assert result.published == 1
