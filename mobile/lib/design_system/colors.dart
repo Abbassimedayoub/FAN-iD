@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// Palette FAN iD — issue de la planche `DS-01 · Design System`.
+/// FAN iD palette from the DS-01 design-system board.
 ///
-/// Les sept premieres valeurs sont LUES LITTERALEMENT sur la maquette : chaque
-/// pastille de DS-01 y porte son hexadecimal. Les neutres qui suivent sont
-/// derives du rendu ; la planche ne les nomme pas, mais sans eux chaque ecran
-/// reinventerait son propre gris — exactement la « valeur magique » que ce
-/// prototype doit interdire.
+/// The first seven values come directly from the design tokens. The neutral
+/// colors that follow are derived shared tokens so screens do not invent their
+/// own magic gray values.
 ///
-/// Aucune couleur ne doit etre ecrite en dur ailleurs que dans ce fichier.
+/// No design-system color should be hard-coded outside this file.
 ///
 /// Note de compatibilite : toutes les valeurs sont des constantes ARGB
 /// explicites. On evite volontairement `withOpacity()` (deprecie a partir de
@@ -16,7 +14,7 @@ import 'package:flutter/material.dart';
 /// prototype reste analysable proprement sur les deux versions.
 abstract final class FanColors {
   // ---------------------------------------------------------------------
-  // Valeurs libellees dans DS-01
+  // Values labeled in DS-01
   // ---------------------------------------------------------------------
 
   /// « Navy base » — fonds sombres, texte de titre.
@@ -25,10 +23,10 @@ abstract final class FanColors {
   /// « Primary » — liens, prix, fin du degrade de marque.
   static const Color primary = Color(0xFF1663C7);
 
-  /// « Cyan accent » — focus, barre d accent des billets, cadre du scanner.
+  /// Cyan accent: focus, ticket accent bar, and scanner frame.
   static const Color cyan = Color(0xFF22D3EE);
 
-  /// « Teal » — courbes, vignettes d evenement, badge EN DIRECT.
+  /// Teal: charts, event artwork, and live badges.
   static const Color teal = Color(0xFF0EA5B7);
 
   /// « Succes ».
@@ -41,19 +39,19 @@ abstract final class FanColors {
   static const Color warning = Color(0xFFF59E0B);
 
   // ---------------------------------------------------------------------
-  // Neutres — derives du rendu, non libelles dans DS-01
+  // Neutral colors derived from the design
   // ---------------------------------------------------------------------
 
-  /// Fond general des ecrans clairs.
+  /// General background for light screens.
   static const Color background = Color(0xFFF4F7FB);
 
-  /// Surface des cartes, champs et feuilles.
+  /// Surface for cards, inputs, and sheets.
   static const Color surface = Color(0xFFFFFFFF);
 
   /// Surface creusee : onglet inactif, carte desactivee.
   static const Color surfaceSunken = Color(0xFFF1F5FB);
 
-  /// Contour des champs et des cartes.
+  /// Border color for inputs and cards.
   static const Color border = Color(0xFFDCE4EF);
 
   /// Texte principal (identique a [navy], nomme separement par intention).
@@ -65,41 +63,41 @@ abstract final class FanColors {
   /// Placeholder et texte desactive.
   static const Color textPlaceholder = Color(0xFF94A3B8);
 
-  /// Fond du bouton desactive (« Epuise » dans DS-01).
+  /// Disabled-button background.
   static const Color disabled = Color(0xFFCBD5E1);
 
-  /// Texte secondaire pose sur un fond navy.
+  /// Secondary text on a navy background.
   static const Color onNavySecondary = Color(0xFFA8C0DC);
 
-  /// Nuances de navy composant les fonds degrades sombres.
+  /// Navy shades used in dark gradients.
   static const Color navyDeep = Color(0xFF0B2140);
   static const Color navySoft = Color(0xFF123A66);
 
-  /// Surface translucide posee sur un fond navy (boutons ronds du scanner,
+  /// Translucent surface placed on a navy background.
   /// bandeau d information du QR).
   static const Color onNavySurface = Color(0x1FFFFFFF);
   static const Color onNavyBorder = Color(0x33FFFFFF);
 
-  /// Surface translucide posee sur un aplat de couleur pleine — le disque
-  /// blanc des ecrans SCN-04 et SCN-05.
+  /// Translucent surface placed on a solid-color background.
+  /// Used by the white disks on scanner result screens.
   static const Color onColorSurface = Color(0x26FFFFFF);
 
   /// Voile sombre : puce de motif du refus, superposition de tiroir.
   static const Color scrim = Color(0x33000000);
 
   /// Encre ambre du badge « En attente ». L ambre sature de [warning] est
-  /// illisible sur sa propre teinte pale ; cette version assombrie tient le
+  /// Darkened variant used where the original shade would lack contrast.
   /// contraste.
   static const Color warningInk = Color(0xFFB4740A);
 
-  /// Cyan tres dilue : motif decoratif des visuels d evenement.
+  /// Very pale cyan used for decorative event artwork.
   static const Color cyanVeil = Color(0x2622D3EE);
 
   /// Halo cyan du champ en focus.
   static const Color cyanGlow = Color(0x3322D3EE);
 
   // ---------------------------------------------------------------------
-  // Teintes de badge — fond a ~14 % de la couleur d etat, sur blanc
+  // Badge tints: light state-color backgrounds on white
   // ---------------------------------------------------------------------
 
   static const Color successTint = Color(0xFFDEF5ED);
@@ -120,7 +118,7 @@ abstract final class FanColors {
     colors: <Color>[cyan, primary],
   );
 
-  /// Fond sombre des ecrans immersifs (splash, QR, scanner, hero).
+  /// Dark background for immersive screens such as splash, QR, scanner, and hero.
   static const LinearGradient navyGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
