@@ -69,7 +69,10 @@ class PasswordResetResult:
 def derive_password_reset_code(
     challenge_id: uuid.UUID,
 ) -> str:
-    """Recreate the six-digit code without storing it in plaintext; bounded attempts, random challenge ID, expiry, and HTTP quotas provide the surrounding controls."""
+    """
+    Recreate the six-digit code without storing it in plaintext; bounded attempts, random challenge
+    ID, expiry, and HTTP quotas provide the surrounding controls.
+    """
     digest = salted_hmac(
         RESET_CODE_SALT,
         str(challenge_id),
