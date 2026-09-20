@@ -86,7 +86,10 @@ def payload(**overrides) -> dict:
 
 
 def test_a_web_client_receives_the_refresh_only_in_an_httponly_cookie(client, fan, settings):
-    """Web login must not expose the refresh token in the response body when it is stored in an HttpOnly cookie."""
+    """
+    Web login must not expose the refresh token in the response body when it is stored in an
+    HttpOnly cookie.
+    """
     response = client.post(URL, payload(client="web"), format="json")
 
     assert response.status_code == 200, response.data
