@@ -212,7 +212,10 @@ class OrganizerOnboardingService:
         actor_id: uuid.UUID,
         expected_version: int,
     ) -> Organizer:
-        """Reopen a suspended organizer while preserving historical validation information and restoring only APPROVED state."""
+        """
+        Reopen a suspended organizer while preserving historical validation information and
+        restoring only APPROVED state.
+        """
         organizer = cls._get(organizer_id)
         cls._require_state(
             organizer,
