@@ -3,24 +3,19 @@ import 'package:flutter/material.dart';
 import 'colors.dart';
 import 'typography.dart';
 
-/// Theme global FAN iD.
+/// Global FAN iD theme.
 ///
-/// Il ne fait qu une chose : injecter les tokens dans Material pour que les
-/// widgets natifs (curseur de champ, ripple, selection de texte) restent
-/// coherents avec la maquette. Les composants FAN iD, eux, lisent les tokens
-/// directement — le theme n est pas leur source de verite.
+/// Its role is to inject design tokens into Material so native widgets such as
+/// cursors, ripples, and text selection stay consistent with the product UI.
+/// FAN iD components read tokens directly; the theme is not their source of
+/// truth.
 ///
-/// Configure aussi les composants Material utilises par les parcours metier.
-/// Ne modifie pas l'echelle typographique de l'utilisateur.
+/// It also configures Material components used by business flows and never
+/// overrides the user's typography scale.
 ///
-/// ## Accessibilite : aucun plafond sur l echelle de texte
-///
-/// Une version anterieure de ce theme bornait `textScaler` a 1.3. C etait un
-/// defaut : le critere WCAG 2.1 §1.4.4 demande 200 % de redimensionnement, et
-/// un plafond a 1.3 ecrase silencieusement le reglage systeme d un
-/// utilisateur malvoyant. La bonne parade n est pas de contraindre
-/// l utilisateur mais de rendre les ecrans defilants — ce que font
-/// `SplashView` et `LoginView`.
+/// Accessibility: there is no cap on text scaling. Earlier code capped
+/// `textScaler` at 1.3, which silently overrode the system preference. The
+/// correct response is to make screens scrollable rather than constrain users.
 abstract final class FanTheme {
   static ThemeData get light {
     final ColorScheme scheme = ColorScheme.fromSeed(
@@ -127,8 +122,8 @@ abstract final class FanTheme {
       ),
       scaffoldBackgroundColor: FanColors.background,
       splashFactory: InkRipple.splashFactory,
-      // Cible tactile minimale posee au niveau du theme, pour ne pas dependre
-      // de la vigilance de chaque ecran.
+      // Set the minimum touch target at theme level instead of relying on each
+      // screen to remember it.
       materialTapTargetSize: MaterialTapTargetSize.padded,
       appBarTheme: const AppBarTheme(
         backgroundColor: FanColors.surface,
