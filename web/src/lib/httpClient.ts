@@ -1,13 +1,13 @@
 /**
- * Client HTTP Web FAN id.
+ * FAN iD web HTTP client.
  *
- * Invariants de sécurité :
- * - access token uniquement en mémoire ;
- * - refresh uniquement dans le cookie HttpOnly ;
- * - credentials envoyés avec les requêtes navigateur ;
- * - un seul refresh réseau pour N réponses 401 concurrentes ;
- * - une requête n'est rejouée qu'une seule fois ;
- * - un échec du endpoint de refresh ne déclenche jamais un refresh récursif.
+ * Security invariants:
+ * - access token lives in memory only;
+ * - refresh token lives only in the HttpOnly cookie;
+ * - browser requests include credentials;
+ * - concurrent 401 responses share one network refresh;
+ * - a request is replayed at most once;
+ * - refresh-endpoint failure never triggers recursive refresh.
  */
 import axios, {
   type AxiosError,
@@ -186,7 +186,7 @@ async function withCrossTabRefreshLock<T>(task: () => Promise<T>): Promise<T> {
         storage.removeItem(CROSS_TAB_REFRESH_LOCK_KEY);
       }
     } catch {
-      // Le TTL empeche un verrou permanent si le stockage devient indisponible.
+      // The TTL prevents a permanent lock if storage becomes unavailable.
     }
   }
 }
