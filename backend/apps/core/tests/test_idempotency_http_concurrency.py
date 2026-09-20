@@ -22,7 +22,7 @@ def purchase_view(request):
         _execution_count += 1
         execution_number = _execution_count
 
-    # Laisse une petite fenêtre pour provoquer une vraie compétition HTTP.
+    # Leave a small window to provoke real HTTP concurrency.
     time.sleep(0.15)
 
     return JsonResponse(
@@ -86,20 +86,20 @@ def test_five_concurrent_http_requests_execute_business_logic_only_once(user):
     for thread in threads:
         thread.join()
 
-    # Invariant critique : une seule vraie exécution métier.
+    # Critical invariant: exactly one real business execution.
     assert _execution_count == 1, results
 
     assert len(results) == 5
 
-    # Une requête doit avoir réellement exécuté la vue.
+    # Exactly one request must really execute the view.
     successful_originals = [
         result for result in results if result["status"] == 201 and result["replayed"] != "true"
     ]
     assert len(successful_originals) == 1, results
 
-    # Les quatre concurrentes ne doivent JAMAIS déclencher une autre exécution.
+    # The four concurrent requests must never trigger another execution.
     # Selon leur timing exact, elles peuvent recevoir 409 IN_PROGRESS
-    # ou arriver après completion et obtenir immédiatement un replay.
+    # Or they may arrive after completion and receive an immediate replay.
     other_results = [result for result in results if result not in successful_originals]
     assert len(other_results) == 4
 
