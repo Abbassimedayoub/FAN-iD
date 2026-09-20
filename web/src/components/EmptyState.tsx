@@ -1,4 +1,4 @@
-/** État `empty` (§4.2 Source B) : illustration + phrase explicative + action principale. */
+/** Empty state: illustration, explanatory copy, and primary action. */
 interface EmptyStateProps {
   title: string;
   description?: string;
