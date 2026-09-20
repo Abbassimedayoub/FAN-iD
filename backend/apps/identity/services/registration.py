@@ -29,7 +29,10 @@ logger = logging.getLogger("fanid.identity")
 
 
 def age_in_years(birth_date: datetime.date, on_date: datetime.date) -> int:
-    """Compute attained age without third-party libraries, avoiding day-count approximations around leap years."""
+    """
+    Compute attained age without third-party libraries, avoiding day-count approximations around
+    leap years.
+    """
     had_birthday = (on_date.month, on_date.day) >= (birth_date.month, birth_date.day)
     return on_date.year - birth_date.year - (0 if had_birthday else 1)
 
@@ -59,7 +62,10 @@ class RegistrationService:
     @staticmethod
     @transaction.atomic
     def register(command: RegistrationCommand) -> User:
-        """Create the user and publish `identity.user.registered` in the same transaction so no event can survive a rolled-back account creation."""
+        """
+        Create the user and publish `identity.user.registered` in the same transaction so no event
+        can survive a rolled-back account creation.
+        """
         if not command.terms_accepted:
             raise TermsNotAcceptedError()
 
