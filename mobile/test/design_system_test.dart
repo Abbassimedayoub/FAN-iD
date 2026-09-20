@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('Tokens issus de DS-01', () {
     test('les couleurs libellees valent exactement celles de la planche', () {
-      // Ces sept valeurs sont ecrites noir sur blanc sur la maquette.
+      // These seven values are explicitly defined by the design tokens.
       expect(FanColors.navy, const Color(0xFF0E2A4D));
       expect(FanColors.primary, const Color(0xFF1663C7));
       expect(FanColors.cyan, const Color(0xFF22D3EE));
