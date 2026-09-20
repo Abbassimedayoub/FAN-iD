@@ -23,15 +23,11 @@ PASSWORD = "Chataigne-Orageuse-2026"
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_approvals_have_exactly_one_winner(roles):
     """
-    Exigence S1 §6.3.
+    Two administrators start from the same organizer version.
 
-    Deux administrateurs partent de la meme version du meme dossier.
-    La base doit arbitrer l UPDATE conditionnel :
-
-    - exactement une approbation reussit ;
-    - exactement une requete recoit STALE_RESOURCE ;
-    - la version n est incrementee qu une fois ;
-    - un seul evenement Outbox est emis.
+    The database arbitrates the conditional update: exactly one approval wins,
+    one request receives STALE_RESOURCE, the version increments once, and one
+    Outbox event is emitted.
     """
     applicant = User.objects.create_user(
         email="candidate-concurrency@example.test",
