@@ -1,8 +1,7 @@
 """
-Interface publique de lecture du contexte catalog.
+Public read interface for the catalog context.
 
-Ce module expose uniquement les informations nécessaires aux
-consommateurs externes et au portail scanner.
+Only data required by external consumers and the scanner portal is exposed here.
 """
 
 from __future__ import annotations
@@ -136,10 +135,10 @@ def list_scanner_portal_events(
     organizer_id: uuid.UUID,
 ) -> tuple[ScannerPortalEventSummary, ...]:
     """
-    Retourne exclusivement les affectations actives du scanner.
+    Return only active assignments for the scanner.
 
-    Le double filtre scanner + organizer empêche qu'un UUID de scanner
-    soit utilisé pour lire un événement d'un autre organisateur.
+    Filtering by both scanner and organizer prevents a scanner identifier from
+    being used to read another organizer's event.
     """
 
     assignments = (
