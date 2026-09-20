@@ -1,21 +1,18 @@
 """
-Référentiel des rôles (plan S1 §3.1, table `role`).
+Role reference data.
 
-Les identifiants sont **fixes et dérivés de façon déterministe** (UUIDv5) plutôt
-que générés à la volée. Trois raisons :
+Identifiers are **fixed and derived deterministically** with UUIDv5 rather than
+generated dynamically. This provides three benefits:
 
-1. La migration qui ajoute `user.role_id` en NOT NULL a besoin d'une valeur par
-   défaut connue à l'écriture de la migration — un UUID tiré au hasard au moment
-   du seed ne le permettrait pas.
-2. Les identifiants sont identiques en développement, en test, en CI et en
-   production : une fixture ou un jeu de données de démonstration reste valide
-   partout.
-3. Le seed devient réellement idempotent : rejouer la migration ne crée pas de
-   doublon sous un nouvel identifiant.
+1. A migration adding `user.role_id` as NOT NULL can use a known value while
+   the migration is authored.
+2. Identifiers stay identical across development, tests, CI, and production,
+   so fixtures and demo datasets remain portable.
+3. Seeding is genuinely idempotent: replaying it cannot create a duplicate
+   role under a new identifier.
 
-ADR-02 : `Role.permissions` (jsonb) est **descriptif**, affiché dans la console
-d'administration. Il n'est JAMAIS la source de vérité de l'autorisation — c'est
-le `PolicyEngine`, en code, qui fait foi (master prompt §10).
+`Role.permissions` (jsonb) is descriptive and shown in administration tools.
+It is NEVER the source of truth for authorization; the code policy engine is.
 """
 
 import uuid
@@ -25,11 +22,11 @@ ROLE_ORGANIZER = "ORGANIZER"
 ROLE_SCANNER = "SCANNER"
 ROLE_ADMIN = "ADMIN"
 
-#: Ordre stable, utilisé par la contrainte CHECK et par les tests de matrice.
+#: Stable ordering used by the CHECK constraint and policy-matrix tests.
 ROLE_NAMES: tuple[str, ...] = (ROLE_FAN, ROLE_ORGANIZER, ROLE_SCANNER, ROLE_ADMIN)
 
-#: Rôle attribué à toute inscription publique (master prompt §11 : l'inscription
-#: publique ne permet aucune attribution arbitraire de privilège).
+#: Role assigned to every public registration; public signup cannot assign
+#: arbitrary privileges.
 DEFAULT_ROLE = ROLE_FAN
 
 ROLE_IDS: dict[str, uuid.UUID] = {
@@ -40,14 +37,14 @@ ROLE_IDS: dict[str, uuid.UUID] = {
 }
 
 
-# ---------------------------------------------------------------- appareils
+# ---------------------------------------------------------------- devices
 
-#: Format de l'empreinte d'appareil (master prompt §24).
-#: L'empreinte est calculée CÔTÉ CLIENT et reste opaque pour le serveur : il ne
-#: la recalcule jamais et n'en déduit rien. Il valide uniquement le format —
-#: 64 caractères hexadécimaux MINUSCULES, soit un SHA-256 canonique. Accepter
-#: les majuscules créerait deux représentations de la même empreinte, donc deux
-#: appareils distincts pour un même téléphone.
+#: Device fingerprint format.
+#: The fingerprint is computed CLIENT-SIDE and remains opaque to the server. The
+#: server never recomputes it or infers anything from it; it only validates the
+#: format: 64 LOWERCASE hexadecimal characters, i.e. canonical SHA-256.
+#: Accepting uppercase would create two representations of the same fingerprint
+#: and therefore two logical devices for one physical phone.
 FINGERPRINT_PATTERN = r"^[0-9a-f]{64}$"
 
 PLATFORM_ANDROID = "android"
@@ -68,10 +65,10 @@ DEVICE_REVOKED_REASONS: tuple[str, ...] = (
 
 # ----------------------------------------------------------------- sessions
 
-#: Niveau d'authentification porté par la session et par le JWT (plan S1 §2.4).
-#: 1 = mot de passe seul. 2 = vérification renforcée (code reçu par email).
-#: Les actions sensibles — réinitialisation d'appareil, changement d'email,
-#: suppression de compte — exigent le niveau 2.
+#: Authentication level carried by the session and JWT.
+#: 1 = password only. 2 = step-up verification, such as a code received by email.
+#: Sensitive actions such as device reset, email change, and account deletion
+#: require level 2.
 AUTH_LEVEL_PASSWORD = 1
 AUTH_LEVEL_STEP_UP = 2
 AUTH_LEVELS: tuple[int, ...] = (AUTH_LEVEL_PASSWORD, AUTH_LEVEL_STEP_UP)
@@ -108,37 +105,33 @@ MFA_PURPOSES: tuple[str, ...] = (
     MFA_PURPOSE_PASSWORD_RESET,
 )
 
-#: Mot de passe oublié : durée volontairement plus longue que le STEP_UP.
-#: Le lien magique et le code de secours partagent exactement cette expiration.
+#: Forgotten-password flow intentionally has a longer lifetime than step-up.
+#: The magic link and backup code share exactly this expiration.
 PASSWORD_RESET_TTL_MINUTES = 15
 
-#: Le code n'est JAMAIS stocké en clair : seul son SHA-256 l'est (plan S1 §3.1).
-#: Ce format est verrouillé par une contrainte CHECK en base — un code à
-#: 6 chiffres inséré tel quel y est rejeté, y compris par une écriture SQL
-#: directe qui contournerait le service.
+#: The code is NEVER stored in plaintext; only its SHA-256 hash is stored.
+#: A database CHECK constraint locks this format down, so even direct SQL
+#: insertion of a six-digit plaintext code is rejected.
 CODE_HASH_PATTERN = r"^[0-9a-f]{64}$"
 OTP_MAX_ATTEMPTS = 5
 OTP_TTL_MINUTES = 5
 
 
-#: Age minimum a l inscription (RM-13). La contrainte `ck_user_min_age_16` porte
-#: la meme valeur en dur dans la migration 0002 : une migration deja appliquee
-#: ne se relit pas, on ne peut donc pas l y remplacer par cette constante. Les
-#: tests de contrainte de S1-A.1a verifient que les deux disent la meme chose —
-#: 16 ans pile accepte, la veille refuse.
+#: Minimum signup age. The database migration contains the same value
+#: explicitly because already-applied migrations must not be rewritten.
+#: Constraint tests verify both definitions remain aligned.
 MINIMUM_AGE_YEARS = 16
 
 
 # ------------------------------------------------------------------ clients
-#: Type de client declare a la connexion. Il decide du TRANSPORT du jeton de
-#: rafraichissement : cookie HttpOnly pour le web, corps de reponse pour le
-#: mobile. Les deux ne se cumulent jamais — un refresh present dans le corps est
-#: lisible en JavaScript, et le cookie HttpOnly ne protegerait alors plus rien.
+#: Client type declared at login. It determines REFRESH TOKEN TRANSPORT:
+#: HttpOnly cookie for web, response body for mobile. The two modes never
+#: overlap because a refresh token in the body is readable by JavaScript.
 #:
-#: Declare par le client plutot que devine depuis le `User-Agent` : cet en-tete
-#: se falsifie et change a chaque version de navigateur. Un navigateur qui
-#: declarerait `mobile` degraderait SA PROPRE securite, celle de personne
-#: d autre.
+#: The client declares this instead of the server inferring it from User-Agent,
+#: which is spoofable and changes across browser versions. A browser claiming
+#: to be mobile would weaken only its own transport security, not another
+#: user's.
 CLIENT_WEB = "web"
 CLIENT_MOBILE = "mobile"
 CLIENTS: tuple[str, ...] = (CLIENT_WEB, CLIENT_MOBILE)
