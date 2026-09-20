@@ -16,12 +16,11 @@ from apps.payments.models import (
 @transaction.atomic
 def request_event_refunds(*, event_id: UUID) -> list[PaymentRefund]:
     """
-    Prépare les remboursements des commandes payées contenant des billets
-    pour l'événement annulé.
+    Prepare refunds for paid orders containing tickets for the cancelled event.
 
-    Le montant est calculé depuis les lignes de commande figées. Une contrainte
-    unique paiement + événement rend l'opération sûre en cas de retry outbox.
-    Aucun appel réseau vers Stripe n'est fait ici.
+    Amounts come from snapshotted order lines. A unique payment-plus-event
+    constraint makes Outbox retries safe, and no provider network call happens
+    in this preparation step.
     """
     paid_order_ids = list_paid_order_ids_for_event(
         event_id=event_id,
@@ -61,7 +60,7 @@ def request_event_refunds(*, event_id: UUID) -> list[PaymentRefund]:
 
 
 class PaymentRefundGatewayError(RuntimeError):
-    """Le fournisseur de paiement a refusé ou n'a pas terminé le remboursement."""
+    """The payment provider rejected or did not complete the refund."""
 
 
 def _refund_idempotency_key(refund: PaymentRefund) -> str:
@@ -87,11 +86,10 @@ def _publish_refund_succeeded(refund: PaymentRefund) -> None:
 
 def execute_payment_refund(*, refund_id: UUID, gateway) -> PaymentRefund:
     """
-    Exécute le remboursement fournisseur, puis annule les billets seulement
-    lorsque le fournisseur confirme son succès.
+    Execute the provider refund and cancel tickets only after confirmed success.
 
-    L'appel externe est volontairement hors transaction SQL. La clé
-    d'idempotence Stripe protège les retries et les workers concurrents.
+    The external call stays outside the SQL transaction; the provider
+    idempotency key protects retries and concurrent workers.
     """
     refund = PaymentRefund.objects.select_related(
         "payment_intent",
@@ -188,7 +186,7 @@ def execute_payment_refund(*, refund_id: UUID, gateway) -> PaymentRefund:
 
 @transaction.atomic
 def mark_payment_refund_succeeded(*, provider_refund_id: str) -> PaymentRefund:
-    """Finalise un remboursement confirmé ultérieurement par Stripe."""
+    """Finalize a refund later confirmed by Stripe."""
 
     locked_refund = (
         PaymentRefund.objects.select_for_update()
@@ -222,7 +220,7 @@ def mark_payment_refund_failed(
     provider_refund_id: str,
     failure_reason: str,
 ) -> PaymentRefund:
-    """Conserve l'échec terminal signalé par le webhook Stripe."""
+    """Persist the terminal failure reported by the Stripe webhook."""
 
     locked_refund = PaymentRefund.objects.select_for_update().get(
         provider_refund_id=provider_refund_id,
