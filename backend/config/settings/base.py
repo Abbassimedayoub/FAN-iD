@@ -1,10 +1,9 @@
 """
-Settings communs à tous les environnements.
+Settings shared by all environments.
 
-Règle absolue (§40 du master prompt / §5.1 Source B) : aucune variable
-d'environnement critique n'a de valeur par défaut fonctionnelle. `env()` sans
-`default=` lève immédiatement une erreur explicite si la variable manque —
-un défaut silencieux en production est pire qu'un crash au démarrage.
+Critical environment variables intentionally have no functional defaults.
+Calling `env()` without `default=` fails immediately when a variable is
+missing, because a silent production fallback is worse than a startup failure.
 """
 
 from pathlib import Path
@@ -20,11 +19,11 @@ env_file = BASE_DIR.parent / ".env"
 if env_file.exists():
     environ.Env.read_env(str(env_file))
 
-# --- Sécurité / identité de service (critique, jamais de défaut) ---
+# --- Security / service identity (critical, never defaulted) ---
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 APP_VERSION = env("APP_VERSION", default="0.0.0-dev")
 
-# --- Paiements ---
+# --- Payments ---
 PAYMENT_GATEWAY = env("PAYMENT_GATEWAY", default="fake").strip().lower()
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
@@ -67,8 +66,8 @@ THIRD_PARTY_APPS = [
     "django_migration_linter",
 ]
 
-# Bounded contexts (§14 Source B / ADR-S-01). `core` en premier : il ne dépend
-# d'aucun des autres et tous les autres peuvent en dépendre.
+# Bounded contexts. `core` comes first because it depends on none of the
+# others, while every other local app may depend on it.
 LOCAL_APPS = [
     "apps.core",
     "apps.identity",
@@ -83,7 +82,7 @@ LOCAL_APPS = [
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
-# Django Admin local/demo
+# Django Admin for local/demo environments.
 for _app in [
     "django.contrib.admin",
     "django.contrib.messages",
@@ -93,7 +92,7 @@ for _app in [
         INSTALLED_APPS.append(_app)
 
 
-# --- Middlewares — ordre imposé, §2.5 Source B / §33 master prompt ---
+# --- Middleware order is intentional ---
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -132,7 +131,7 @@ ASGI_APPLICATION = "config.asgi.application"
 
 AUTH_USER_MODEL = "identity.User"
 
-# --- Hachage des mots de passe (ADR-S-04 règle 5 / plan S1 §5.1) ---
+# --- Password hashing ---
 PASSWORD_HASHERS = [
     "apps.identity.hashers.FanIdArgon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
@@ -149,7 +148,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# --- Base de données ---
+# --- Database ---
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 DATABASES["default"]["ENGINE"] = "django_prometheus.db.backends.postgresql"
@@ -238,7 +237,7 @@ REST_FRAMEWORK = {
         "profile_update": env("THROTTLE_PROFILE_UPDATE_RATE", default="20/hour"),
         "sessions_list": env("THROTTLE_SESSIONS_LIST_RATE", default="60/hour"),
         "session_revoke": env("THROTTLE_SESSION_REVOKE_RATE", default="20/hour"),
-        # S1-A.6d : quota par session, et non par adresse IP.
+        # Per-session quota, not per IP address.
         "refresh": env(
             "THROTTLE_REFRESH_RATE",
             default="30/hour",
@@ -270,7 +269,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = (*default_headers, "if-match", "x-correlation-id")
 CORS_EXPOSE_HEADERS = ("ETag",)
 
-# --- Transport du refresh token côté Web ---
+# --- Web refresh-token transport ---
 REFRESH_COOKIE_NAME = env(
     "REFRESH_COOKIE_NAME",
     default="fanid_refresh",
@@ -300,7 +299,7 @@ REFRESH_REQUIRE_TRUSTED_ORIGIN = env.bool(
     default=False,
 )
 
-# --- Jetons JWT ---
+# --- JWT tokens ---
 JWT_SIGNING_KEY = env("JWT_SIGNING_KEY")
 QR_SIGNING_KEY = env("QR_SIGNING_KEY", default="")
 JWT_ALGORITHM = env("JWT_ALGORITHM", default="HS256")
@@ -337,19 +336,19 @@ SESSION_COOKIE_SAMESITE = env(
     default="Lax",
 )
 
-# --- Internationalisation ---
+# --- Internationalization ---
 LANGUAGE_CODE = "fr-fr"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# --- Fichiers statiques ---
+# --- Static files ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- Idempotence / Outbox ---
+# --- Idempotency / Outbox ---
 IDEMPOTENCY_RETENTION_HOURS = env.int(
     "IDEMPOTENCY_RETENTION_HOURS",
     default=24,
@@ -411,19 +410,16 @@ SSM_PARAMETER_PREFIX = env(
 
 # --- django-migration-linter ---
 MIGRATION_LINTER_OPTIONS = {
-    # Deux migrations HISTORIQUES, déjà appliquées, sont écartées nommément.
+    # Two historical migrations that have already been applied are ignored by
+    # name. They add NOT NULL columns to populated tables using the canonical
+    # temporary-default + `preserve_default=False` pattern. The linter flags
+    # that pattern without distinguishing the safe use from the issue it is
+    # designed to catch.
     #
-    # Elles ajoutent des colonnes NOT NULL sur des tables peuplées via le motif
-    # canonique `default` temporaire + `preserve_default=False`. Le linter
-    # signale ce motif sans distinguer l'usage correct de la faute qu'il vise.
-    # Une migration appliquée ne se réécrit pas pour faire taire un
-    # avertissement — principe posé au lot P1-001.
-    #
-    # `ignore_name` et non `exclude_migration_tests` : désarmer NOT_NULL ou
-    # ALTER_COLUMN les neutraliserait pour TOUTES les migrations à venir, alors
-    # que le Sprint 2 ajoutera des colonnes sur des tables peuplées et que
-    # c'est exactement ce que ce contrôle doit attraper. Ici, deux migrations
-    # sont écartées ; tout le reste du dépôt reste vérifié.
+    # Applied migrations should not be rewritten merely to silence a warning.
+    # Use `ignore_name`, not `exclude_migration_tests`: disabling NOT_NULL
+    # or ALTER_COLUMN checks globally would also disable protection for future
+    # migrations. Only these named historical migrations are excluded.
     "ignore_name": [
         "0002_role_and_user_identity",
         "0004_user_role",
