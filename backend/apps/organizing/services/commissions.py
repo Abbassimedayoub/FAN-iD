@@ -33,12 +33,10 @@ NEGOTIABLE_ACCOUNT_STATES = {
 
 class OrganizerCommissionService:
     """
-    Negociation structuree Organizer <-> Admin.
+    Structured organizer/admin commission negotiation.
 
-    La negociation structuree porte aussi la decision d'ouverture :
-    - tant qu'aucun accord n'est conclu, le dossier reste PENDING ;
-    - l'acceptation finale de la commission approuve automatiquement
-      le compte Organizer.
+    Until an agreement is reached the dossier remains PENDING; final commission
+    acceptance automatically approves the organizer account.
     """
 
     @staticmethod
