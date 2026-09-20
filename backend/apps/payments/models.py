@@ -17,10 +17,10 @@ PAYMENT_INTENT_STATUSES = (
 
 class PaymentIntent(UUIDModel, TimeStampedModel):
     """
-    Tentative de paiement associée à une commande.
+    Payment attempt associated with an order.
 
-    Les données du fournisseur sont figées afin de pouvoir traiter un webhook
-    de manière idempotente dans l'étape suivante.
+    Provider data is snapshotted so later webhook processing can remain
+    idempotent.
     """
 
     order = models.ForeignKey(
@@ -82,10 +82,10 @@ PAYMENT_REFUND_STATUSES = (
 
 class PaymentRefund(UUIDModel, TimeStampedModel):
     """
-    Remboursement d'une part de paiement due à l'annulation d'un événement.
+    Refund of the payment portion attributable to a cancelled event.
 
-    Une même intention Stripe ne peut être remboursée qu'une seule fois pour
-    un événement donné. Cette contrainte rend les retries idempotents.
+    A given Stripe payment intent may be refunded only once for the same event,
+    making retries idempotent.
     """
 
     payment_intent = models.ForeignKey(
