@@ -1,10 +1,8 @@
 """
-Invariants de `Device`, `Session` et `MfaChallenge`, prouvés au niveau du SGBD.
+Database-level invariants for `Device`, `Session`, and `MfaChallenge`.
 
-Chaque contrainte est éprouvée par une **insertion SQL directe** (plan S1 §7.3) :
-un test qui passerait par l'ORM ne prouverait que la validation applicative,
-alors que l'intérêt d'une contrainte en base est de tenir quand l'application
-est contournée — script d'administration, migration de données, injection.
+Constraints are exercised with direct SQL so these tests prove database
+enforcement independently from ORM or service validation.
 """
 
 import datetime
@@ -78,10 +76,7 @@ def _insert_mfa_sql(
 
 
 def test_only_one_active_device_per_account(fan):
-    """
-    RM-5, garanti par une unicité PARTIELLE. Le cycle complet est vérifié :
-    un actif, plusieurs révoqués coexistent, un second actif est refusé.
-    """
+    """Partial uniqueness allows one active device while retaining revoked history."""
     _insert_device_sql(fan)
     _insert_device_sql(
         fan, fingerprint="b" * 64, revoked_at=timezone.now(), revoked_reason=DEVICE_REVOKED_USER_RESET
@@ -97,7 +92,7 @@ def test_only_one_active_device_per_account(fan):
 
 
 def test_a_revoked_device_frees_the_slot_for_a_new_one(fan):
-    """Le parcours de réinitialisation dépend de ce comportement."""
+    """The reset flow depends on this behavior."""
     _insert_device_sql(fan)
     Device.objects.for_user(fan).active().update(
         revoked_at=timezone.now(), revoked_reason=DEVICE_REVOKED_USER_RESET
@@ -122,15 +117,7 @@ def test_database_rejects_a_malformed_fingerprint(fan, fingerprint, raison):
 
 
 def test_a_fingerprint_longer_than_the_column_is_rejected_by_the_type(fan):
-    """
-    Garantie par le TYPE `varchar(64)`, pas par la contrainte CHECK.
-
-    La distinction compte : PostgreSQL lève ici « value too long for type
-    character varying(64) », que Django traduit en `DataError` et non en
-    `IntegrityError`. Attendre indifféremment l'une ou l'autre masquerait
-    laquelle des deux protections a réellement joué — et donc si l'on peut
-    retirer le CHECK sans conséquence.
-    """
+    """The varchar type, rather than the CHECK constraint, enforces the maximum stored length."""
     with pytest.raises(DataError), transaction.atomic():
         _insert_device_sql(fan, fingerprint="a" * 65)
 
@@ -141,7 +128,7 @@ def test_database_rejects_an_unknown_platform(fan):
 
 
 def test_a_revoked_device_must_carry_a_reason(fan):
-    """Une révocation sans motif perd toute valeur d'audit."""
+    """A revocation without a reason has incomplete audit value."""
     with pytest.raises(IntegrityError), transaction.atomic():
         _insert_device_sql(fan, revoked_at=timezone.now(), revoked_reason=None)
 
@@ -152,7 +139,7 @@ def test_a_revocation_reason_requires_a_revocation_date(fan):
 
 
 def test_deleting_a_user_removes_their_devices(fan):
-    """L'empreinte est une donnee personnelle : la conserver serait un passif RGPD."""
+    """Device fingerprints are personal data and should not outlive the account unnecessarily."""
     _insert_device_sql(fan)
     user_id = fan.id
     fan.delete()
@@ -175,7 +162,7 @@ def _make_session(fan, device=None, **kwargs):
 
 
 def test_refresh_jti_is_globally_unique(fan):
-    """Deux sessions ne peuvent pas revendiquer le meme refresh courant."""
+    """Two sessions cannot claim the same current refresh token identifier."""
     jti = uuid.uuid4()
     _make_session(fan, refresh_jti=jti)
     with pytest.raises(IntegrityError), transaction.atomic():
@@ -193,16 +180,11 @@ def test_database_rejects_a_session_expiring_before_it_was_issued(fan):
 
 
 def test_active_excludes_both_revoked_and_expired_sessions(fan):
-    """
-    Les deux conditions comptent. Ne filtrer que sur `revoked_at` laisserait
-    passer une session expiree ; ne filtrer que sur `expires_at` laisserait
-    passer une session revoquee pour reutilisation de jeton — le scenario de vol.
-    """
+    """Active sessions must be both unrevoked and unexpired."""
     valid = _make_session(fan)
     _make_session(fan, revoked_at=timezone.now(), revoked_reason="LOGOUT")
-    # Une session expirée s'obtient en antidatant l'ÉMISSION, pas en forçant
-    # l'expiration dans le passé : `ck_session_expiry_after_issue` refuse — à
-    # juste titre — une session qui expirerait avant d'avoir été émise.
+    # Create an expired session by backdating issuance; the database correctly
+    # rejects a session whose expiration precedes its issuance.
     _make_session(
         fan,
         issued_at=timezone.now() - datetime.timedelta(days=8),
@@ -213,7 +195,7 @@ def test_active_excludes_both_revoked_and_expired_sessions(fan):
 
 
 def test_a_whole_family_can_be_revoked_at_once(fan):
-    """Unite de reponse a une reutilisation de refresh (master prompt §17)."""
+    """The family is the revocation unit after refresh-token reuse."""
     family = uuid.uuid4()
     for _ in range(3):
         _make_session(fan, family_id=family)
@@ -225,8 +207,7 @@ def test_a_whole_family_can_be_revoked_at_once(fan):
 
 
 def test_a_session_survives_the_purge_of_its_device(fan):
-    """`SET_NULL` : la purge des appareils (Sprint 5) ne doit pas effacer l audit
-    des sessions."""
+    """`SET_NULL` preserves session audit history when device rows are removed."""
     _insert_device_sql(fan)
     device = Device.objects.for_user(fan).active().get()
     session = _make_session(fan, device=device)
@@ -239,10 +220,7 @@ def test_a_session_survives_the_purge_of_its_device(fan):
 
 
 def test_database_refuses_to_store_a_plaintext_code(fan):
-    """
-    Le garde-fou le plus important de cette table : `code_hash` doit etre un
-    SHA-256. Un code a 6 chiffres ecrit tel quel est rejete par le SGBD.
-    """
+    """The database requires `code_hash` to contain a SHA-256 digest rather than a plaintext code."""
     with pytest.raises(IntegrityError), transaction.atomic():
         _insert_mfa_sql(fan, code_hash="042917")
 
@@ -264,7 +242,7 @@ def test_database_rejects_an_unknown_purpose(fan):
 
 
 def test_open_excludes_consumed_expired_and_exhausted_challenges(fan):
-    """`open()` est la seule definition de « defi encore utilisable »."""
+    """`open()` is the canonical definition of a still-usable challenge."""
     usable = MfaChallenge.objects.create(
         user=fan,
         purpose=MFA_PURPOSE_DEVICE_RESET,
@@ -296,6 +274,6 @@ def test_open_excludes_consumed_expired_and_exhausted_challenges(fan):
 
 
 def test_default_auth_level_is_password_only(fan):
-    """Une session fraiche ne doit JAMAIS naitre au niveau renforce."""
+    """A newly created session must never start at the step-up authentication level."""
     session = _make_session(fan)
     assert session.auth_level == AUTH_LEVEL_PASSWORD
