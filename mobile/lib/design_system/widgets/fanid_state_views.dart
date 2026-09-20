@@ -7,9 +7,8 @@ import 'fanid_buttons.dart';
 
 /// Vue de chargement.
 ///
-/// Le cahier des charges impose que chaque ecran sache exprimer
-/// loading / error / empty / success. Ces trois vues sont les primitives
-/// correspondantes ; aucun ecran ne doit reimplementer son propre spinner.
+/// Shared primitives for loading, error, empty, and success states so screens
+/// do not reimplement their own state UI.
 class LoadingView extends StatelessWidget {
   const LoadingView({this.message, this.onDark = false, super.key});
 
@@ -47,7 +46,7 @@ class LoadingView extends StatelessWidget {
   }
 }
 
-/// Vue « aucun contenu ».
+/// Empty-content view.
 class EmptyView extends StatelessWidget {
   const EmptyView({
     required this.title,
@@ -98,10 +97,9 @@ class EmptyView extends StatelessWidget {
   }
 }
 
-/// Vue d erreur.
+/// Error view.
 ///
-/// L erreur porte une icone, un titre et un texte : elle reste lisible sans
-/// percevoir le rouge.
+/// The error state includes icon, title, and text so it remains understandable without relying on red alone.
 class ErrorView extends StatelessWidget {
   const ErrorView({
     required this.title,
