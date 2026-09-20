@@ -4,10 +4,11 @@ from typing import BinaryIO
 
 class ObjectStorage(ABC):
     """
-    Port de stockage objet (§2.3 Source B).
+    Object-storage port.
 
-    Implémentations prévues : `S3Storage` (prod), `LocalStorage` (dev, disque
-    local), `InMemoryStorage` (tests — aucun accès disque ni S3 réel).
+    Expected implementations include `S3Storage` for production,
+    `LocalStorage` for development, and `InMemoryStorage` for tests without
+    real disk or S3 access.
     """
 
     @abstractmethod
