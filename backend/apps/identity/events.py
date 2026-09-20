@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-#: Naming convention describes a completed fact: `<context>.<aggregate>.<past-event>` rather than an imperative command.
+#: Naming convention describes a completed fact: `<context>.<aggregate>.<past-event>` rather than an
+#: imperative command.
 USER_REGISTERED: Final = "identity.user.registered"
 
 AGGREGATE_USER: Final = "user"
@@ -27,7 +28,10 @@ USER_LOGGED_IN: Final = "identity.user.logged_in"
 
 
 def user_logged_in_payload(*, role_name: str, device_bound: bool) -> dict[str, Any]:
-    """Payload for `identity.user.logged_in` v1; it omits IP, User-Agent, and fingerprint and exposes only whether a device was bound."""
+    """
+    Payload for `identity.user.logged_in` v1; it omits IP, User-Agent, and fingerprint and exposes
+    only whether a device was bound.
+    """
     return {"role": role_name, "device_bound": device_bound}
 
 
@@ -88,7 +92,10 @@ def user_password_changed_payload(
     *,
     temporary_credential_replaced: bool,
 ) -> dict[str, Any]:
-    """No secret is included in the Outbox; the boolean only indicates whether initial scanner activation completed."""
+    """
+    No secret is included in the Outbox; the boolean only indicates whether initial scanner
+    activation completed.
+    """
 
     return {
         "temporary_credential_replaced": (temporary_credential_replaced),
@@ -114,7 +121,10 @@ def user_phone_changed_payload(
     *,
     first_record: bool,
 ) -> dict[str, Any]:
-    """Indicate only the nature of the change; the phone number remains in identity_user and is not duplicated in the Outbox."""
+    """
+    Indicate only the nature of the change; the phone number remains in identity_user and is not
+    duplicated in the Outbox.
+    """
     return {
         "first_record": bool(first_record),
     }
