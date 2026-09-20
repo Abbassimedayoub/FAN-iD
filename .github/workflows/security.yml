@@ -5,7 +5,7 @@ on:
   push:
     branches: [main, develop]
   schedule:
-    - cron: "0 6 * * 1"  # scan hebdomadaire (dépendances) — cohérent avec Dependabot §5.1 Source B
+    - cron: "0 6 * * 1"  # weekly dependency scan, aligned with Dependabot
 
 jobs:
   secret-scan:
@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # scan de l'HISTORIQUE complet, pas seulement le diff (§60 master prompt)
+          fetch-depth: 0  # scan the complete history, not only the diff
 
       - name: detect-secrets (historique complet, bloquant)
         run: |
@@ -32,7 +32,7 @@ jobs:
           before = load("/tmp/secrets-baseline-before.json")
           after = load(".secrets.baseline")
 
-          # La baseline versionnee doit etre entierement auditee AVANT le scan.
+          # The versioned baseline must be fully audited BEFORE the scan.
           real = []
           unaudited = []
 
@@ -48,8 +48,8 @@ jobs:
                   elif entry.get("is_secret") is not False:
                       unaudited.append(item)
 
-          # Une nouvelle detection apparait dans `after` mais pas dans la
-          # baseline auditée `before`. `generated_at` est volontairement ignore.
+          # A new finding appears in `after` but not in the audited `before`
+          # baseline. `generated_at` is intentionally ignored.
           def fingerprints(data):
               return {
                   (
@@ -92,8 +92,8 @@ jobs:
           )
           PY_CHECK
 
-          # Le scan modifie seulement les metadonnees comme `generated_at`
-          # quand aucune nouvelle detection n'existe.
+          # The scan only changes metadata such as `generated_at` when no new
+          # finding exists.
           cp /tmp/secrets-baseline-before.json .secrets.baseline
 
   dependency-audit:
