@@ -9,7 +9,7 @@ logger = logging.getLogger("fanid.idempotency")
 
 @shared_task(name="core.idempotency.purge_expired")
 def purge_expired_idempotency_records() -> int:
-    """Tâche Celery Beat quotidienne (§20 master prompt)."""
+    """Daily Celery Beat task that purges expired idempotency records."""
     deleted = service.purge_expired()
     logger.info("idempotency_purge_completed", extra={"deleted_count": deleted})
     return deleted
