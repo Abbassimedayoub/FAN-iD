@@ -136,8 +136,7 @@ class ScannerSecurityService:
                         ),
                     )
 
-            # Toute nouvelle demande invalide immédiatement
-            # les challenges encore ouverts pour cette même action.
+            # Every new request immediately invalidates still-open challenges for the same action.
             ScannerRevocationChallenge.objects.filter(
                 organizer=organizer,
                 scanner=scanner,
@@ -195,14 +194,11 @@ class ScannerSecurityService:
         operation: Callable[[], Any],
     ) -> Any:
         """
-        Vérifie la version avant de consommer l'OTP puis exécute
-        l'action destructive dans la même transaction.
+        Verify the version before consuming the OTP, then run the destructive
+        action in the same transaction.
 
-        Une erreur métier après un OTP valide annule donc aussi la
-        consommation du code.
-
-        Les erreurs OTP sont capturées dans la transaction afin que
-        les compteurs de mauvaises tentatives restent persistés.
+        A later business failure therefore rolls back OTP consumption, while OTP
+        failures are handled so bad-attempt counters remain persisted.
         """
         otp_error: Exception | None = None
         result: Any = None
