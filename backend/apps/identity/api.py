@@ -1,17 +1,15 @@
 """
-Interface publique du contexte `identity` (regle §1.4.3.2, ADR-S1-05).
+Public interface of the `identity` context.
 
-**Tout ce qui traverse la frontiere passe par ce module, et rien d autre.**
-`import-linter` le verifie : `apps.organizing` a interdiction d importer
-`apps.identity` sous toute autre forme, avec une exception unique et explicite
-pour `apps.identity.api`.
+Everything crossing the context boundary goes through this module.
+`import-linter` enforces that `apps.organizing` may import
+`apps.identity.api` but no other identity internals.
 
-La liste ci-dessous est donc un CONTRAT. Y ajouter un symbole est une decision
-d architecture — pas une commodite d ecriture. Un contexte qui a besoin de plus
-a probablement besoin d autre chose.
+The exported symbol list is therefore a CONTRACT. Adding a symbol is an
+architectural decision, not a convenience shortcut.
 
-Ce module ne contient AUCUNE logique : il re-expose, et il expose une seule
-operation d ecriture, dont le corps tient en une requete.
+This module contains no business logic beyond a single small write operation;
+otherwise it only re-exports public identity primitives.
 """
 
 from __future__ import annotations
@@ -79,18 +77,16 @@ def resolve_fan_user_id_by_email(
 
 def grant_organizer_role(*, user_id: uuid.UUID) -> bool:
     """
-    Attribue le role `ORGANIZER` a un compte. Renvoie `True` si une ligne a change.
+    Assign the `ORGANIZER` role and return True when a row changed.
 
-    **Aucune session n est revoquee, et ce n est pas un oubli.** Le lot S1-A.6a
-    a fait de la relecture de session la regle : le serveur lit `user.role_id`
-    en base a chaque requete, et le claim `role` du jeton n autorise rien. Le
-    changement prend donc effet IMMEDIATEMENT cote serveur. Seul l affichage du
-    client reste perime jusqu a son prochain rafraichissement, ce qui est une
-    question d interface et non de securite.
+    Sessions are intentionally not revoked. Session re-validation reads the
+    current `user.role_id` from the database on each request, while the role
+    claim in an existing token does not authorize anything. The change therefore
+    takes effect immediately server-side; only client display may remain stale
+    until its next refresh.
 
-    L identifiant du role est resolu depuis la table d UUID figes de
-    `constants.py` : aucune requete sur `identity_role`. C est la meme raison
-    qui a fait choisir des UUIDv5 deterministes au lot S1-A.1a.
+    The role ID comes from the deterministic UUID table in `constants.py`, so
+    no lookup against `identity_role` is needed.
     """
     changed = User.objects.filter(pk=user_id).update(role_id=ROLE_IDS[ROLE_ORGANIZER])
     logger.info("identity.role.granted", extra={"role": ROLE_ORGANIZER, "changed": bool(changed)})
