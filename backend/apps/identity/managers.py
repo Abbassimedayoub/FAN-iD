@@ -50,7 +50,7 @@ class UserManager(BaseUserManager):
         if date_of_birth is None:
             raise ValueError("La date de naissance est obligatoire (RM-13, âge >= 16 ans).")
         if terms_accepted_at is None:
-            raise ValueError("L'horodatage d'acceptation des CGU est obligatoire.")
+            raise ValueError("L'horodatage d'acceptation des CGU est obligatoire (RGPD §15.4).")
 
         extra_fields.setdefault("is_staff", False)
         extra_fields.setdefault("is_superuser", False)
