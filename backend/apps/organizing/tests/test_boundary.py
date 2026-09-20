@@ -71,7 +71,10 @@ VIEW = SimpleNamespace(required_action=Action.ORGANIZER_READ, action=None, polic
 
 
 def test_forgetting_the_mixin_refuses_instead_of_allowing(dossier, organizer_user):
-    """Without OrganizerScopedMixin, organizer_id is absent and owner-scoped authorization must fail closed."""
+    """
+    Without OrganizerScopedMixin, organizer_id is absent and owner-scoped authorization must fail
+    closed.
+    """
     permission = OrganizerRecordPermission()
 
     granted = permission.has_object_permission(request_for(organizer_user), VIEW, dossier)
@@ -209,7 +212,10 @@ def test_approved_organizer_reaches_the_same_fake_write(dossier, organizer_user)
 
 
 def test_granting_the_role_takes_effect_in_the_database(roles, db):
-    """No session revocation is required because the server reads the current user role on every authenticated request."""
+    """
+    No session revocation is required because the server reads the current user role on every
+    authenticated request.
+    """
     fan = make_user(roles, "supporter@example.test", role="FAN")
 
     assert grant_organizer_role(user_id=fan.pk) is True
