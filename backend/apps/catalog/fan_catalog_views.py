@@ -20,10 +20,10 @@ from .models import Category, Event
 
 class FanCatalogCategoryListView(APIView):
     """
-    Liste des catégories disponibles dans le Catalogue Fan.
+    List categories available in the fan catalog.
 
-    Aucun filtrage basé sur l'Organizer ou sur le statut d'un Event
-    n'est appliqué dans ce premier lot.
+    This endpoint does not add organizer- or event-status filtering at the
+    category level.
     """
 
     authentication_classes = []
@@ -56,13 +56,11 @@ class FanCatalogCategoryListView(APIView):
 
 class FanCatalogEventListView(APIView):
     """
-    Liste des événements d'une catégorie pour le Fan.
+    List fan-visible events for a category.
 
-    Les événements ARCHIVED sont masqués.
-
-    Un événement rattaché à un Organizer n'est exposé au Fan que tant
-    que cet Organizer reste APPROVED. Les événements legacy sans
-    Organizer restent lisibles pour préserver la compatibilité.
+    ARCHIVED events are hidden. Events linked to an organizer remain visible
+    only while that organizer is approved; legacy events without an organizer
+    remain readable for compatibility.
     """
 
     authentication_classes = []
