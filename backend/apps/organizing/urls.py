@@ -1,7 +1,7 @@
 """
-Routes du contexte `organizing`.
+Routes for the `organizing` context.
 
-Aucune barre oblique finale, par coherence avec le reste de l API.
+No trailing slash, matching the rest of the API.
 """
 
 from django.urls import path
