@@ -1,9 +1,8 @@
 """
-Primitives de verrouillage optimiste partagées.
+Shared optimistic-locking primitives.
 
-Le compteur de version est porté par VersionedModel. La comparaison et
-l'écriture conditionnelle vivent ici afin que les bounded contexts ne
-réimplémentent pas chacun leur propre protocole de concurrence.
+VersionedModel owns the version counter while comparison and conditional writes
+live here so bounded contexts do not each reimplement the concurrency protocol.
 """
 
 from typing import Any
@@ -14,19 +13,13 @@ from apps.core.exceptions import PreconditionFailed, StaleResourceError
 
 
 def parse_if_match(value: str | None) -> int:
-    """
-    Parse la valeur de l'en-tête If-Match comme une version entière positive.
-
-    L'absence de l'en-tête est une précondition manquante. Une valeur présente
-    mais inexploitable est également refusée : elle ne peut pas servir de
-    version attendue pour une écriture optimiste.
-    """
+    """Parse If-Match as a positive integer version and reject missing or unusable preconditions."""
     if value is None or not value.strip():
         raise PreconditionFailed()
 
     raw = value.strip()
 
-    # Accepte la représentation HTTP usuelle "3" ainsi que 3.
+    # Accept the usual HTTP representation "3" as well as 3.
     if len(raw) >= 2 and raw[0] == '"' and raw[-1] == '"':
         raw = raw[1:-1]
 
@@ -49,14 +42,10 @@ def versioned_update(
     updates: dict[str, Any],
 ) -> int:
     """
-    Effectue atomiquement UPDATE ... WHERE pk=? AND version=?.
+    Atomically perform UPDATE ... WHERE pk=? AND version=? and return the new version.
 
-    Retourne la nouvelle version.
-
-    Il ne faut pas remplacer cette primitive par ``instance.save()`` :
-    lire la version en Python puis sauvegarder laisse une fenêtre entre la
-    comparaison et l'UPDATE, donc deux écrivains concurrents pourraient tous
-    deux croire avoir gagné.
+    Do not replace this with a read followed by `instance.save()`; that would
+    reopen a race window between comparison and update.
     """
     if "version" in updates:
         raise ValueError("version est gérée par versioned_update()")
@@ -74,5 +63,5 @@ def versioned_update(
 
 
 def format_etag(version: int) -> str:
-    """Retourne la représentation HTTP d'une version pour l'en-tête ETag."""
+    """Return the HTTP representation of a version for the ETag header."""
     return f'"{version}"'
