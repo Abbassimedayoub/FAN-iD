@@ -16,7 +16,10 @@ from .reservations import StockUnavailableError
 
 @transaction.atomic
 def confirm_order_payment(*, order_id: UUID, now=None) -> Order:
-    """Finalize an order after successful payment-provider verification; callers must verify webhook authenticity before invoking it."""
+    """
+    Finalize an order after successful payment-provider verification; callers must verify webhook
+    authenticity before invoking it.
+    """
     moment = now or timezone.now()
 
     try:
