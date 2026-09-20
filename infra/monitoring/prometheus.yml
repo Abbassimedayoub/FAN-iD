@@ -1,6 +1,5 @@
-# Prometheus — non lancé par défaut dans docker-compose.yml (hors des 8 services du S0,
-# §2.1/§7.1) mais fourni prêt à l'emploi pour un `docker compose -f ... up` optionnel de
-# supervision locale, et comme socle direct pour le déploiement S5.
+# Prometheus is not started by default by docker-compose.yml, but this
+# configuration is ready for optional local monitoring and later deployment.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
