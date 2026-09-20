@@ -13,10 +13,10 @@ from .models import EventFinalReport
 
 class AdminFinancialDashboardView(APIView):
     """
-    Agrégats financiers confirmés à destination exclusive de l’Admin.
+    Confirmed financial aggregates available only to administrators.
 
-    Seuls les rapports finaux sont retenus : une vente d’un événement non
-    terminé ne peut pas être affichée comme un gain définitivement acquis.
+    Only final reports are included so sales from unfinished events are not
+    presented as definitively earned revenue.
     """
 
     permission_classes = [IsAuthenticated, ActionPermission]
