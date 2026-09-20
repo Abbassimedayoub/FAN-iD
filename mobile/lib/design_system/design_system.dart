@@ -1,12 +1,10 @@
 /// Point d entree unique du design system FAN iD.
 ///
-/// Les vues importent CE fichier, et rien d autre du dossier
-/// `design_system/`. C est ce qui rend le portage mecanique : un seul chemin
-/// a reecrire dans le vrai depot.
+/// Views import this file as the design-system entrypoint rather than importing
+/// individual implementation files directly.
 ///
-/// Le design system ne depend de RIEN d autre que Flutter :
-/// pas de `google_fonts`, pas de `go_router`, pas de Riverpod, pas de Dio,
-/// aucune donnee simulee. Il est copiable tel quel.
+/// The design system depends only on Flutter: no runtime font loader, router,
+/// state-management library, network client, or simulated data.
 library;
 
 export 'colors.dart';
