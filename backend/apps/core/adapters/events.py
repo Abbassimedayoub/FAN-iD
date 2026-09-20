@@ -5,32 +5,25 @@ from apps.core.interfaces import EventPublisher
 
 class UnimplementedEventPublisher(EventPublisher):
     """
-    Garde-fou explicite — PAS une implémentation V1 fonctionnelle.
+    Explicit guardrail — NOT a functional V1 implementation.
 
-    Correction post-bilan Sprint 0 (P2.2) : la classe s'appelait auparavant
-    `InProcessPublisher`, un nom qui laissait croire à une implémentation
-    réelle du port `EventPublisher` alors que ses deux méthodes ne faisaient
-    que lever `NotImplementedError`. Renommée pour que le nom dise la
-    vérité : à ce stade du projet, aucune implémentation directe de ce port
-    n'existe, et ce n'est pas un oubli.
+    This class used to be called `InProcessPublisher`, which implied a real
+    implementation of the `EventPublisher` port even though both methods only
+    raised `NotImplementedError`. The name now states the truth: no direct
+    implementation of this port exists at this stage, by design.
 
-    Au Sprint 0, la voie normale de publication d'un événement est
-    `apps.core.outbox.publisher.publish_event()`, appelé à l'intérieur d'une
-    transaction métier — il écrit dans la table `outbox_event` (garantie
-    d'atomicité producteur/événement, ADR-S-03). Le relais (`outbox/relay.py`)
-    consomme ensuite cette table et dispatche vers les consommateurs
-    enregistrés via `register_consumer()` — un mécanisme in-process qui ne
-    passe PAS par ce port `EventPublisher`.
+    The normal publication path is
+    `apps.core.outbox.publisher.publish_event()`, called inside the business
+    transaction. It writes to `outbox_event`, preserving producer/event
+    atomicity. The relay then consumes that table and dispatches events to
+    consumers registered with `register_consumer()`.
 
-    Ce port reste défini (§2.3 Source B) comme le point d'extension pour un
-    futur `SqsPublisher`/`KafkaPublisher` en V2 — une bascule de
-    configuration, pas une refonte. Tant que cette implémentation V2 n'existe
-    pas, instancier ce garde-fou et l'utiliser fait volontairement échouer
-    l'appel plutôt que de simuler silencieusement une publication qui n'aurait
-    aucun effet réel.
+    This port remains as an extension point for a future
+    `SqsPublisher`/`KafkaPublisher`. Until such an implementation exists,
+    using this guardrail deliberately fails instead of silently pretending to
+    publish an event.
 
-    Pour les tests, utiliser `RecordingPublisher` ci-dessous : c'est le
-    double de test concret de ce port, il ne lève jamais `NotImplementedError`.
+    Tests should use `RecordingPublisher` below.
     """
 
     def publish(self, event: dict) -> None:
@@ -50,7 +43,7 @@ class UnimplementedEventPublisher(EventPublisher):
 
 
 class RecordingPublisher(EventPublisher):
-    """Tests — capture les événements publiés pour assertion, sans effet de bord."""
+    """Test double that records published events without side effects."""
 
     def __init__(self) -> None:
         self.published: list[dict] = []
