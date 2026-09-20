@@ -32,7 +32,10 @@ CODE_DIGITS = 6
 
 
 def _hash_code(session_id: uuid.UUID, code: str) -> str:
-    """Bind the code cryptographically to the requesting session so a code from one session cannot elevate another session of the same user."""
+    """
+    Bind the code cryptographically to the requesting session so a code from one session cannot
+    elevate another session of the same user.
+    """
     raw = f"{session_id}:{code}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
