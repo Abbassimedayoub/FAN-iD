@@ -1,10 +1,10 @@
 """
-Bootstrap OpenTelemetry (§27/§5.3 Source B).
+OpenTelemetry bootstrap.
 
-Instrumentation automatique : Django, psycopg, Redis, requests, Celery.
-Appelé une seule fois au démarrage du processus (voir `apps/core/apps.py`
-`ready()` — PAS ici au niveau module, pour éviter une double instrumentation
-sous le rechargeur de développement Django, qui importe les modules deux fois).
+Automatic instrumentation covers Django, psycopg, Redis, requests, and Celery.
+It is called once during process startup from `apps/core/apps.py:ready()`,
+not at module import time, to avoid double instrumentation under Django's
+development reloader.
 """
 
 import logging
