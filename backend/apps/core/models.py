@@ -1,9 +1,9 @@
 """
-Modèles de base du socle (§16 master prompt / §2.2 Source B).
+Base models for the platform foundation.
 
-Règle absolue : `core` ne dépend d'aucun bounded context métier (ADR-S-01,
-vérifié par import-linter). Ces classes abstraites sont importées PAR les
-bounded contexts, jamais l'inverse.
+Absolute rule: `core` does not depend on any business bounded context
+(ADR-S-01, enforced by import-linter). These abstract classes are imported by
+bounded contexts, never the other way around.
 """
 
 import uuid
@@ -14,12 +14,10 @@ from django.db import models
 
 class UUIDModel(models.Model):
     """
-    PK UUID v4 plutôt qu'un entier séquentiel.
+    UUID v4 primary key instead of a sequential integer.
 
-    Exigence de sécurité (§2.2 Source B) : le QR code expose l'UUID du billet.
-    Un identifiant séquentiel permettrait l'énumération (IDOR trivial :
-    /tickets/1, /tickets/2, ...). Toute ressource exposée à un client externe
-    doit hériter de ce modèle.
+    Ticket QR codes expose ticket identifiers. Sequential identifiers would make
+    enumeration trivial, so externally exposed resources inherit this model.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -29,7 +27,7 @@ class UUIDModel(models.Model):
 
 
 class TimeStampedModel(models.Model):
-    """Horodatage de création/mise à jour, posé une fois pour tous les modèles métier."""
+    """Shared creation and update timestamps for business models."""
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -40,19 +38,15 @@ class TimeStampedModel(models.Model):
 
 class VersionedModel(models.Model):
     """
-    Support du verrouillage optimiste (ADR-S-05, stratégie de concurrence hybride).
+    Optimistic-locking support for low-contention resources.
 
-    Utilisé par les ressources à contention faible éditées par des humains
-    (event, category en édition, product, organizer.validation_status) — PAS
-    par les ressources à contention élevée du chemin d'achat, qui utilisent
-    `SELECT FOR UPDATE` (verrouillage pessimiste) implémenté au niveau des
-    services métier des sprints correspondants, pas ici.
+    Used by resources mainly edited by humans, such as events, categories,
+    products, and organizer validation state. High-contention purchase-path
+    resources use `SELECT FOR UPDATE` at the service layer instead.
 
-    L'incrément de version et la détection de conflit (`409 STALE_RESOURCE`)
-    sont la responsabilité du service applicatif qui appelle `save()` avec la
-    version attendue — ce modèle ne fait que porter le compteur. Le
-    comportement complet est exercé et testé à partir du Sprint 2 (première
-    ressource optimiste : `event`/`category` en édition).
+    The application service is responsible for comparing the expected version
+    and returning `409 STALE_RESOURCE`; this model only stores and increments
+    the version counter.
     """
 
     version = models.PositiveIntegerField(default=1)
@@ -61,11 +55,9 @@ class VersionedModel(models.Model):
         abstract = True
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        # self.pk ne dit PAS si la ligne existe deja : toutes les PK du projet
-        # sont des UUID avec default=uuid.uuid4, donc pk est renseignee AVANT le
-        # premier INSERT. Le test initial incrementait donc la version a l INSERT,
-        # ce que Django refuse : F() est reserve a l UPDATE. _state.adding est le
-        # signal que Django lui-meme utilise pour choisir entre INSERT et UPDATE.
+        # self.pk does not tell us whether the row already exists: all project
+        # primary keys are UUIDs populated before the first INSERT. Django's
+        # _state.adding flag is the reliable signal for INSERT versus UPDATE.
         is_update = not self._state.adding and not kwargs.get("force_insert")
         if is_update:
             self.version = models.F("version") + 1
@@ -74,10 +66,8 @@ class VersionedModel(models.Model):
             self.refresh_from_db(fields=["version"])
 
 
-# Les tables d'infrastructure du Sprint 0 (§3.1 Source B) vivent dans des
-# sous-modules dédiés pour la lisibilité (core/idempotency/, core/outbox/),
-# mais sont rattachées à l'app Django `core` (une seule migration racine,
-# core/migrations/0001_infrastructure.py) via `Meta.app_label = "core"`.
-# L'import ici est ce qui les rend visibles à `makemigrations`.
+# Sprint 0 infrastructure tables live in dedicated submodules for readability,
+# but still belong to the Django `core` app and its root migration. Importing
+# them here makes them visible to `makemigrations`.
 from .idempotency.models import IdempotencyRecord  # noqa: E402,F401
 from .outbox.models import ConsumedEvent, OutboxEvent  # noqa: E402,F401
