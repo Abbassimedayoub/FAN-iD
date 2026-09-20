@@ -38,7 +38,10 @@ ORG_ID = uuid.UUID("33333333-3333-4333-8333-333333333333")
 
 
 def fake_user(role: str = "FAN", *, is_active: bool = True, anonymized: bool = False) -> SimpleNamespace:
-    """Minimal user double containing only attributes read by subject_from_request; these tests exercise translation rather than model persistence."""
+    """
+    Minimal user double containing only attributes read by subject_from_request; these tests
+    exercise translation rather than model persistence.
+    """
     return SimpleNamespace(
         pk=USER_ID,
         is_authenticated=True,
@@ -169,7 +172,10 @@ def test_the_owner_lookup_can_target_the_user_object_itself():
 
 
 def test_an_organizer_scoped_resource_is_refused_while_no_organizer_is_resolved():
-    """A request with no organizer context must fail closed with missing-resource context rather than gaining owner scope."""
+    """
+    A request with no organizer context must fail closed with missing-resource context rather than
+    gaining owner scope.
+    """
     view = SimpleNamespace(required_action=Action.TICKET_SCAN, action=None, policy_actions={})
     permission = OrganizerResourcePermission()
     request = make_request(fake_user("SCANNER"))
@@ -256,7 +262,10 @@ def test_every_seeded_role_id_resolves_to_its_name():
 
 @pytest.mark.django_db
 def test_authorizing_a_real_user_costs_zero_query(django_assert_num_queries, roles):
-    """Authorization checks must never trigger database queries; role resolution uses already-loaded fixed identifiers."""
+    """
+    Authorization checks must never trigger database queries; role resolution uses already-loaded
+    fixed identifiers.
+    """
     from apps.identity.models import User
 
     user = User.objects.create_user(
@@ -288,7 +297,10 @@ class _ApproveView(APIView):
 
 @pytest.mark.django_db
 def test_the_drf_cycle_really_calls_the_policy_and_turns_a_refusal_into_403(roles):
-    """End-to-end coverage verifies both allowed and denied paths, using force_authenticate so DRF sees the intended subject."""
+    """
+    End-to-end coverage verifies both allowed and denied paths, using force_authenticate so DRF sees
+    the intended subject.
+    """
     from rest_framework.test import force_authenticate
 
     from apps.identity.models import User
