@@ -19,11 +19,7 @@ ORDER_STATUSES = (
 
 
 class Order(UUIDModel, TimeStampedModel, VersionedModel):
-    """
-    Commande utilisateur.
-
-    Les montants sont figés en centimes.
-    """
+    """User order with monetary amounts snapshotted in cents."""
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -60,9 +56,7 @@ class Order(UUIDModel, TimeStampedModel, VersionedModel):
 
 
 class OrderLine(UUIDModel, TimeStampedModel):
-    """
-    Ligne de commande avec prix figé.
-    """
+    """Order line with a snapshotted price."""
 
     order = models.ForeignKey(
         Order,
@@ -93,9 +87,7 @@ class OrderLine(UUIDModel, TimeStampedModel):
 
 
 class StockHold(UUIDModel, TimeStampedModel):
-    """
-    Réservation temporaire avant paiement.
-    """
+    """Temporary reservation held before payment."""
 
     order = models.OneToOneField(
         Order,
@@ -118,12 +110,7 @@ class StockHold(UUIDModel, TimeStampedModel):
 
 
 class StockHoldLine(UUIDModel, TimeStampedModel):
-    """
-    Quantité réservée pour un tarif donné dans un hold temporaire.
-
-    Le stock définitif reste dans TicketCategory.sold_count ; ces lignes
-    servent uniquement à calculer les réservations actives avant paiement.
-    """
+    """Quantity reserved for one ticket category in a temporary hold; final inventory remains in TicketCategory.sold_count."""
 
     stock_hold = models.ForeignKey(
         StockHold,
