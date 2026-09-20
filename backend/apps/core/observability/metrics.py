@@ -1,13 +1,11 @@
 """
-Métriques RED (par endpoint) + USE (par ressource) + métriques métier
-(§29/§30/§31 master prompt, §5.3 Source B).
+RED metrics per endpoint, USE metrics per resource, and business metrics.
 
-Règle absolue (§64 master prompt) : aucune métrique métier n'est alimentée
-artificiellement. `fanid_scan_total`, `fanid_purchase_total`,
-`fanid_totp_verification_total` sont déclarées ici (structure posée au S0,
-Source B §5.3) mais restent à zéro jusqu'à ce que les sprints correspondants
-appellent réellement `.inc()` depuis du code métier réel — ce ne sont PAS des
-compteurs factices pour "faire joli" sur un dashboard.
+Business metrics are never incremented artificially. Counters such as
+`fanid_scan_total`, `fanid_purchase_total`, and
+`fanid_totp_verification_total` are declared here so the metric structure
+exists early, but they remain at zero until real business code increments
+them. They are not placeholder values for dashboards.
 """
 
 import time
@@ -16,7 +14,7 @@ from collections.abc import Callable
 from django.http import HttpRequest, HttpResponse
 from prometheus_client import Counter, Gauge, Histogram
 
-# --- RED : Rate, Errors, Duration (par endpoint) ---
+# --- RED: Rate, Errors, Duration per endpoint ---
 http_requests_total = Counter("http_requests_total", "Nombre de requêtes HTTP", ["method", "route", "status"])
 http_request_duration_seconds = Histogram(
     "http_request_duration_seconds",
@@ -26,7 +24,7 @@ http_request_duration_seconds = Histogram(
 )
 http_requests_in_flight = Gauge("http_requests_in_flight", "Requêtes HTTP en cours de traitement", ["route"])
 
-# --- USE : Utilization, Saturation, Errors (par ressource) ---
+# --- USE: Utilization, Saturation, Errors per resource ---
 db_connections_active = Gauge("db_connections_active", "Connexions PostgreSQL actives")
 db_connections_max = Gauge("db_connections_max", "Connexions PostgreSQL maximum configurées")
 db_query_duration_seconds = Histogram("db_query_duration_seconds", "Durée des requêtes SQL")
@@ -37,7 +35,7 @@ celery_task_duration_seconds = Histogram(
     "celery_task_duration_seconds", "Durée des tâches Celery", ["task", "status"]
 )
 
-# --- Métriques métier (structure posée au S0, cf. ADR-S-07) ---
+# --- Business metrics ---
 fanid_outbox_pending = Gauge("fanid_outbox_pending", "Événements Outbox en attente de publication")
 fanid_outbox_dead = Gauge("fanid_outbox_dead", "Événements Outbox définitivement en échec (DEAD)")
 fanid_idempotency_conflicts_total = Counter(
@@ -52,7 +50,7 @@ fanid_stock_hold_active = Gauge("fanid_stock_hold_active", "Réservations de sto
 fanid_totp_verification_total = Counter("fanid_totp_verification_total", "Vérifications TOTP", ["result"])
 
 
-# --- Métriques métier du Sprint 1 (§5.4 du plan de sprint) ---
+# --- Authentication and authorization business metrics ---
 
 fanid_auth_login_total = Counter(
     "fanid_auth_login_total",
@@ -83,15 +81,14 @@ fanid_authz_denied_total = Counter(
     ["action", "role"],
 )
 
-# Valeur fermée utilisée lorsque Subject.role vaut None.
+# Closed fallback value used when Subject.role is None.
 AUTHZ_ROLE_ANONYMOUS = "anonymous"
 
 
 class MetricsMiddleware:
     """
-    Middleware RED — positionné au plus près de la vue (§2.5 Source B) pour
-    mesurer une latence représentative du traitement métier, pas de la pile
-    de middlewares en amont.
+    RED middleware positioned close to the view so measured latency reflects
+    business processing rather than upstream middleware overhead.
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
