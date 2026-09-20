@@ -1,6 +1,6 @@
-# Collecteur OpenTelemetry — Sprint 0 (§2.4, §5.3)
-# Reçoit les traces/métriques OTLP de l'API Django et des workers Celery,
-# les relaie vers stdout (debug) et les expose en scrape Prometheus sur :8889.
+# OpenTelemetry Collector.
+# Receives OTLP traces and metrics from the Django API and Celery workers,
+# forwards traces to debug output, and exposes Prometheus metrics on :8889.
 
 extensions:
   health_check:
