@@ -420,16 +420,16 @@ Use the committed example files as the source of truth and keep real secrets out
 | Variable | Fake local example | Purpose |
 | --- | --- | --- |
 | `DJANGO_SETTINGS_MODULE` | `config.settings.dev` | Django environment |
-| `DJANGO_SECRET_KEY` | `dev-django-secret-change-me` | Django cryptographic secret |
-| `JWT_SIGNING_KEY` | `dev-jwt-signing-key-change-me` | JWT signing |
-| `QR_SIGNING_KEY` | `dev-qr-signing-key-change-me` | Ticket QR signing |
-| `DATABASE_URL` | `postgresql://fanid:fanid@postgres:5432/fanid` | PostgreSQL connection |
+| `DJANGO_SECRET_KEY` | See `.env.example` (fake value) | Django cryptographic secret |
+| `JWT_SIGNING_KEY` | See `.env.example` (fake value) | JWT signing |
+| `QR_SIGNING_KEY` | See `.env.example` (fake value) | Ticket QR signing |
+| `DATABASE_URL` | See `.env.example` (fake credential only) | PostgreSQL connection |
 | `REDIS_URL` | `redis://redis:6379/0` | Cache / locking |
 | `CELERY_BROKER_URL` | `redis://redis:6379/1` | Celery broker |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/2` | Celery results |
 | `PAYMENT_GATEWAY` | `fake` | Local payment adapter |
-| `STRIPE_SECRET_KEY` | `sk_test_example_only` | Stripe test backend key |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_example_only` | Stripe webhook verification |
+| `STRIPE_SECRET_KEY` | See `.env.example` (fake provider-format value) | Stripe test backend key |
+| `STRIPE_WEBHOOK_SECRET` | See `.env.example` (fake provider-format value) | Stripe webhook verification |
 | `OBJECT_STORAGE_BACKEND` | `local` | Media storage adapter |
 | `NOTIFICATION_BACKEND` | `console` | Notification adapter |
 | `VITE_API_URL` | `http://localhost:8080` | Web API base URL |
