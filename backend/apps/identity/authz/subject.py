@@ -15,7 +15,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class Subject:
-    """Request actor reduced to attributes relevant to authorization; frozen to prevent privilege-changing mutation."""
+    """
+    Request actor reduced to attributes relevant to authorization; frozen to prevent
+    privilege-changing mutation.
+    """
 
     user_id: uuid.UUID | None = None
     role: str | None = None
