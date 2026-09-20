@@ -32,7 +32,10 @@ def bound(device: Device | None) -> Device:
 
 
 class BrokenLock(DeviceLockBackend):
-    """Simulate an unreachable Redis backend with a transient OSError without depending on the Redis client package."""
+    """
+    Simulate an unreachable Redis backend with a transient OSError without depending on the Redis
+    client package.
+    """
 
     def acquire(self, *args, **kwargs):
         raise OSError("redis injoignable")
@@ -272,7 +275,10 @@ def test_a_redis_outage_never_opens_the_lock(fan):
 
 
 def test_when_the_fallback_fails_too_the_error_propagates():
-    """If both primary and fallback backends fail, propagate the error and deny access rather than failing open."""
+    """
+    If both primary and fallback backends fail, propagate the error and deny access rather than
+    failing open.
+    """
     doomed = ResilientDeviceLock(primary=BrokenLock(), fallback=BrokenLock())
 
     with pytest.raises(OSError):
@@ -298,7 +304,10 @@ def test_the_postgres_lock_reads_the_single_source_of_truth(service, fan):
 
 @pytest.mark.django_db
 def test_releasing_the_postgres_lock_does_not_unbind_anything(service, fan):
-    """Database-backed release is intentionally a no-op because device revocation is a separate audited business operation."""
+    """
+    Database-backed release is intentionally a no-op because device revocation is a separate audited
+    business operation.
+    """
     device = service.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     lock = PostgresDeviceLock()
 
