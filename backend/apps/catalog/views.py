@@ -301,11 +301,7 @@ class CatalogOrganizerContextMixin:
 
 
 class LocalStorageMediaView(APIView):
-    """
-    Lecture d un objet local via URL signée.
-
-    En production S3 fournit directement son URL présignée.
-    """
+    """Read a local object through a signed URL; production storage returns its own presigned URL."""
 
     authentication_classes = []
     permission_classes = []
@@ -1265,10 +1261,10 @@ class EventPostponeView(
 
             lifecycle_reason = event.lifecycle_reason if is_defining_new_date else report_reason
 
-            # Premier report : la programmation actuelle devient
+            # First postponement: the current schedule becomes
             # l'ancienne programmation.
             #
-            # Si un événement déjà reporté sans nouvelle date reçoit
+            # If an already-postponed event without a new date receives
             # ensuite sa nouvelle programmation, on conserve bien
             # l'ancienne date initiale.
             if (
@@ -1997,9 +1993,9 @@ def _require_event_scanner_assignment_allowed(
     event: Event,
 ) -> None:
     """
-    Une nouvelle affectation commence uniquement après publication.
+    New scanner assignment starts only after publication.
 
-    POSTPONED reste un événement déjà publié et peut être préparé.
+    POSTPONED remains a previously published event and can still be prepared.
     """
 
     if event.status not in {
@@ -2035,11 +2031,10 @@ def _event_scanner_assignment_payload(
 
 class AdminOrganizerEventListView(APIView):
     """
-    Lecture administrative des événements d'un organisateur.
+    Administrative read-only view of an organizer's events.
 
-    Cette surface est strictement en lecture seule.
-    Chaque événement expose également ses catégories de billets
-    afin d'afficher prix, quota et nombre vendu dans la console admin.
+    Each event also exposes its ticket categories so the administration console
+    can display price, quota, and sold count.
     """
 
     permission_classes = [
@@ -2062,8 +2057,8 @@ class AdminOrganizerEventListView(APIView):
         request: Request,
         organizer_id: Any,
     ) -> Response:
-        # Comme les autres surfaces admin organizer :
-        # Resource() impose la portée administrative ANY.
+        # As with other organizer administration endpoints:
+        # Resource() requires the administrative ANY scope.
         self.check_object_permissions(
             request,
             Resource(),
