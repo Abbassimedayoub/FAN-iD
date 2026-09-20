@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../errors/failure.dart';
 
-/// Client Dio : Bearer, corrélation et refresh unique mis en file.
+/// Dio client handling Bearer authentication, correlation IDs, and serialized refresh.
 class DioClient {
   static const skipAuthRefreshKey = 'fanid_skip_auth_refresh';
   static const _retriedKey = 'fanid_auth_retried';
@@ -90,9 +90,8 @@ class DioClient {
             final response = await dio.fetch<dynamic>(options);
             handler.resolve(response);
           } on DioException catch (retryError) {
-            // dio.fetch repasse le retry dans cet intercepteur avec
-            // _retried=true. Ce passage declenche deja le nettoyage global
-            // en cas de second 401. Ne pas le declencher une seconde fois ici.
+            // dio.fetch sends the retry through this interceptor with _retried=true;
+            // that pass already performs global cleanup after a second 401.
             handler.next(retryError);
           }
         },
@@ -166,7 +165,7 @@ class DioClient {
   }
 }
 
-/// Mappe une [DioException] vers une [Failure].
+/// Map a [DioException] to a [Failure].
 Failure mapDioExceptionToFailure(DioException exception) {
   final status = exception.response?.statusCode;
   if (status == null) {
