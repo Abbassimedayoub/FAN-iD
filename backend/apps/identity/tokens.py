@@ -1,35 +1,23 @@
 """
-Primitives de jeton — la seule frontiere cryptographique du projet.
+Token primitives — the project's cryptographic boundary.
 
-Deux fonctions, et rien d autre. Tout ce qui touche a la signature ou a la
-verification d un JWT passe par ici : c est le seul endroit ou une erreur de
-cette famille peut exister, donc le seul endroit a relire quand on doute.
+All JWT signing and verification flows go through this module, keeping this
+class of security behavior concentrated in one place.
 
-**Pourquoi PyJWT et pas `djangorestframework-simplejwt`** (fiche de dependance
-§64) : le plan v2 a remplace la liste de revocation de simplejwt par la table
-`session`. Il ne restait de la bibliotheque que des vues et des serialiseurs
-inutilises, plus un SECOND registre de revocation — exactement le defaut que la
-suppression de `core/policy` visait a eliminer. simplejwt dependant lui-meme de
-PyJWT, on retire une couche, pas une protection.
+PyJWT is used directly rather than adding another token framework because
+session state and revocation already live in the `session` table. Keeping one
+revocation model avoids duplicated state.
 
-**Les quatre pieges de la famille JWT, et leur parade ici.** Chacun a son test.
+Four JWT pitfalls are addressed here and covered by tests:
 
-1. `alg: none` — un jeton dont l en-tete declare « aucune signature ». Parade :
-   `algorithms=[...]` explicite au decodage. PyJWT l EXIGE, mais la liste doit
-   etre juste.
-2. Confusion d algorithme — un jeton HS512, ou HS256 signe avec une cle publique
-   RSA. Parade : un SEUL algorithme accepte, celui des reglages.
-3. Absence de verification d expiration, ou tolerance trop large. Parade :
-   `exp` obligatoire, `leeway` explicite et borne.
-4. **Confusion de type** — un refresh presente a la place d un access, ou
-   l inverse. C est le plus grave et le moins connu : il contourne la rotation
-   ENTIERE, puisque le jeton a longue duree de vie devient utilisable comme
-   jeton d acces. Parade : un claim `token_type` obligatoire, verifie par
-   comparaison stricte au type attendu par l APPELANT.
+1. `alg: none`: decoding receives an explicit allowed algorithm list.
+2. Algorithm confusion: exactly one configured algorithm is accepted.
+3. Missing expiry checks: `exp` is required and leeway is explicit.
+4. Type confusion: `token_type` is required and compared strictly against the
+   type expected by the caller.
 
-**`token_type` et non `typ`** : `typ` est deja un champ d en-tete JOSE valant
-« JWT ». Reutiliser ce nom dans la charge utile creerait deux champs homonymes a
-deux endroits differents — la premiere confusion d un lecteur presse.
+`token_type` is used instead of `typ` because `typ` already names the JOSE
+header field whose value is normally "JWT".
 """
 
 from __future__ import annotations
@@ -46,7 +34,7 @@ from apps.core.exceptions import AuthError
 
 
 class TokenType(StrEnum):
-    """Type porte par le claim `token_type`, et verifie au decodage."""
+    """Token type carried by the `token_type` claim and checked on decode."""
 
     ACCESS = "access"
     REFRESH = "refresh"
@@ -54,11 +42,10 @@ class TokenType(StrEnum):
 
 class TokenInvalidError(AuthError):
     """
-    401 — jeton illisible, mal signe, de mauvais type ou incomplet.
+    401 — unreadable, incorrectly signed, wrong-type, or incomplete token.
 
-    Un SEUL code pour tous ces cas, deliberement. Distinguer « signature
-    invalide » de « type incorrect » renseignerait un attaquant sur l etat
-    d avancement de sa forge. Le motif precis part dans les journaux.
+    A single error code intentionally covers all of these cases so callers do
+    not receive extra information about how far a forged token got.
     """
 
     default_code = "TOKEN_INVALID"
@@ -67,11 +54,10 @@ class TokenInvalidError(AuthError):
 
 class TokenExpiredError(AuthError):
     """
-    401 — jeton expire.
+    401 — expired token.
 
-    Distingue de `TOKEN_INVALID`, contrairement au reste : le client DOIT savoir
-    qu il faut rafraichir plutot que se reconnecter. Et l information ne sert a
-    rien a un attaquant — un jeton expire est un jeton qu il possede deja.
+    This remains distinct from `TOKEN_INVALID` because the client needs to know
+    whether it should refresh rather than force a new login.
     """
 
     default_code = "TOKEN_EXPIRED"
@@ -80,16 +66,10 @@ class TokenExpiredError(AuthError):
 
 class TokenReuseDetectedError(AuthError):
     """
-    401 — un refresh deja tourne a ete rejoue.
+    401 — a previously rotated refresh token was replayed.
 
-    Motif DISTINCT, contrairement a la regle d opacite qui vaut ailleurs. Deux
-    raisons : le client legitime doit comprendre qu il faut se reconnecter et
-    non reessayer, et surtout la metrique
-    `fanid_auth_token_reuse_detected_total` doit pouvoir compter cet evenement
-    precis — toute valeur superieure a zero merite une inspection (plan §5.4).
-
-    Ce que cette erreur revele a un attaquant, il le sait deja : il vient de
-    rejouer un jeton qu il possede.
+    This has a distinct code because the legitimate client must stop retrying
+    and re-authenticate, while security metrics also need to count this event.
     """
 
     default_code = "TOKEN_REUSE_DETECTED"
@@ -102,13 +82,11 @@ def _algorithm() -> str:
 
 def _signing_key() -> str:
     """
-    Cle de signature — JAMAIS `SECRET_KEY`.
+    Return the signing key, which must NEVER be Django's `SECRET_KEY`.
 
-    En HS256 la cle signe ET verifie. La partager avec Django transformerait
-    toute fuite de `SECRET_KEY` — un `settings.py` verse par erreur dans un
-    ticket, une variable exposee par une page d erreur — en usurpation
-    d identite de n importe quel compte, y compris administrateur. Deux secrets
-    distincts, deux rayons d explosion distincts.
+    With HS256 the same key signs and verifies tokens. Sharing it with Django
+    would turn any Django secret leak into the ability to forge authentication
+    tokens. Separate secrets keep the blast radii separate.
     """
     return str(settings.JWT_SIGNING_KEY)
 
@@ -122,17 +100,14 @@ def encode_token(
     issued_at: datetime.datetime,
 ) -> tuple[str, uuid.UUID, datetime.datetime]:
     """
-    Signe un jeton et renvoie `(jeton, jti, expiration)`.
+    Sign a token and return `(token, jti, expiration)`.
 
-    Le `jti` et l expiration sont RENVOYES plutot que relus du jeton : l appelant
-    doit les enregistrer dans `identity_session`, et redecoder ce qu on vient
-    d ecrire pour retrouver ses propres valeurs serait a la fois inutile et une
-    occasion de divergence.
+    The `jti` and expiration are returned directly because the caller must
+    persist them in `identity_session`; re-decoding a token just written would
+    add needless work and another chance for divergence.
 
-    `issued_at` est un PARAMETRE, pas `timezone.now()` appele ici. La fonction
-    reste ainsi deterministe : un test peut fabriquer un jeton emis il y a huit
-    jours sans manipuler l horloge du systeme, et une paire access/refresh emise
-    au meme instant porte reellement le meme `iat`.
+    `issued_at` is a parameter rather than an internal clock read so tests and
+    paired token issuance remain deterministic.
     """
     jti = uuid.uuid4()
     expires_at = issued_at + lifetime
@@ -149,28 +124,24 @@ def encode_token(
     return token, jti, expires_at
 
 
-#: Claims exiges dans TOUT jeton. Un jeton auquel il manque `exp` serait
-#: eternel ; sans `jti`, il serait irrevocable ; sans `token_type`, il serait
-#: interchangeable. PyJWT ne verifie la presence d un claim que si on la demande.
+#: Claims required in every token. Without `exp`, `jti`, or `token_type`,
+#: expiry, revocation, and type separation would not be enforceable.
 REQUIRED_CLAIMS = ("exp", "iat", "jti", "sub", "token_type", "iss")
 
 
 def decode_token(raw: str, *, expected_type: TokenType) -> dict[str, Any]:
     """
-    Verifie un jeton et renvoie ses claims.
+    Verify a token and return its claims.
 
-    `expected_type` est OBLIGATOIRE et sans valeur par defaut : un appelant ne
-    peut pas oublier de preciser ce qu il attend. C est la parade au piege n° 4,
-    et un defaut par defaut la rendrait facultative.
+    `expected_type` is mandatory and has no default so callers cannot forget
+    to state whether they expect an access or refresh token.
     """
     try:
         payload: dict[str, Any] = jwt.decode(
             raw,
             _signing_key(),
-            # Liste EXPLICITE, reduite a l algorithme configure. C est cette
-            # ligne qui ferme `alg: none` et la confusion d algorithme : PyJWT
-            # refuse tout en-tete annoncant autre chose, sans meme verifier la
-            # signature.
+            # Explicitly restrict decoding to the configured algorithm. This
+            # closes both `alg: none` and algorithm-confusion paths.
             algorithms=[_algorithm()],
             issuer=str(settings.JWT_ISSUER),
             leeway=int(settings.JWT_LEEWAY_SECONDS),
@@ -179,9 +150,7 @@ def decode_token(raw: str, *, expected_type: TokenType) -> dict[str, Any]:
     except jwt.ExpiredSignatureError as exc:
         raise TokenExpiredError() from exc
     except jwt.PyJWTError as exc:
-        # Tout le reste — signature fausse, en-tete bricole, claim manquant,
-        # emetteur inattendu — donne le MEME code. Le detail est un cadeau fait
-        # a celui qui forge.
+        # Every other verification failure maps to the same public error code.
         raise TokenInvalidError() from exc
 
     if payload.get("token_type") != str(expected_type):
