@@ -171,13 +171,7 @@ class ScannerInvitationService:
         actor_id: Any,
         scanner_id: uuid.UUID,
     ) -> Scanner:
-        """
-        Renvoie une invitation pré-active avec
-        un NOUVEAU secret temporaire.
-
-        Ce flux est distinct de la récupération
-        demandée par un scanner actif.
-        """
+        """Return a pre-active invitation with a new temporary secret; this flow is distinct from recovery requested by an active scanner."""
 
         pre_active = {
             SCANNER_INVITED,
@@ -289,14 +283,14 @@ class ScannerAccessService:
 
             user = scanner.user
 
-            # Toujours capturer les coordonnées
+            # Always capture contact details
             # avant anonymisation.
             scanner.invited_first_name = scanner.invited_first_name or user.first_name
             scanner.invited_last_name = scanner.invited_last_name or user.last_name
             scanner.invited_email = scanner.invited_email or user.email
 
-            # Le changement de mot de passe peut
-            # avoir eu lieu avant que le consumer
+            # Password replacement may
+            # have happened before the consumer
             # asynchrone ne passe OPENED -> ACTIVE.
             account_is_active = not user.must_change_password or scanner.status in {
                 SCANNER_ACTIVE,
