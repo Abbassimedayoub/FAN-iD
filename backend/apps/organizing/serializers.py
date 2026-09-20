@@ -1,8 +1,8 @@
 """
-Serialiseurs HTTP du contexte `organizing`.
+HTTP serializers for the `organizing` context.
 
-Comme dans `identity`, les contrats d entree sont FERMES : un champ ajoute au
-modele ne devient jamais exposable automatiquement.
+Input contracts are closed so adding a model field never makes it writable by
+default.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ class OrganizerApplySerializer(serializers.Serializer):
 
 
 class OrganizerSerializer(serializers.Serializer):
-    """Representation publique d un dossier organisateur."""
+    """Public representation of an organizer dossier."""
 
     id = serializers.UUIDField(read_only=True)
     org_name = serializers.CharField(read_only=True)
@@ -169,7 +169,7 @@ class OrganizerRejectSerializer(serializers.Serializer):
 
 
 class AdminOrganizerPendingReactivationSerializer(serializers.Serializer):
-    """Notification compacte d une réouverture en attente."""
+    """Compact representation of a pending reactivation request."""
 
     id = serializers.UUIDField(read_only=True)
     organizer_id = serializers.UUIDField(read_only=True)
@@ -181,7 +181,7 @@ class AdminOrganizerPendingReactivationSerializer(serializers.Serializer):
 
 
 class AdminOrganizerListResponseSerializer(serializers.Serializer):
-    """Page standard de dossiers organisateurs pour l administration."""
+    """Standard administration page of organizer dossiers."""
 
     count = serializers.IntegerField(read_only=True)
     next = serializers.URLField(read_only=True, allow_null=True)
@@ -195,12 +195,7 @@ class AdminOrganizerListResponseSerializer(serializers.Serializer):
 
 
 def organizer_apply_data(data: dict[str, Any]) -> dict[str, Any]:
-    """
-    Construit la commande fermee transmise au service.
-
-    Les champs absents du contrat ne peuvent pas traverser cette fonction, meme
-    s ils figurent dans le corps brut de la requete.
-    """
+    """Build the closed service command; fields outside the contract cannot pass through even if present in the raw request body."""
     return {
         "org_name": data["org_name"],
         "contact_email": data["contact_email"],
