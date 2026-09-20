@@ -1,4 +1,4 @@
-// PORTAGE : remplacer `fanid_mobile` par le nom de paquet reel du depot.
+// Porting note: replace `fanid_mobile` with the repository's actual package name.
 import 'package:fanid_mobile/features/auth/presentation/views/splash_view.dart';
 import 'package:fanid_mobile/design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -6,9 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Tests de `SplashView`.
 ///
-/// Le test central n est pas « le logo s affiche » — c est « rien ne se
-/// declenche tout seul ». Une vue de splash qui navigue par elle-meme entre en
-/// concurrence avec le `redirect` du routeur, et le conflit ne se voit que sur
+/// The central test is not merely that the logo renders; it verifies that the
+/// splash view triggers no navigation by itself and cannot race the router redirect.
 /// un reseau lent, en production.
 void main() {
   Widget wrap(Widget child, {TextScaler scaler = TextScaler.noScaling}) {
@@ -38,11 +37,11 @@ void main() {
 
     // On avance largement au-dela du `Timer` de 1,6 s du prototype d origine.
     // `pump` explicite plutot que `pumpAndSettle` : `pumpAndSettle` boucle
-    // indefiniment sur l animation du `CircularProgressIndicator` et ne
+    // Avoid waiting indefinitely on the CircularProgressIndicator animation.
     // prouverait rien.
     await tester.pump(const Duration(seconds: 5));
 
-    // La vue est toujours la : rien ne l a remplacee.
+    // The view is still present; nothing has replaced it.
     expect(find.byType(SplashView), findsOneWidget);
     expect(find.text(SplashView.tagline), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -67,9 +66,8 @@ void main() {
     );
     await tester.pump();
 
-    // Un debordement de mise en page leve une `FlutterError` que
-    // `takeException` recupere. `isNull` signifie donc : aucune bande jaune et
-    // noire, sur un ecran volontairement court.
+    // Layout overflow raises a FlutterError captured by takeException; null
+    // therefore means the deliberately short screen did not overflow.
     expect(tester.takeException(), isNull);
   });
 }
