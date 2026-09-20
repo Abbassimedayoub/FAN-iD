@@ -1,19 +1,16 @@
 """
-Modèle d'identité du Sprint 1 (plan S1 §3.1).
+Identity model migration.
 
-`identity/0001_initial` est immuable (§6 du prompt d'exécution) : tout arrive
-ici en migration avant.
+The initial identity migration remains immutable, so all new schema changes are
+introduced here as a forward migration.
 
-Les colonnes NOT NULL sont ajoutées **avec une valeur par défaut immédiatement
-retirée** (`preserve_default=False`). C'est l'idiome Django et l'exigence
-d'ADR-S-08 : un `NOT NULL` sans défaut sur une table potentiellement peuplée
-échoue. La valeur par défaut ne survit pas à la migration.
+NOT NULL columns are added with a temporary default that is removed immediately
+through `preserve_default=False`. This is the standard Django pattern for
+adding required columns to a table that may already contain rows.
 
-La contrainte d'âge est posée en `RunSQL` plutôt qu'en `Meta.constraints` :
-l'expression `(created_at AT TIME ZONE 'UTC' - INTERVAL '16 years')::date` n'est
-pas exprimable en `Q()`, et une traduction approchée serait pire qu'un SQL
-explicite et relu. Réversible (ADR-S-08). Voir ADR-S1-01 pour la justification
-complète et les vérifications sur PostgreSQL 16.
+The age constraint uses `RunSQL` because the expression based on
+`created_at AT TIME ZONE 'UTC'` is not representable accurately with `Q()`.
+The SQL is explicit and reversible.
 """
 import datetime
 import uuid
@@ -25,10 +22,9 @@ from django.db import migrations, models
 
 import apps.identity.fields
 
-# `AT TIME ZONE` avec une zone LITTÉRALE est immuable, contrairement à un cast
-# `timestamptz::date` qui dépend du fuseau de session. L'expression ne référence
-# que des colonnes de la ligne : elle est donc déterministe et vérifie « l'âge
-# À L'INSCRIPTION », pas « l'âge aujourd'hui ».
+# `AT TIME ZONE` with a literal zone is deterministic, unlike a direct
+# `timestamptz::date` cast that depends on the session timezone. The expression
+# checks age at account creation rather than age at the current date.
 ADD_AGE_CONSTRAINT = """
 ALTER TABLE identity_user ADD CONSTRAINT ck_user_min_age_16
 CHECK (date_of_birth <= ((created_at AT TIME ZONE 'UTC') - INTERVAL '16 years')::date);
@@ -61,7 +57,7 @@ class Migration(migrations.Migration):
                 name="ck_role_name_valid",
             ),
         ),
-        # --- Socle commun (TimeStampedModel / VersionedModel) ---
+        # --- Shared structural fields from TimeStampedModel / VersionedModel ---
         migrations.AddField(
             model_name="user",
             name="created_at",
@@ -78,7 +74,7 @@ class Migration(migrations.Migration):
             name="version",
             field=models.PositiveIntegerField(default=1),
         ),
-        # --- État civil et conformité ---
+        # --- Personal and compliance fields ---
         migrations.AddField(
             model_name="user",
             name="date_of_birth",
@@ -101,7 +97,7 @@ class Migration(migrations.Migration):
             name="anonymized_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
-        # --- Identité canonique ---
+        # --- Canonical identity ---
         migrations.AlterField(
             model_name="user",
             name="username",
