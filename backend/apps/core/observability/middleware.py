@@ -1,8 +1,8 @@
 """
-CorrelationMiddleware + RequestLogMiddleware (§26/§33 master prompt, §2.5 Source B).
+CorrelationMiddleware and RequestLogMiddleware.
 
-Position imposée : CorrelationMiddleware doit s'exécuter avant TOUT ce qui
-journalise (règle absolue). RequestLogMiddleware juste après.
+CorrelationMiddleware must execute before anything that logs. RequestLogMiddleware
+runs immediately after it so every request log carries the same correlation ID.
 """
 
 import logging
@@ -21,10 +21,10 @@ request_logger = logging.getLogger("fanid.request")
 
 class CorrelationMiddleware:
     """
-    Génère ou propage un identifiant de corrélation unique par requête.
+    Generate or propagate one correlation identifier per request.
 
-    Règle testée explicitement : jamais deux `correlation_id` différents pour
-    la même requête (ni un généré puis un autre, ni le header ignoré).
+    The invariant is explicit: one request must never end up with two different
+    correlation IDs, whether through regeneration or ignored input headers.
     """
 
     def __init__(self, get_response: Callable[[FanIdRequest], HttpResponse]) -> None:
@@ -43,7 +43,7 @@ class CorrelationMiddleware:
 
 
 class RequestLogMiddleware:
-    """Une ligne de log structurée par requête : méthode, route, statut, latence, acteur."""
+    """Write one structured log line per request: method, route, status, latency, actor."""
 
     def __init__(self, get_response: Callable[[FanIdRequest], HttpResponse]) -> None:
         self.get_response = get_response
