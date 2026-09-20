@@ -115,7 +115,10 @@ def mark_payment_intent_succeeded(
     provider_intent_id: str,
     now=None,
 ) -> PaymentIntent:
-    """Finalize the intent after provider confirmation; retries return an already-succeeded intent without incrementing stock twice."""
+    """
+    Finalize the intent after provider confirmation; retries return an already-succeeded intent
+    without incrementing stock twice.
+    """
     try:
         intent = PaymentIntent.objects.select_for_update().get(
             provider_intent_id=provider_intent_id,
