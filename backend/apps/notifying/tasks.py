@@ -91,11 +91,7 @@ def send_organizer_decision_email(
     organizer_id: str,
     decision: str,
 ) -> dict[str, Any]:
-    """
-    Envoie le résultat de validation hors transaction Outbox.
-
-    Les erreurs réseau SMTP sont rejouées par Celery avec un backoff.
-    """
+    """Send the validation result outside the Outbox transaction; SMTP network failures are retried by Celery with backoff."""
 
     try:
         organizer = Organizer.objects.select_related("user").get(pk=organizer_id)
