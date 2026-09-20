@@ -1,6 +1,6 @@
 /**
- * Tokens du design system validé [CADR] (§4.3 Source B) : navy #0E2A4D,
- * primary #1663C7, cyan #22D3EE, grille 8pt, rayons 16/12.
+ * Design-system tokens: navy #0E2A4D, primary #1663C7, cyan #22D3EE,
+ * 8-point spacing grid, and 16/12 px corner radii.
  */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -20,7 +20,7 @@ export default {
         md: "12px",
       },
       spacing: {
-        // grille 8pt
+        // 8-point grid.
         18: "72px",
       },
     },
