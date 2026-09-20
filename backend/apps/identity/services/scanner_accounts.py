@@ -30,7 +30,10 @@ def derive_scanner_temporary_password(
     invitation_id: uuid.UUID,
     generation: int = 1,
 ) -> str:
-    """Derive a temporary secret without storing it in plaintext; changing generation invalidates the previous password."""
+    """
+    Derive a temporary secret without storing it in plaintext; changing generation invalidates the
+    previous password.
+    """
 
     if generation < 1:
         raise ValueError("generation must be >= 1")
@@ -110,7 +113,10 @@ def rotate_scanner_temporary_password(
     user_id: uuid.UUID,
     invitation_id: uuid.UUID,
 ) -> int:
-    """Create a new secret generation, immediately invalidating the previous hash; return only the generation number, never plaintext."""
+    """
+    Create a new secret generation, immediately invalidating the previous hash; return only the
+    generation number, never plaintext.
+    """
 
     with transaction.atomic():
         user = User.objects.select_for_update().select_related("role").get(pk=user_id)
@@ -164,7 +170,10 @@ def deactivate_scanner_account(
     *,
     user_id: uuid.UUID,
 ) -> int:
-    """Deactivate and anonymize a SCANNER account while preserving business history and allowing the original email to be reused."""
+    """
+    Deactivate and anonymize a SCANNER account while preserving business history and allowing the
+    original email to be reused.
+    """
 
     with transaction.atomic():
         user = User.objects.select_for_update().select_related("role").get(pk=user_id)
