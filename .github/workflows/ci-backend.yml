@@ -36,7 +36,7 @@ env:
 jobs:
   quality-gates:
     runs-on: ubuntu-latest
-    # Cible CI < 6 minutes (§5.2 Source B) : cache pip + services en parallèle du checkout.
+    # CI runtime target: use pip caching while service containers start alongside checkout.
     timeout-minutes: 8
     services:
       postgres:
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # nécessaire pour le scan de secrets sur l'historique complet
+          fetch-depth: 0  # required for full-history secret scanning
 
       - uses: actions/setup-python@v5
         with:
@@ -71,7 +71,7 @@ jobs:
       - name: Installer les dépendances
         run: pip install -r requirements/test.txt
 
-      # --- Porte 1 : lint & format ---
+      # --- Gate 1: lint and formatting ---
       - name: Black (format)
         run: black --check .
       - name: isort (imports)
@@ -79,11 +79,11 @@ jobs:
       - name: Flake8 (lint)
         run: flake8 .
 
-      # --- Porte 2 : types ---
+      # --- Gate 2: types ---
       - name: mypy (core, mode strict progressif)
         run: mypy apps/core
 
-      # --- Porte 3+4 : tests + couverture (>= 80% sur core, jamais en baisse) ---
+      # --- Gates 3+4: tests and coverage non-regression ---
       - name: pytest (unitaires + intégration + concurrence)
         run: pytest -n auto
 
@@ -97,17 +97,17 @@ jobs:
         working-directory: .
         run: python3 scripts/coverage_gate.py check --stack backend
 
-      # --- Porte 5 : migrations ---
+      # --- Gate 5: migrations ---
       - name: makemigrations --check (dérive de schéma)
         run: python manage.py makemigrations --check --dry-run
       - name: django-migration-linter
         run: python manage.py lintmigrations
 
-      # --- Porte 6 : architecture (import-linter) ---
+      # --- Gate 6: architecture (import-linter) ---
       - name: import-linter (core indépendant, pas de dépendance circulaire)
         run: lint-imports --config=../.importlinter
 
-      # --- Porte 7 : sécurité ---
+      # --- Gate 7: security ---
       - name: Bandit (haute sévérité)
         run: bandit -r apps config -ll
       - name: pip-audit
@@ -129,7 +129,7 @@ jobs:
           before = load("/tmp/secrets-baseline-before.json")
           after = load(".secrets.baseline")
 
-          # La baseline versionnee doit etre entierement auditee AVANT le scan.
+          # The versioned baseline must be fully audited BEFORE the scan.
           real = []
           unaudited = []
 
@@ -193,7 +193,7 @@ jobs:
           # quand aucune nouvelle detection n'existe.
           cp /tmp/secrets-baseline-before.json .secrets.baseline
 
-      # --- Porte 8 : build + démarrage réel de la stack Docker + probes ---
+      # --- Gate 8: build, real Docker stack startup, and probes ---
       - name: Build image Docker (stage dev)
         working-directory: .
         run: docker build -t fanid-api:ci --target dev backend
