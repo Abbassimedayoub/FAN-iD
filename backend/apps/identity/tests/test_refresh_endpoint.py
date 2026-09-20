@@ -1,10 +1,4 @@
-"""
-`POST /api/v1/auth/token/refresh` — la source de lecture, et elle seule.
-
-Le service est teste ailleurs (`test_refresh.py`). Ce fichier ne verifie que ce
-qui appartient a la couche HTTP : quelle source est lue selon le client
-declare, quelle source est IGNOREE, et le transport de la reponse.
-"""
+"""HTTP tests for refresh-token source selection and response transport."""
 
 from __future__ import annotations
 
@@ -30,7 +24,7 @@ TABLET = "b" * 64
 
 @pytest.fixture(autouse=True)
 def isolated_throttle_cache(settings):
-    """Compteur local au test — voir `test_login_endpoint.py`."""
+    """Use a test-local throttle counter, matching the login endpoint tests."""
     settings.CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -79,7 +73,7 @@ def fan(db, roles) -> User:
 
 @pytest.fixture
 def opened(service, fan):
-    """Une session ouverte sans appareil — le cas du navigateur."""
+    """A browser-style session opened without a bound device."""
     return service.login(LoginCommand(email="supporter@example.test", password=PASSWORD))
 
 
@@ -96,7 +90,7 @@ def opened_on_phone(service, fan):
 
 
 # ===========================================================================
-# La source de lecture est celle qui est declaree
+# Read only the source declared by the client
 # ===========================================================================
 
 
@@ -124,12 +118,7 @@ def test_a_mobile_client_reads_the_body_and_receives_the_refresh_in_the_body(cli
 
 
 def test_a_web_client_ignores_a_refresh_placed_in_the_body(client, opened):
-    """
-    **Le test qui ferme le cumul.** Le jeton est valide, mais il arrive par une
-    source que le client n a pas declaree : il ne doit pas etre lu. Sans cette
-    regle, un refresh serait acceptable depuis deux transports a la fois, et le
-    cookie HttpOnly ne protegerait plus rien.
-    """
+    """A valid refresh token arriving through an undeclared transport must be ignored."""
     response = client.post(URL, {"client": "web", "refresh": opened.pair.refresh}, format="json")
 
     assert response.status_code == 401
@@ -137,7 +126,7 @@ def test_a_web_client_ignores_a_refresh_placed_in_the_body(client, opened):
 
 
 def test_a_mobile_client_ignores_the_cookie(client, opened, settings):
-    """Le pendant du precedent, dans l autre sens."""
+    """The symmetric case for the other transport."""
     client.cookies[settings.REFRESH_COOKIE_NAME] = opened.pair.refresh
 
     response = client.post(URL, {"client": "mobile"}, format="json")
@@ -147,10 +136,7 @@ def test_a_mobile_client_ignores_the_cookie(client, opened, settings):
 
 
 def test_the_cookie_wins_for_a_web_client_when_both_are_present(client, service, opened, settings):
-    """
-    Deux jetons differents, deux sources : c est celui de la source DECLAREE qui
-    est consomme. On le prouve en verifiant que l autre est toujours utilisable.
-    """
+    """When both transports contain different tokens, only the declared source is consumed."""
     other = service.login(LoginCommand(email="supporter@example.test", password=PASSWORD))
     client.cookies[settings.REFRESH_COOKIE_NAME] = opened.pair.refresh
 
@@ -158,8 +144,7 @@ def test_the_cookie_wins_for_a_web_client_when_both_are_present(client, service,
 
     assert response.status_code == 200, response.data
 
-    # Le jeton du CORPS n a pas ete touche : il tourne encore, ce qui prouve
-    # qu il n a pas ete consomme par l appel precedent.
+    # The body token remains usable, proving the previous call did not consume it.
     second = client.post(URL, {"client": "mobile", "refresh": other.pair.refresh}, format="json")
     assert second.status_code == 200, second.data
 
@@ -179,10 +164,7 @@ def test_the_client_field_is_required(client, opened, settings):
 
 
 def test_a_missing_token_is_a_401_not_a_400(client, fan):
-    """
-    Un motif distinct (« cookie absent ») apprendrait a un attaquant quelle
-    source le serveur attend selon ce qu il declare.
-    """
+    """Missing-source failures remain opaque rather than revealing transport expectations."""
     response = client.post(URL, {"client": "web"}, format="json")
 
     assert response.status_code == 401
@@ -211,10 +193,7 @@ def test_a_wrong_fingerprint_returns_device_mismatch(client, opened_on_phone):
 
 
 def test_the_response_carries_the_user_so_a_role_change_is_visible(client, opened, fan, roles):
-    """
-    Le role voyage dans l access, donc un changement ne se voit qu au
-    rafraichissement. Le renvoyer ici evite au client un appel dedie.
-    """
+    """The refreshed access token carries the current role so the client does not need a separate role lookup."""
     User.objects.filter(pk=fan.pk).update(role=roles["ORGANIZER"])
 
     response = client.post(URL, {"client": "mobile", "refresh": opened.pair.refresh}, format="json")
@@ -224,7 +203,7 @@ def test_the_response_carries_the_user_so_a_role_change_is_visible(client, opene
 
 
 def test_the_refresh_token_never_appears_twice(client, opened, settings):
-    """Cookie ET corps porteraient le meme jeton : le transport ne se cumule pas."""
+    """Cookie and response body must never both carry the same refresh token."""
     client.cookies[settings.REFRESH_COOKIE_NAME] = opened.pair.refresh
 
     response = client.post(URL, {"client": "web"}, format="json")
