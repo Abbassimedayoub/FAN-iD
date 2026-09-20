@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/errors/failure.dart';
 
-/// Widgets socles (§4.4 Source B) mappant les cinq états d'écran (§4.2
-/// Source B) côté Flutter : SkeletonBox (loading), EmptyView, ErrorView
-/// (avec Réessayer), LoadingOverlay (refreshing), le succès étant le
-/// contenu métier lui-même (hors périmètre Sprint 0).
+/// Foundation widgets mapping presentation states in Flutter:
+/// `SkeletonBox` for loading, `EmptyView`, `ErrorView` with retry,
+/// `LoadingOverlay` for refresh, and the business content itself for success.
 
 class SkeletonBox extends StatelessWidget {
   const SkeletonBox(
@@ -23,7 +22,7 @@ class SkeletonBox extends StatelessWidget {
         width: width,
         decoration: BoxDecoration(
           color: const Color(
-              0x1A0E2A4D), // navy à 10% — cohérent avec le token web
+              0x1A0E2A4D), // navy at 10%, aligned with the web token
           borderRadius: BorderRadius.circular(12),
         ),
       ),
