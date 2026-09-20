@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# Point d'entrée unique pour les 4 conteneurs applicatifs (api/ws/worker/beat).
-# Les 4 conteneurs partagent la même image (§1.4.2 Source A) : c'est cet entrypoint
-# qui les différencie, pas l'image.
+# Single entrypoint for the four application container roles: api, ws, worker,
+# and beat. All roles share the same image; the entrypoint selects behavior.
 set -euo pipefail
 
 ROLE="${1:-api}"
 
-echo "[entrypoint] rôle=${ROLE} en cours de démarrage..."
+echo "[entrypoint] role=${ROLE} starting..."
 
-# Le démarrage échoue explicitement si une variable critique manque (§40/§41) —
-# vérifié ici pour un retour rapide, et re-vérifié par config.settings au chargement.
-: "${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY manquant — le conteneur refuse de démarrer}"
-: "${DATABASE_URL:?DATABASE_URL manquant — le conteneur refuse de démarrer}"
+# Fail fast when critical environment variables are missing. Django settings
+# validate them again during application startup.
+: "${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY missing - refusing to start}"
+: "${DATABASE_URL:?DATABASE_URL missing - refusing to start}"
 
 case "$ROLE" in
   api)
@@ -30,7 +29,7 @@ case "$ROLE" in
     exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8001 --workers 1
     ;;
   worker)
-    echo "[entrypoint] validation Django avant démarrage du worker..."
+    echo "[entrypoint] validating Django before starting worker..."
     python manage.py check --fail-level ERROR
 
     if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
@@ -41,7 +40,7 @@ case "$ROLE" in
     exec celery -A config worker --loglevel=INFO --concurrency=2
     ;;
   beat)
-    echo "[entrypoint] validation Django avant démarrage de beat..."
+    echo "[entrypoint] validating Django before starting beat..."
     python manage.py check --fail-level ERROR
 
     if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
@@ -49,12 +48,12 @@ case "$ROLE" in
     fi
 
     python -c 'import jwt; print("[entrypoint] PyJWT import OK")'
-    # Planification statique (config.settings.base.CELERY_BEAT_SCHEDULE) : pas de
-    # DatabaseScheduler au Sprint 0 (voir commentaire dans settings/base.py).
+    # Static schedule from config.settings.base.CELERY_BEAT_SCHEDULE; no
+    # DatabaseScheduler is used for this deployment.
     exec celery -A config beat --loglevel=INFO
     ;;
   *)
-    echo "[entrypoint] rôle inconnu: ${ROLE} (attendu: api|ws|worker|beat)" >&2
+    echo "[entrypoint] unknown role: ${ROLE} (expected: api|ws|worker|beat)" >&2
     exit 1
     ;;
 esac
