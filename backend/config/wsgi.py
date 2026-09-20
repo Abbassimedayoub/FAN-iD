@@ -1,5 +1,6 @@
-"""WSGI de secours (déploiements qui n'exigent pas ASGI). L'entrypoint Docker
-utilise Uvicorn/ASGI par défaut (§34 master prompt)."""
+"""Fallback WSGI configuration for deployments that do not require ASGI.
+The Docker entrypoint uses Uvicorn/ASGI by default.
+"""
 
 import os
 
