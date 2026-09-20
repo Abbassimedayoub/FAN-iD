@@ -1,11 +1,9 @@
 """
-Tests de concurrence — idempotence (§57 master prompt / §6.1 Source B) :
-5 requêtes concurrentes même clé ⇒ 1 exécution + 4 réponses rejouées ; même
-clé + corps différent ⇒ 422 ; enregistrement orphelin repris après le délai
-de garde.
+Idempotency concurrency tests: five concurrent requests with one key yield one
+real execution; a reused key with a different body returns 422; and orphaned
+in-progress records are recovered after the guard interval.
 
-Nécessite PostgreSQL réel pour une vraie concurrence multi-connexion (§62
-master prompt) — voir SPRINT_TEST_REPORT.md pour la commande d'exécution.
+These tests require real PostgreSQL for true multi-connection concurrency.
 """
 
 import threading
@@ -23,18 +21,16 @@ from apps.core.idempotency.models import IdempotencyRecord
 @pytest.mark.django_db(transaction=True)
 def test_five_concurrent_requests_same_key_yield_one_execution(user):
     """
-    5 threads appellent begin() avec la MÊME clé. Un seul doit recevoir
-    `replayed=False` (l'exécuteur réel) ; les 4 autres doivent soit rejouer
-    la réponse mémorisée (si le premier a déjà complété), soit recevoir
-    `RequestInProgressError` (s'il ne l'a pas encore complété) — jamais une
-    deuxième exécution réelle.
+    Five threads call begin() with the same key. Exactly one may receive
+    `replayed=False`; the others must replay or observe RequestInProgressError,
+    never execute the operation a second time.
     """
     key = "purchase-key-concurrent-1"
     results: list[tuple[str, bool | None]] = []
     lock = threading.Lock()
 
     def worker():
-        connections.close_all()  # chaque thread a sa propre connexion DB
+        connections.close_all()  # each thread gets its own database connection
         try:
             outcome = service.begin(
                 key=key, user_id=user.pk, endpoint="/api/v1/tickets/purchase", request_hash="h1"
@@ -102,9 +98,8 @@ def test_in_progress_execution_rejects_immediate_retry(user):
 @pytest.mark.django_db
 def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settings):
     """
-    Processus tué entre IN_PROGRESS et COMPLETED : après le délai de garde
-    (`locked_at` + 60s), l'enregistrement doit être considéré orphelin et
-    repris — sinon le client ne peut plus jamais acheter avec cette clé.
+    A process that dies between IN_PROGRESS and COMPLETED leaves an orphan.
+    After the guard interval the record must be recoverable.
     """
     from unittest.mock import patch
 
@@ -120,10 +115,10 @@ def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settin
         expires_at=timezone.now() + timedelta(hours=24),
     )
 
-    # Simule un enregistrement verrouillé il y a plus de 60 secondes.
+    # Simulate a record locked more than 60 seconds ago.
     IdempotencyRecord.objects.filter(pk=record.pk).update(locked_at=timezone.now() - timedelta(seconds=61))
 
-    # Vérifie que la récupération de l'orphelin génère bien un WARNING.
+    # Verify that orphan recovery emits a WARNING log.
     with patch("apps.core.idempotency.service.logger.warning") as warning_mock:
         outcome = service.begin(
             key=key,
@@ -141,7 +136,7 @@ def test_orphaned_in_progress_record_is_recovered_after_guard_delay(user, settin
 
 @pytest.mark.django_db
 def test_key_is_scoped_per_user_not_global(user, other_user):
-    """Deux utilisateurs différents peuvent utiliser la même clé sans interférence."""
+    """Different users may reuse the same client key without interfering."""
     key = "shared-client-generated-key"
     outcome_a = service.begin(key=key, user_id=user.pk, endpoint="/api/v1/x", request_hash="h")
     outcome_b = service.begin(key=key, user_id=other_user.pk, endpoint="/api/v1/x", request_hash="h")
