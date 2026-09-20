@@ -8,7 +8,7 @@ from .event_buyer_tasks import send_event_buyer_postponement_emails
 
 
 class EventBuyerNotificationConsumer(BaseConsumer):
-    """Planifie les e-mails acheteurs après un report d'événement."""
+    """Schedule buyer emails after an event is postponed."""
 
     name = "notifying.event_buyer_notifications"
     handled_event_types = {CATALOG_EVENT_POSTPONED}
