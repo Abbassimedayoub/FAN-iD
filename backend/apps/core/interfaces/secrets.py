@@ -3,20 +3,19 @@ from abc import ABC, abstractmethod
 
 class SecretProvider(ABC):
     """
-    Port d'accès aux secrets (§2.3 Source B).
+    Secret-access port.
 
-    Implémentations prévues : `SsmSecretProvider` (prod, AWS SSM+KMS),
-    `EnvSecretProvider` (dev, variables d'environnement), `FakeSecretProvider`
-    (tests, valeurs en mémoire — jamais un vrai secret AWS n'est requis pour
-    faire tourner la suite de tests).
+    Expected implementations include `SsmSecretProvider` for production,
+    `EnvSecretProvider` for development, and `FakeSecretProvider` for tests
+    with in-memory values.
     """
 
     @abstractmethod
     def get(self, name: str) -> str:
-        """Retourne la valeur courante du secret `name`. Lève KeyError si absent."""
+        """Return the current value for `name`; raise KeyError when absent."""
         raise NotImplementedError
 
     @abstractmethod
     def get_versioned(self, name: str) -> tuple[str, int]:
-        """Retourne (valeur, version) — nécessaire à la rotation de clé (ex. QR_SEED)."""
+        """Return `(value, version)`, required for key-rotation workflows."""
         raise NotImplementedError
