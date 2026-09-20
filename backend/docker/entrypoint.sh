@@ -5,12 +5,12 @@ set -euo pipefail
 
 ROLE="${1:-api}"
 
-echo "[entrypoint] role=${ROLE} starting..."
+echo "[entrypoint] rôle=${ROLE} en cours de démarrage..."
 
 # Fail fast when critical environment variables are missing. Django settings
 # validate them again during application startup.
-: "${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY missing - refusing to start}"
-: "${DATABASE_URL:?DATABASE_URL missing - refusing to start}"
+: "${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY manquant — le conteneur refuse de démarrer}"
+: "${DATABASE_URL:?DATABASE_URL manquant — le conteneur refuse de démarrer}"
 
 case "$ROLE" in
   api)
@@ -20,16 +20,13 @@ case "$ROLE" in
       python manage.py migrate --noinput
     fi
 
-    exec python -m uvicorn config.asgi:application \
-      --host 0.0.0.0 \
-      --port "${PORT:-8000}" \
-      --workers "${WEB_CONCURRENCY:-2}"
+    exec python -m uvicorn config.asgi:application       --host 0.0.0.0       --port "${PORT:-8000}"       --workers "${WEB_CONCURRENCY:-2}"
     ;;
   ws)
     exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8001 --workers 1
     ;;
   worker)
-    echo "[entrypoint] validating Django before starting worker..."
+    echo "[entrypoint] validation Django avant démarrage du worker..."
     python manage.py check --fail-level ERROR
 
     if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
@@ -40,7 +37,7 @@ case "$ROLE" in
     exec celery -A config worker --loglevel=INFO --concurrency=2
     ;;
   beat)
-    echo "[entrypoint] validating Django before starting beat..."
+    echo "[entrypoint] validation Django avant démarrage de beat..."
     python manage.py check --fail-level ERROR
 
     if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings.prod" ]]; then
@@ -53,7 +50,7 @@ case "$ROLE" in
     exec celery -A config beat --loglevel=INFO
     ;;
   *)
-    echo "[entrypoint] unknown role: ${ROLE} (expected: api|ws|worker|beat)" >&2
+    echo "[entrypoint] rôle inconnu: ${ROLE} (attendu: api|ws|worker|beat)" >&2
     exit 1
     ;;
 esac
