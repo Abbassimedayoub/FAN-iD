@@ -11,10 +11,10 @@ logger = logging.getLogger("fanid.outbox")
 @shared_task(name="core.outbox.relay_batch")
 def relay_outbox_batch() -> dict:
     """
-    Tâche Celery Beat exécutée toutes les `OUTBOX_RELAY_INTERVAL_SECONDS`
-    (§21 master prompt). Plusieurs exécutions concurrentes (deux workers, un
-    tick qui déborde sur le suivant) sont sûres par construction :
-    `SELECT FOR UPDATE SKIP LOCKED` dans `relay_batch()`.
+    Celery Beat task executed every `OUTBOX_RELAY_INTERVAL_SECONDS`.
+
+    Concurrent executions are safe by design because `relay_batch()` uses
+    `SELECT FOR UPDATE SKIP LOCKED`.
     """
     result = relay.relay_batch(batch_size=settings.OUTBOX_RELAY_BATCH_SIZE)
     if result.published or result.failed or result.dead:
@@ -27,7 +27,7 @@ def relay_outbox_batch() -> dict:
 
 @shared_task(name="core.outbox.purge_published")
 def purge_published_events() -> int:
-    """Purge des événements PUBLISHED de plus de OUTBOX_RETENTION_DAYS (§21 master prompt)."""
+    """Purge PUBLISHED events older than OUTBOX_RETENTION_DAYS."""
     from datetime import timedelta
 
     from django.utils import timezone
