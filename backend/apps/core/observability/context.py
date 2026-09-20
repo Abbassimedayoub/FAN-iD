@@ -1,11 +1,9 @@
 """
-Contexte de corrélation partagé par requête (thread/coroutine-local via contextvars).
+Per-request correlation context backed by contextvars for thread/coroutine locality.
 
-Utilisé par : CorrelationMiddleware (écrit), JsonFormatter (lit pour chaque log
-ligne), custom_exception_handler (lit pour le corps d'erreur), et la tâche
-Celery publiée depuis la vue (lit pour transmettre le correlation_id en tant
-qu'attribut d'événement Outbox — pas le traceparent, qui est un mécanisme OTel
-séparé, cf. config/celery.py).
+Correlation middleware writes it, logging and error handling read it, and
+asynchronous publication may copy the correlation ID into Outbox metadata.
+OpenTelemetry trace propagation remains a separate mechanism.
 """
 
 from contextvars import ContextVar, Token
@@ -28,12 +26,7 @@ def get_correlation_id() -> str | None:
 
 
 def get_trace_id() -> str | None:
-    """
-    ID de trace OpenTelemetry courant, au format hexadécimal W3C (32 caractères).
-
-    Retourne None si aucun span n'est actif (ex. hors requête HTTP) plutôt que
-    de lever — l'observabilité ne doit jamais faire échouer une requête.
-    """
+    """Return the current W3C-format OpenTelemetry trace ID, or None when no span is active."""
     try:
         from opentelemetry import trace
 
