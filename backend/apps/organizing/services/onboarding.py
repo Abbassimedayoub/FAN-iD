@@ -1,20 +1,11 @@
 """
-Cycle de validation d un organisateur.
+Organizer validation lifecycle.
 
-Transitions autorisees :
+Allowed transitions are PENDING->APPROVED, PENDING->REJECTED,
+APPROVED->SUSPENDED, and SUSPENDED->APPROVED through explicit reopening.
 
-    PENDING   -> APPROVED
-    PENDING   -> REJECTED
-    APPROVED  -> SUSPENDED
-    SUSPENDED -> APPROVED  via reouverture libre-service
-
-Les actions administratives historiques gardent leurs transitions propres :
-`approve()` reste reserve a PENDING -> APPROVED. La reouverture utilise
-explicitement `reopen()`.
-
-Le verrou optimiste repose sur un UPDATE conditionnel par `version`. Lire une
-version puis appeler `save()` ne suffirait pas : deux administrateurs pourraient
-lire la meme version avant que l un des deux n ecrive.
+Optimistic locking uses a conditional UPDATE on `version` so concurrent
+administrative decisions cannot both succeed.
 """
 
 from __future__ import annotations
@@ -44,7 +35,7 @@ logger = logging.getLogger("fanid.organizing")
 
 
 class OrganizerOnboardingService:
-    """Applique les decisions administratives sur un dossier organisateur."""
+    """Apply administrative decisions to an organizer dossier."""
 
     @staticmethod
     def _get(organizer_id: uuid.UUID) -> Organizer:
@@ -69,12 +60,7 @@ class OrganizerOnboardingService:
         actor_id: uuid.UUID,
         expected_version: int,
     ) -> Organizer:
-        """
-        Ouvre le compte Organizer.
-
-        Cette decision ne vaut PAS accord de commission.
-        La negociation financiere peut continuer apres APPROVED.
-        """
+        """Approve the organizer account without implying that a commission agreement has been reached."""
         organizer = cls._get(organizer_id)
 
         if organizer.version != expected_version:
@@ -226,13 +212,7 @@ class OrganizerOnboardingService:
         actor_id: uuid.UUID,
         expected_version: int,
     ) -> Organizer:
-        """
-        Reouvre le propre compte d un organisateur suspendu.
-
-        Cette transition est distincte de l approbation administrative :
-        elle conserve les informations de validation historiques et remet
-        uniquement le dossier en etat APPROVED.
-        """
+        """Reopen a suspended organizer while preserving historical validation information and restoring only APPROVED state."""
         organizer = cls._get(organizer_id)
         cls._require_state(
             organizer,
