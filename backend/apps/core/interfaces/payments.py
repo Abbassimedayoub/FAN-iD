@@ -4,10 +4,10 @@ from typing import Any
 
 class PaymentGateway(ABC):
     """
-    Port de paiement (§2.3 Source B).
+    Payment-provider port.
 
-    Implémentations prévues : `StripeGateway` (Sprint 3), `FakeGateway` (tests
-    — aucun appel réseau vers Stripe dans la suite de tests).
+    Expected implementations include `StripeGateway` and `FakeGateway` for
+    tests with no network calls to Stripe.
     """
 
     @abstractmethod
@@ -30,5 +30,5 @@ class PaymentGateway(ABC):
         amount_cents: int,
         idempotency_key: str,
     ) -> Any:
-        """Crée ou rejoue un remboursement fournisseur."""
+        """Create or replay a provider refund."""
         raise NotImplementedError
