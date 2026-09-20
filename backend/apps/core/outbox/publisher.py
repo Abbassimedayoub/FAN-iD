@@ -1,10 +1,9 @@
 """
-Publication transactionnelle d'événements (ADR-S-03).
+Transactional event publication.
 
-Règle absolue (§23 master prompt) : `publish_event()` DOIT être appelé à
-l'intérieur de la même transaction que l'écriture métier qui le déclenche.
-On le fait respecter par une assertion — appeler cette fonction hors
-transaction est un bug, pas un cas à tolérer silencieusement.
+Absolute rule: `publish_event()` MUST be called inside the same transaction
+as the business write that triggered it. An assertion enforces this contract;
+calling the function outside a transaction is a bug, not a condition to ignore.
 """
 
 import logging
@@ -31,9 +30,9 @@ def publish_event(
     event_version: int = 1,
 ) -> OutboxEvent:
     """
-    Insère un événement dans `outbox_event`, dans la transaction courante.
+    Insert an event into `outbox_event` within the current transaction.
 
-    Contrat d'événement stable (ADR-S-03) :
+    Stable event contract:
     { event_id, event_type, event_version, aggregate_type, aggregate_id,
       occurred_at, correlation_id, causation_id, actor_id, payload }
     """
