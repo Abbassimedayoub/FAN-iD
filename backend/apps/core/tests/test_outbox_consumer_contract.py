@@ -1,8 +1,4 @@
-"""
-P1.C.1 — garantit qu'un effet de bord réseau planifié via `BaseConsumer.defer()`
-ne s'exécute JAMAIS pendant que le relais tient ses verrous `SELECT FOR
-UPDATE SKIP LOCKED`, seulement après le commit de `relay_batch()`.
-"""
+"""Ensure deferred network side effects run only after the relay transaction commits, never while SKIP LOCKED row locks are held."""
 
 import uuid
 
@@ -16,7 +12,7 @@ from apps.core.outbox.publisher import publish_event
 
 
 class _DeferringConsumer(BaseConsumer):
-    """Consumer de test qui planifie un effet de bord via defer() plutôt que de l'exécuter en direct."""
+    """Test consumer that schedules a side effect through defer() instead of executing it inline."""
 
     name = "test.deferring_consumer"
     handled_event_types = {"test.deferrable_event"}
@@ -26,18 +22,13 @@ class _DeferringConsumer(BaseConsumer):
         self.deferred_calls = []
 
     def handle(self, event):
-        # Preuve négative : rien n'est exécuté ici de synchrone/réseau.
+        # Negative proof: no synchronous network side effect runs here.
         self.executed_during_handle.append(event.id)
         self.defer(lambda: self.deferred_calls.append(event.id))
 
 
 class OutboxDeferredSideEffectTests(TransactionTestCase):
-    """
-    TransactionTestCase (pas TestCase) : nécessaire pour que les callbacks
-    `transaction.on_commit()` s'exécutent réellement — TestCase enveloppe
-    chaque test dans une transaction jamais commitée, ce qui empêcherait
-    d'observer la différence entre "avant commit" et "après commit".
-    """
+    """Use TransactionTestCase so transaction.on_commit callbacks actually execute and pre/post-commit behavior can be observed."""
 
     def test_deferred_callback_runs_only_after_relay_transaction_commits(self):
         consumer = _DeferringConsumer()
@@ -52,9 +43,7 @@ class OutboxDeferredSideEffectTests(TransactionTestCase):
                     payload={},
                 )
 
-            # relay_batch() est lui-même @transaction.atomic — au retour de
-            # l'appel, sa transaction a déjà committé, donc le callback
-            # différé a déjà pu s'exécuter.
+            # relay_batch() is atomic; when it returns, its transaction has committed and deferred callbacks may have run.
             result = relay.relay_batch(batch_size=10)
 
             assert result.published == 1
@@ -66,11 +55,7 @@ class OutboxDeferredSideEffectTests(TransactionTestCase):
             relay._CONSUMER_REGISTRY.clear()
 
     def test_deferred_callback_does_not_run_if_relay_transaction_rolls_back(self):
-        """
-        Si la transaction du relais échoue AVANT son commit, le callback
-        différé ne doit jamais s'exécuter — cohérent avec la garantie
-        transactionnelle de l'Outbox (aucun effet de bord sur un rollback).
-        """
+        """If the relay transaction rolls back before commit, the deferred callback must never execute."""
         consumer = _DeferringConsumer()
         relay._CONSUMER_REGISTRY.clear()
         relay.register_consumer(consumer)
