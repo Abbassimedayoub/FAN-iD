@@ -1,11 +1,8 @@
 """
-Connexion : l ordre des controles, et l absence d oracle.
+Login tests for check ordering and account-enumeration resistance.
 
-Le test qui porte le lot est
-`test_a_wrong_password_on_a_locked_account_never_reveals_the_lock`. Tous les
-autres pourraient passer avec une implementation qui verifie l appareil AVANT le
-mot de passe — et cette implementation offrirait a un attaquant un oracle
-d existence parfait, sans deviner un seul mot de passe.
+The key case proves that device-lock information is never revealed before
+credentials are verified.
 """
 
 from __future__ import annotations
@@ -64,21 +61,12 @@ def command(**overrides) -> LoginCommand:
 
 
 # ===========================================================================
-# L invariant du lot : identifiants d abord, appareil ensuite
+# Core invariant: credentials first, device checks second
 # ===========================================================================
 
 
 def test_a_wrong_password_on_a_locked_account_never_reveals_the_lock(service, binding, fan):
-    """
-    **Le test qui porte le lot.**
-
-    Un compte verrouille sur un autre appareil, un mot de passe faux : la
-    reponse doit etre `401 INVALID_CREDENTIALS`, jamais `403 DEVICE_LOCKED`.
-
-    Verifier l appareil en premier donnerait a l attaquant un oracle parfait :
-    403 sur une adresse existante et verrouillee, 401 sur une adresse inconnue.
-    Il enumererait tous les comptes sans deviner un seul mot de passe.
-    """
+    """A wrong password on a device-locked account must still return INVALID_CREDENTIALS, never reveal the lock."""
     binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     with pytest.raises(InvalidCredentialsError) as caught:
@@ -89,7 +77,7 @@ def test_a_wrong_password_on_a_locked_account_never_reveals_the_lock(service, bi
 
 
 def test_the_lock_is_revealed_only_once_the_password_is_proven(service, binding, fan):
-    """Le pendant du test precedent : le bon mot de passe donne bien 403."""
+    """With valid credentials, the device lock is then allowed to produce 403."""
     binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     with pytest.raises(DeviceLockedError) as caught:
@@ -100,7 +88,7 @@ def test_the_lock_is_revealed_only_once_the_password_is_proven(service, binding,
 
 
 # ===========================================================================
-# Anti-enumeration : le corps ET le temps
+# Anti-enumeration: both response shape and timing
 # ===========================================================================
 
 
@@ -119,15 +107,7 @@ def test_an_unknown_address_and_a_wrong_password_are_indistinguishable(service, 
 
 
 def test_an_unknown_address_still_pays_the_price_of_a_hash(service, roles, monkeypatch):
-    """
-    Un corps identique ne suffit pas : sans hachage factice, une adresse
-    inconnue repondrait en une milliseconde la ou une adresse connue coute le
-    temps d Argon2id. La difference se mesure depuis l exterieur.
-
-    On compte l APPEL plutot que le temps : un test chronometre serait instable
-    sur une machine chargee, et l environnement de test installe de toute facon
-    un hacheur rapide qui rendrait la mesure vide de sens.
-    """
+    """Unknown addresses must still execute the decoy password hash so timing does not reveal account existence."""
     calls: list[str] = []
     import apps.identity.services.authentication as module
 
@@ -145,10 +125,7 @@ def test_an_unknown_address_still_pays_the_price_of_a_hash(service, roles, monke
 
 @pytest.mark.parametrize("field", ["is_active", "anonymized_at"])
 def test_a_deactivated_account_is_refused_without_saying_so(service, fan, field):
-    """
-    Un motif distinct confirmerait que l adresse existe — et qu on a devine le
-    mot de passe, ce qui est encore pire.
-    """
+    """Wrong-password failures deliberately share the same public reason as unknown accounts."""
     value = False if field == "is_active" else timezone.now()
     User.objects.filter(pk=fan.pk).update(**{field: value})
 
@@ -159,7 +136,7 @@ def test_a_deactivated_account_is_refused_without_saying_so(service, fan, field)
 
 
 def test_the_address_is_matched_regardless_of_case(service, fan):
-    """`citext` (lot S1-A.1a) : aucun `LOWER()`, l index unique reste utilisable."""
+    """`citext` provides case-insensitive lookup without wrapping the indexed value in LOWER()."""
     result = service.login(command(email="Supporter@Example.TEST"))
 
     assert result.user.pk == fan.pk
@@ -181,12 +158,7 @@ def test_a_successful_login_opens_a_session_and_issues_a_pair(service, fan):
 
 
 def test_a_login_without_any_fingerprint_binds_no_device(service, fan):
-    """
-    Un supporter qui se connecte depuis un navigateur n a pas d empreinte stable
-    a fournir. Lui en exiger une reviendrait a inventer une donnee que le client
-    ne peut pas produire — et l IP ou le `User-Agent` ne sont pas des
-    substituts acceptables.
-    """
+    """Browser clients may authenticate without a device fingerprint; IP and User-Agent are not substitutes."""
     result = service.login(command())
 
     assert result.device is None
@@ -213,7 +185,7 @@ def test_an_exempt_role_ignores_the_fingerprint_it_sends(service, roles):
 
 
 # ===========================================================================
-# Evenement
+# Event
 # ===========================================================================
 
 
@@ -227,12 +199,7 @@ def test_a_successful_login_publishes_one_event_without_personal_data(service, f
 
 
 def test_a_refused_login_publishes_nothing(service, fan):
-    """
-    L evenement vit dans la transaction de la connexion. Un `user.logged_in`
-    emis sur un echec declencherait une alerte de connexion sur un compte ou
-    personne ne s est connecte — exactement le message qui pousse un utilisateur
-    a changer un mot de passe qui n a pas fuite.
-    """
+    """The login event must be emitted only inside a successful login transaction, never after a failed attempt."""
     with pytest.raises(InvalidCredentialsError):
         service.login(command(password="Faux-Mot-De-Passe-2026"))
 
@@ -241,10 +208,7 @@ def test_a_refused_login_publishes_nothing(service, fan):
 
 
 def test_a_login_blocked_by_the_device_lock_leaves_no_session_behind(service, binding, fan):
-    """
-    La liaison d appareil et l emission des jetons partagent une transaction :
-    un refus a l etape appareil ne doit laisser ni session, ni evenement.
-    """
+    """Device binding and token issuance share one transaction so device rejection leaves neither a session nor an event."""
     binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     with pytest.raises(DeviceLockedError):
