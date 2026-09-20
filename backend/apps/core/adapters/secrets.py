@@ -4,7 +4,7 @@ from apps.core.interfaces import SecretProvider
 
 
 class EnvSecretProvider(SecretProvider):
-    """Dev — lit les secrets depuis les variables d'environnement (`.env`)."""
+    """Development provider that reads secrets from environment variables."""
 
     def get(self, name: str) -> str:
         value = os.environ.get(name)
@@ -17,7 +17,7 @@ class EnvSecretProvider(SecretProvider):
 
 
 class FakeSecretProvider(SecretProvider):
-    """Tests — dictionnaire en mémoire, aucune dépendance externe."""
+    """In-memory test provider with no external dependency."""
 
     def __init__(self, values: dict[str, str] | None = None):
         self._values = dict(values or {})
