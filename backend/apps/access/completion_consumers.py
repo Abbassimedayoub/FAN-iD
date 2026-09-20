@@ -6,7 +6,7 @@ from .services.admission_sessions import close_event_admission_automatically
 
 
 class EventCompletionAdmissionConsumer(BaseConsumer):
-    """Ferme la session d'entrée après la clôture automatique d'un événement."""
+    """Close the admission session after an event is completed automatically."""
 
     name = "access.event_completion_admission"
     handled_event_types = {CATALOG_EVENT_COMPLETED}
