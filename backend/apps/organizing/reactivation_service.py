@@ -43,14 +43,11 @@ def _schedule_decision_email(
 
 class OrganizerReactivationService:
     """
-    Cycle de réouverture d'un organisateur suspendu.
+    Reactivation workflow for a suspended organizer.
 
-    L'organisateur peut uniquement CREER une demande.
-    Il ne change jamais lui-même son validation_status.
-
-    Seul un administrateur peut ensuite approuver/refuser.
-    L'autorisation OTP/STEP_UP de l'administrateur est appliquée
-    par les vues via Action.ORGANIZER_APPROVE / REJECT.
+    The organizer may only create a request and never changes its own validation
+    status. An administrator later approves or rejects the request, with step-up
+    authorization enforced by the views.
     """
 
     @staticmethod
