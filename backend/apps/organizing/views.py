@@ -1,9 +1,7 @@
 """
-Socle de vues du contexte `organizing`.
+Views for the `organizing` context.
 
-**Aucune route n est exposee au lot S1-A.8a.** Ce module ne contient que le
-mixin qui rend la portee `OWN_ORGANIZER` utilisable ; les six points de
-terminaison du plan §3.3 arrivent au lot S1-A.8b.
+This module contains the organizer-scoping mixin and the context's HTTP views.
 """
 
 from __future__ import annotations
@@ -44,31 +42,12 @@ from .services.onboarding import OrganizerOnboardingService
 
 class OrganizerScopedMixin:
     """
-    Pose `request.organizer_id` AVANT que DRF ne controle les permissions.
+    Attach `request.organizer_id` before DRF evaluates permissions.
 
-    ## Pourquoi ici, et pas dans `identity`
-
-    `identity` ignore qu `organizing` existe (ADR-S1-05) : c est le sens de
-    dependance qui suit le domaine, un compte existant sans organisateur et
-    jamais l inverse. `subject_from_request` lit donc un PRIMITIF pose sur la
-    requete, exactement comme il lit deja `request.auth_level`.
-
-    ## Pourquoi dans `initial()`
-
-    DRF appelle `initial()` puis, a l interieur, `perform_authentication()` et
-    `check_permissions()`. Poser l attribut plus tard — dans `get_object()` ou
-    le corps de la vue — arriverait APRES le premier controle de permission.
-
-    Toucher `request.user` ici declenche l authentification : c est exactement
-    ce que fait `perform_authentication()` la ligne suivante, donc ni un effet
-    de bord ni un cout supplementaire.
-
-    ## Ce qui se passe si on l oublie
-
-    `subject.organizer_id` reste `None`, et `engine._check_scope` refuse avec
-    `RESOURCE_ATTRIBUTE_MISSING`. **Le refus vient du moteur, pas d une
-    convention** — c est ce qui rend l option B de l ADR sure plutot que
-    seulement propre, et un test le fige.
+    The identity context does not depend on organizing internals, so the owning
+    context places a primitive organizer identifier on the request. Doing this
+    in `initial()` ensures the value exists before permission checks run. If no
+    organizer can be resolved, authorization fails closed.
     """
 
     def initial(self, request: Any, *args: Any, **kwargs: Any) -> None:
@@ -80,10 +59,10 @@ class OrganizerScopedMixin:
     @staticmethod
     def resolve_organizer_context(request: Any) -> tuple[Any, bool]:
         """
-        Une requete, dans le contexte proprietaire de la donnee.
+        Resolve organizer identity and approval state in the owning context.
 
-        Le meme SELECT charge l identifiant et le statut : ajouter le primitif
-        d approbation ne doit pas ajouter une seconde requete SQL.
+        One query retrieves both values so approval context does not add a
+        second database round trip.
         """
         user = getattr(request, "user", None)
         if user is None or not getattr(user, "is_authenticated", False):
@@ -98,13 +77,13 @@ class OrganizerScopedMixin:
 
     @staticmethod
     def resolve_organizer_id(request: Any) -> Any:
-        """Compatibilite : ne renvoie que l identifiant du contexte resolu."""
+        """Compatibility helper returning only the resolved organizer identifier."""
         organizer_id, _ = OrganizerScopedMixin.resolve_organizer_context(request)
         return organizer_id
 
 
 # ---------------------------------------------------------------------------
-# S1-A.8b — candidature et dossier courant
+# Organizer application and current dossier
 # ---------------------------------------------------------------------------
 
 
@@ -614,7 +593,7 @@ class OrganizerSuspendView(OrganizerAdminActionView):
 
 
 # ---------------------------------------------------------------------------
-# S1-B — detail d administration
+# Administration detail
 # ---------------------------------------------------------------------------
 
 
@@ -622,10 +601,8 @@ class AdminOrganizerDetailView(APIView):
     """
     GET /api/v1/admin/organizers/{id}.
 
-    Cette surface est strictement administrative. `ORGANIZER_READ` existe aussi
-    en `OWN_ORGANIZER` pour d autres roles ; comme pour la liste admin, un
-    second controle sur une ressource vide exige donc implicitement `Scope.ANY`
-    et refuse fail-closed les portees proprietaires.
+    This endpoint is strictly administrative. A second object-level check with
+    an empty resource forces fail-closed behavior for owner-scoped roles.
     """
 
     permission_classes = [IsAuthenticated, ActionPermission]
@@ -666,7 +643,7 @@ class AdminOrganizerDetailView(APIView):
 
 
 # ---------------------------------------------------------------------------
-# S1-A.8b — liste d administration
+# Administration list
 # ---------------------------------------------------------------------------
 
 
@@ -674,12 +651,9 @@ class AdminOrganizerListView(APIView):
     """
     GET /api/v1/admin/organizers/.
 
-    Le second controle explicite est indispensable pour une liste : DRF
-    n appelle jamais has_object_permission() sur les elements d un queryset.
-
-    Resource() vide est volontaire :
-    - ADMIN / Scope.ANY passe ;
-    - ORGANIZER ou SCANNER / Scope.OWN_ORGANIZER echoue fail-closed.
+    List endpoints need an explicit second permission check because DRF does not
+    call `has_object_permission()` for every queryset item. An empty resource is
+    deliberate: unrestricted admin scope passes while owner scopes fail closed.
     """
 
     permission_classes = [IsAuthenticated, ActionPermission]
