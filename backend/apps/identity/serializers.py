@@ -1,16 +1,9 @@
 """
-Serialiseurs du contexte `identity`.
+Serializers for the `identity` context.
 
-Repartition des responsabilites, tenue strictement :
-
-- le SERIALISEUR valide des FORMES — type, longueur, format, presence ;
-- le SERVICE porte les REGLES METIER — age minimum, consentement, unicite.
-
-La tentation inverse est forte : tout mettre dans le serialiseur donne des
-messages d erreur bien places, champ par champ. Mais une regle metier ecrite
-dans un serialiseur ne s applique qu aux appels HTTP qui passent par CE
-serialiseur. Une commande d administration, une reprise de donnees ou un second
-point de terminaison la contourneraient sans un mot.
+Serializers validate input shape such as type, length, format, and presence.
+Business rules such as age, consent, and uniqueness remain in services so they
+apply consistently outside a single HTTP serializer.
 """
 
 from __future__ import annotations
@@ -28,17 +21,7 @@ from .models import User
 
 
 class RegistrationSerializer(serializers.Serializer):
-    """
-    Corps de `POST /api/v1/auth/register`.
-
-    `Serializer` et non `ModelSerializer`, deliberement. Un `ModelSerializer`
-    part des champs du MODELE et l on retire ceux qu on ne veut pas : le jour ou
-    quelqu un ajoute une colonne, elle devient exposee par defaut. Ici la liste
-    est FERMEE — `role`, `is_staff`, `is_superuser`, `is_active`, `anonymized_at`
-    ne sont pas « exclus », ils n existent tout simplement pas dans le contrat
-    d entree. C est la meme logique que `RegistrationCommand` cote service : la
-    protection contre le sur-postage est structurelle, pas defensive.
-    """
+    """Closed request body for registration, using Serializer rather than ModelSerializer so new model fields never become writable by default."""
 
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(
@@ -47,10 +30,8 @@ class RegistrationSerializer(serializers.Serializer):
         trim_whitespace=False,
     )
     # Obligatoires (AB-06). Un billet nominatif controle a l entree a besoin
-    # d un nom : la donnee a donc un usage identifie, ce qui la rend conforme a
-    # la minimisation RGPD. `allow_blank=False` est le defaut de DRF, mais un
-    # nom fait uniquement d espaces passerait sans `trim_whitespace` — actif par
-    # defaut ici, contrairement au mot de passe.
+    # Names have an identified use and whitespace trimming stays enabled here,
+    # unlike password fields where trimming would change the secret.
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     date_of_birth = serializers.DateField()
@@ -63,34 +44,16 @@ class RegistrationSerializer(serializers.Serializer):
     )
 
     def validate_date_of_birth(self, value: datetime.date) -> datetime.date:
-        """
-        Une date future est une faute de SAISIE, pas un refus metier.
-
-        La distinction compte pour le message : « la date ne peut pas etre dans
-        le futur » se corrige, « vous etes trop jeune » ne se corrige pas. Le
-        controle de l age minimum, lui, reste au service.
-        """
+        """Reject a future date as input-shape validation; minimum-age policy remains in the service."""
         if value > timezone.localdate():
             raise serializers.ValidationError("La date de naissance ne peut pas etre dans le futur.")
         return value
 
     def validate_password(self, value: str) -> str:
-        """
-        Applique les validateurs de `AUTH_PASSWORD_VALIDATORS`.
-
-        L utilisateur non persiste passe en contexte pour que
-        `UserAttributeSimilarityValidator` puisse comparer le mot de passe a
-        l adresse fournie DANS CETTE MEME requete. Sans lui, ce validateur n a
-        rien a comparer et ne sert a rien a l inscription — c est-a-dire au seul
-        moment ou il est vraiment utile.
-
-        `trim_whitespace=False` sur le champ : rogner les espaces d un mot de
-        passe en modifie silencieusement la valeur, et l utilisateur ne pourrait
-        plus se connecter avec ce qu il a tape.
-        """
+        """Run configured password validators with the candidate user context; password whitespace is never trimmed because that would change the secret."""
         # Seuls `username`, `first_name`, `last_name` et `email` sont lus par
         # `UserAttributeSimilarityValidator`. Passer `date_of_birth=None` ne
-        # servait a rien et mentait au verificateur de types : le champ est un
+        # This field declaration also keeps the type checker aligned with DRF behavior.
         # `DateField` non nul.
         candidate = User(email=str(self.initial_data.get("email", "")))
         try:
@@ -102,27 +65,12 @@ class RegistrationSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     """
-    Corps de `POST /api/v1/auth/login`.
+    Request body for login.
 
-    **`client` est obligatoire, et ce n est pas de la bureaucratie.** Il decide
-    du TRANSPORT du jeton de rafraichissement : cookie HttpOnly pour le web,
-    corps de reponse pour le mobile. Les deux ne se cumulent jamais — un refresh
-    present dans le corps est lisible en JavaScript, et le cookie HttpOnly ne
-    protegerait alors plus rien.
-
-    Deduire le client du `User-Agent` serait plus discret et beaucoup moins sur :
-    cet en-tete se falsifie, change a chaque version de navigateur, et
-    transformerait une decision de securite en heuristique.
-
-    `client` n est pas une donnee de confiance et ne doit jamais influencer les
-    autorisations. Il choisit uniquement le canal de transport du refresh.
-
-    Un navigateur qui declare `mobile` peut donc degrader la protection de son
-    propre refresh, mais ne doit obtenir aucun privilege supplementaire.
-
-    `fingerprint` reste facultatif : un supporter sur navigateur n a pas
-    d empreinte stable a fournir, et l inventer a partir de l IP ou du
-    `User-Agent` serait instable et disproportionne (RGPD).
+    `client` chooses only refresh-token transport: HttpOnly cookie for web or
+    response body for mobile. It is never trusted for authorization.
+    `fingerprint` remains optional for clients that cannot provide a stable
+    device identifier.
     """
 
     email = serializers.EmailField(max_length=254)
@@ -143,12 +91,8 @@ class LoginSerializer(serializers.Serializer):
         allow_null=True,
     )
 
-    # `label` est le SEUL nom de champ de ce module qui percute un attribut de
-    # `Field` : la classe de base possede deja `label`, l intitule affichable
-    # d un champ, type `str | None`. Le stub voit donc une redefinition
-    # incompatible la ou DRF fait simplement ce qu il fait pour tous les champs
-    # declaratifs — remplacer l attribut de classe par la valeur validee sur
-    # l instance. Le renommer casserait le contrat d API (le client envoie bien
+    # `label` intentionally shadows DRF Field.label at class declaration time;
+    # renaming it would break the public API contract.
     # `label`), d ou l exception locale plutot qu un contournement global.
     label = serializers.CharField(  # type: ignore[assignment]
         max_length=60,
@@ -178,17 +122,16 @@ class RefreshSerializer(serializers.Serializer):
     """
 
     client = serializers.ChoiceField(choices=[CLIENT_WEB, CLIENT_MOBILE])
-    # `max_length` borne l entree AVANT le decodage. Un JWT du projet fait
-    # quelques centaines d octets ; laisser le champ libre reviendrait a offrir
-    # a chaque appel non authentifie une verification de signature sur un corps
+    # `max_length` bounds input before decoding so unauthenticated callers cannot
+    # force signature verification on arbitrarily large bodies.
     # de plusieurs mega-octets. `trim_whitespace=False` parce qu un jeton n a
-    # pas d espaces a rogner, et qu en rogner masquerait un client fautif.
+    # Do not trim whitespace because doing so would hide a malformed client token.
     refresh = serializers.CharField(max_length=4096, required=False, allow_blank=True, trim_whitespace=False)
     fingerprint = serializers.CharField(max_length=64, required=False, allow_blank=True, allow_null=True)
 
 
 class DeviceSerializer(serializers.Serializer):
-    """L appareil lie, tel que le client a besoin de le connaitre."""
+    """Bound-device representation exposed to the client."""
 
     id = serializers.UUIDField(read_only=True)
     label = serializers.CharField(read_only=True)  # type: ignore[assignment]  # cf. LoginSerializer.label
@@ -196,14 +139,7 @@ class DeviceSerializer(serializers.Serializer):
 
 
 class UserPublicSerializer(serializers.Serializer):
-    """
-    Representation renvoyee au client.
-
-    Ferme lui aussi : on n expose ni `is_staff`, ni `is_superuser`, ni
-    `last_login`, ni `date_joined`, ni surtout `password`. Le role est expose
-    par son NOM et non par son identifiant — un client n a aucune raison de
-    connaitre les cles primaires du referentiel, et le nom reste stable.
-    """
+    """Closed user representation that exposes only client-relevant fields and the stable role name, never privilege flags or password data."""
 
     id = serializers.UUIDField(read_only=True)
     email = serializers.EmailField(read_only=True)
@@ -289,12 +225,7 @@ class UserMeSerializer(serializers.Serializer):
 
 
 class ProfileUpdateSerializer(serializers.Serializer):
-    """
-    Entree fermee de PATCH /api/v1/auth/me.
-
-    Email, date de naissance, role, version et etat administratif ne font pas
-    partie du contrat : le sur-postage ne peut donc pas les modifier.
-    """
+    """Closed PATCH input for the current profile; privileged and identity-defining fields are not writable through this contract."""
 
     first_name = serializers.CharField(max_length=150, required=False)
     last_name = serializers.CharField(max_length=150, required=False)
@@ -334,7 +265,7 @@ class SessionSerializer(serializers.Serializer):
 
 
 class DeviceHistorySerializer(serializers.Serializer):
-    """Appareil visible dans la surface de libre-service."""
+    """Device representation visible in self-service surfaces."""
 
     id = serializers.UUIDField(read_only=True)
     label = serializers.CharField(read_only=True)  # type: ignore[assignment]
@@ -346,29 +277,14 @@ class DeviceHistorySerializer(serializers.Serializer):
 
 
 class DeviceMeResponseSerializer(serializers.Serializer):
-    """Appareil actif et historique recent du compte courant."""
+    """Active device and recent history for the current account."""
 
     active = DeviceHistorySerializer(read_only=True, allow_null=True)
     history = DeviceHistorySerializer(many=True, read_only=True)
 
 
 class PasswordChangeSerializer(serializers.Serializer):
-    """
-    Corps de `POST /api/v1/auth/password/change`.
-
-    Repartition habituelle : le serialiseur valide la FORME du nouveau mot de
-    passe — longueur, robustesse, similarite avec le compte — et le SERVICE
-    porte les regles metier : le mot de passe actuel est-il le bon, le nouveau
-    differe-t-il de l ancien.
-
-    L utilisateur reel passe en contexte, pas un candidat reconstruit comme a
-    l inscription : ici il existe deja, donc `UserAttributeSimilarityValidator`
-    peut comparer le nouveau mot de passe a l adresse ET au nom du compte. Sans
-    ce passage, ce validateur n aurait rien a comparer et ne servirait a rien.
-
-    `trim_whitespace=False` sur les deux champs : rogner les espaces d un mot de
-    passe en modifie silencieusement la valeur.
-    """
+    """Password-change input validates password shape with the real user context; business checks remain in the service and password whitespace is never trimmed."""
 
     current_password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
     new_password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
@@ -386,7 +302,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
-    """Demande anonyme de récupération par adresse e-mail."""
+    """Anonymous password-recovery request by email address."""
 
     email = serializers.EmailField(
         max_length=254,
@@ -394,12 +310,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    """
-    Accepte exactement une preuve :
-
-    - `token` pour le lien magique ;
-    - `email` + `code` pour le secours manuel.
-    """
+    """Accept exactly one proof: a magic-link token or email plus manual fallback code."""
 
     token = serializers.CharField(
         required=False,
@@ -450,28 +361,14 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 
 class DeviceResetRequestSerializer(serializers.Serializer):
-    """
-    Corps de `POST /api/v1/devices/reset/request`.
-
-    Les memes champs que la connexion, et pour la meme raison : l utilisateur
-    est verrouille dehors, seuls ses identifiants peuvent le designer. Aucun
-    `client` ici — cette route n emet aucun jeton, donc rien a transporter.
-    """
+    """Device-reset request body uses credentials because the caller is locked out and no token is issued by this route."""
 
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
 
 
 class DeviceResetConfirmSerializer(serializers.Serializer):
-    """
-    Corps de `POST /api/v1/devices/reset/confirm`.
-
-    `code` n est PAS contraint a six chiffres. Un refus de forme renverrait
-    `VALIDATION_ERROR` la ou un code faux renvoie `OTP_INVALID` : deux reponses
-    distinctes, donc un moyen de distinguer « mal saisi » de « mauvais », et une
-    tentative qui ne serait pas comptee. La borne de longueur reste, pour ne pas
-    hacher un corps arbitraire.
-    """
+    """Device-reset confirmation keeps code shape deliberately loose so bad values count as OTP attempts instead of bypassing the attempt counter through shape validation."""
 
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(max_length=16, trim_whitespace=True)
@@ -482,20 +379,14 @@ class StepUpRequestSerializer(serializers.Serializer):
 
 
 class StepUpConfirmSerializer(serializers.Serializer):
-    """
-    Confirmation du challenge STEP_UP.
-
-    Comme pour DEVICE_RESET, le code reste volontairement peu contraint :
-    une mauvaise valeur doit compter comme tentative OTP et produire
-    OTP_INVALID, pas contourner le compteur via VALIDATION_ERROR.
-    """
+    """Step-up confirmation keeps code shape loose so invalid values still count as OTP attempts."""
 
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(max_length=16, trim_whitespace=True)
 
 
 class PhoneChangeRequestSerializer(serializers.Serializer):
-    """Demande de remplacement du numéro de téléphone."""
+    """Request to replace the phone number."""
 
     phone = serializers.CharField(
         max_length=32,
@@ -514,7 +405,7 @@ class PhoneChangeRequestSerializer(serializers.Serializer):
 
 
 class PhoneChangeConfirmSerializer(serializers.Serializer):
-    """Confirmation OTP du remplacement du téléphone."""
+    """OTP confirmation for phone-number replacement."""
 
     challenge_id = serializers.UUIDField()
     phone = serializers.CharField(
