@@ -35,7 +35,10 @@ PHONE_SEPARATORS_RE = re.compile(r"[\s().-]+")
 
 
 def phone_key(value: Any) -> str:
-    """Return a canonical form only for comparison and hashing; the client-facing value keeps its formatting."""
+    """
+    Return a canonical form only for comparison and hashing; the client-facing value keeps its
+    formatting.
+    """
     raw = str(value or "").strip()
     key = PHONE_SEPARATORS_RE.sub("", raw)
 
