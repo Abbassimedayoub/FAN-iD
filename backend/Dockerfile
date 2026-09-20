@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Multi-stage : image finale < 400 Mo (cible §5.2), pas d'outils de build dedans.
+# Multi-stage build: keep the final image below the size target and exclude build tools.
 
 FROM python:3.12-slim AS base
 
@@ -13,13 +13,13 @@ RUN apt-get update \
         libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# Version de pip corrigée pour les vulnérabilités détectées par pip-audit.
+# Pin a patched pip version for vulnerabilities reported by pip-audit.
 RUN python -m pip install --no-cache-dir --upgrade "pip==26.2.1"
 
 WORKDIR /app
 
 
-# --- Stage build : compile les dépendances nécessitant un compilateur ---
+# --- Build stage: compile dependencies that require a compiler ---
 
 FROM base AS builder
 
@@ -34,7 +34,7 @@ COPY requirements/ requirements/
 RUN python -m pip install --no-cache-dir --user -r requirements/dev.txt
 
 
-# --- Stage dev : image utilisée par docker-compose.yml (hot-reload, deps de test) ---
+# --- Development stage: used by docker-compose.yml for hot reload and test dependencies ---
 
 FROM base AS dev
 
@@ -55,7 +55,7 @@ ENTRYPOINT ["/app/docker/entrypoint.sh"]
 CMD ["api"]
 
 
-# --- Stage prod : dépendances de production uniquement, utilisateur non-root ---
+# --- Production stage: production-only dependencies and a non-root user ---
 
 FROM base AS prod-builder
 
