@@ -1,25 +1,21 @@
 """
-Vocabulaire du contexte `organizing`.
+Vocabulary for the `organizing` context.
 
-Les valeurs vivent ici, pas dans les modeles : la contrainte `CHECK` de la base
-et le code applicatif lisent la MEME source. C est la lecon du doublon de
-motifs de revocation, corrige entre S1-A.6e et S1-A.7 — deux enumerations aux
-memes valeurs finissent par diverger, et la panne tombe alors sur un chemin
-d ecriture.
+Values live here instead of inside models so database CHECK constraints and
+application code share the same source. Duplicated enumerations eventually
+drift and turn into write-path failures.
 """
 
 from __future__ import annotations
 
 from typing import Final
 
-#: Etat de validation d un organisateur (plan S1 §3.1, colonne
-#: `validation_status`). Les quatre valeurs sont celles qu impliquent les
-#: routes d administration du §3.3 — approuver, rejeter, suspendre — plus
-#: l etat initial d une candidature.
+#: Organizer validation state stored in `validation_status`.
+#: The four values cover the initial application plus approve, reject, and
+#: suspend administration actions.
 #:
-#: Les TRANSITIONS entre ces etats ne sont PAS definies ici : elles
-#: appartiennent a `OrganizerOnboardingService` (lot S1-A.8b). Ce module ne
-#: declare que le vocabulaire.
+#: Transitions between these states are not defined here; they belong to the
+#: onboarding service. This module only defines the vocabulary.
 ORGANIZER_PENDING: Final = "PENDING"
 ORGANIZER_APPROVED: Final = "APPROVED"
 ORGANIZER_REJECTED: Final = "REJECTED"
@@ -32,12 +28,12 @@ ORGANIZER_STATUSES: Final[tuple[str, ...]] = (
     ORGANIZER_SUSPENDED,
 )
 
-#: Longueur maximale du nom commercial. Le plan §3.1 ne la fixe pas ; une
-#: colonne `varchar` en exige une. Valeur retenue et consignee comme ecart.
+#: Maximum trade-name length. The product specification does not define one,
+#: while a varchar column requires an explicit bound.
 ORG_NAME_MAX_LENGTH: Final = 120
 
 
-# Auteurs possibles d'une proposition structuree de commission.
+# Possible authors of a structured commission proposal.
 ORGANIZER_COMMISSION_NEGOTIATING: Final = "NEGOTIATING"
 ORGANIZER_COMMISSION_AGREED: Final = "COMMISSION_AGREED"
 ORGANIZER_COMMISSION_CANCELLED: Final = "CANCELLED"
@@ -51,7 +47,7 @@ ORGANIZER_COMMISSION_PROPOSER_ROLES: Final[tuple[str, ...]] = (
 )
 
 
-# Cycle de vie d'un scanner invité.
+# Invited scanner lifecycle.
 SCANNER_INVITED: Final = "INVITED"
 SCANNER_EMAIL_SENT: Final = "EMAIL_SENT"
 SCANNER_OPENED: Final = "OPENED"
