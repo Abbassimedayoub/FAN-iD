@@ -1,36 +1,16 @@
 """
-`DeviceResetService` — delier un appareil quand on ne peut plus s authentifier.
+`DeviceResetService` unbinds a device when normal authentication is no longer
+possible.
 
-## Pourquoi ce service existe hors de toute authentification
+The reset endpoints are intentionally usable without an authenticated session:
+a user locked out by the device binding has no token to present. The request
+therefore proves credentials, while confirmation proves possession of a
+single-use code.
 
-Le verrou d appareil refuse la connexion depuis un second telephone avec
-`403 DEVICE_LOCKED`, et ce refus n emet aucun jeton. L utilisateur dont
-l appareil est perdu, vole ou casse est donc, par construction, incapable
-d appeler un point de terminaison authentifie — et c est precisement lui qui a
-besoin de delier.
-
-Les deux routes sont donc anonymes, chacune portant sa propre preuve :
-identifiants pour la demande, code a usage unique pour la confirmation.
-ADR-S1-04 documente la contradiction du plan que cette decision corrige.
-
-## Les trois pieges de ce lot
-
-1. **L oracle d existence.** La demande accepte une adresse et un mot de passe :
-   c est un second `POST /auth/login` deguise. Meme corps, meme code, meme temps
-   de reponse — hachage factice compris — que l adresse existe ou non. Le
-   `challenge_id` est TOUJOURS renvoye, fabrique quand les identifiants sont
-   faux, sans quoi sa presence serait elle-meme l oracle.
-
-2. **L increment perdu.** Compter une tentative infructueuse PUIS lever
-   l exception a l interieur de la transaction annule l increment : le compteur
-   ne monte jamais, le plafond de cinq n est jamais atteint, et le code se
-   force tranquillement. Meme piege qu au lot S1-A.5 avec la revocation de
-   famille. Ici, la transaction ecrit et se ferme ; l exception est levee APRES.
-
-3. **Le secret dans les journaux.** Le code n est stocke que hache
-   (`ck_mfa_code_hash_is_a_digest` le verifie en base) et n apparait dans aucun
-   journal applicatif. Seul `ConsoleSender`, reserve au developpement, le rend
-   lisible — et il previent qu il le fait.
+The flow is designed to avoid account-existence oracles, lost attempt counters,
+and code leakage. Unknown credentials still pay the decoy-hash cost, challenge
+identifiers are always returned, failed attempts commit before public errors are
+raised, and only code digests are stored.
 """
 
 from __future__ import annotations
@@ -71,25 +51,23 @@ from .tokens import TokenService
 
 logger = logging.getLogger("fanid.identity")
 
-#: Longueur du code envoye. Six chiffres, comme tout ce que les gens recopient
-#: depuis un courriel. La solidite ne vient pas de la longueur mais du plafond
-#: de cinq tentatives : 10^6 possibilites contre 5 essais par defi.
+#: Six-digit code intended for manual entry. Security comes from the bounded
+#: attempt count as well as the one-time challenge lifetime.
 CODE_DIGITS = 6
 
 
 def _hash_code(code: str) -> str:
-    """SHA-256 hexadecimal minuscule — le format que la contrainte exige."""
+    """Return the lowercase hexadecimal SHA-256 digest required by the constraint."""
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ResetRequestResult:
     """
-    Resultat d une demande.
+    Result of a reset request.
 
-    `challenge_id` est renvoye dans TOUS les cas. `created` dit la verite au
-    service, jamais au client : il ne sert qu a decider s il faut envoyer un
-    courriel et emettre un evenement.
+    `challenge_id` is returned in every case. `created` is internal state used
+    only to decide whether notification and event side effects should occur.
     """
 
     challenge_id: uuid.UUID
@@ -103,37 +81,33 @@ class ResetConfirmResult:
 
 
 class DeviceResetService:
-    """Emission et verification du code de reinitialisation d appareil."""
+    """Issue and verify device-reset codes."""
 
     def __init__(self, *, binding: DeviceBindingService, sender: NotificationSender) -> None:
         self._binding = binding
         self._sender = sender
 
-    # -- demande -------------------------------------------------------------
+    # -- request -------------------------------------------------------------
 
     def request(self, *, email: str, password: str) -> ResetRequestResult:
         """
-        Emet un code, ou fait semblant.
+        Issue a reset code, or simulate the request for invalid credentials.
 
-        Le chemin factice n ecrit rien, n envoie rien, n emet aucun evenement —
-        et coute le meme temps, parce que le hachage factice a ete verifie.
+        The decoy path writes nothing and sends nothing, while still paying the
+        credential-verification cost.
         """
         user = self._verify(email, password)
         if user is None:
-            # Identifiant tire au hasard, jamais persiste. `confirm` ne le
-            # trouvera pas et repondra `OTP_INVALID`, ce que repondrait aussi un
-            # mauvais code sur un vrai defi.
+            # Return a random, unpersisted identifier. Confirmation cannot distinguish this
+            # path from an invalid code on a real challenge.
             return ResetRequestResult(challenge_id=uuid.uuid4(), created=False)
 
         code = f"{secrets.randbelow(10 ** CODE_DIGITS):0{CODE_DIGITS}d}"
         now = timezone.now()
 
         with transaction.atomic():
-            # Verrou sur la ligne du COMPTE : trois demandes simultanees se
-            # serialisent ici. Sans lui, elles liraient toutes trois un etat ou
-            # aucun defi n est encore cree, et en laisseraient trois ouverts —
-            # donc trois codes valides pour un plafond de cinq tentatives
-            # chacun. Le test de concurrence du plan (§6.3) fige ce point.
+            # Lock the account row so concurrent requests serialize and cannot create
+            # several simultaneously valid reset challenges.
             User.objects.select_for_update().get(pk=user.pk)
 
             invalidated = (
@@ -157,10 +131,8 @@ class DeviceResetService:
                 payload=device_reset_requested_payload(device_bound=active is not None),
             )
 
-        # Envoi APRES la transaction : un courriel parti sur une transaction
-        # annulee annoncerait un code qui n existe pas. L echec d envoi est
-        # journalise sans etre relaye au client — une erreur ici ne doit pas
-        # distinguer, de l exterieur, un compte existant d un compte inconnu.
+        # Send only after commit so a rolled-back transaction cannot email a nonexistent
+        # code. Delivery failure is logged without changing the public response.
         self._send(user, code)
 
         logger.info(
@@ -171,11 +143,10 @@ class DeviceResetService:
 
     def _verify(self, email: str, password: str) -> User | None:
         """
-        Les memes trois refus qu a la connexion, et le meme cout.
+        Apply the same opaque credential checks and comparable cost as login.
 
-        Le hachage factice est IMPORTE de `authentication` plutot que recalcule :
-        deux secrets distincts coûteraient pareil, mais un seul garantit que les
-        deux routes restent alignees si les parametres du hacheur changent.
+        Reuse the authentication module's decoy hash so both flows stay aligned
+        when password-hasher parameters change.
         """
         user = User.objects.select_related("role").filter(email=email).first()
         if user is None:
@@ -203,21 +174,18 @@ class DeviceResetService:
                     "Si vous n etes pas a l origine de cette demande, ignorez ce message."
                 ),
             )
-        except Exception:  # noqa: BLE001 - la panne d envoi ne doit rien reveler
+        except Exception:  # noqa: BLE001 - notification failure must not reveal account state
             logger.exception("device.reset.send_failed", extra={"user_id": str(user.pk)})
 
     # -- confirmation --------------------------------------------------------
 
     def confirm(self, *, challenge_id: uuid.UUID, code: str) -> ResetConfirmResult:
         """
-        Verifie le code, delie l appareil, ferme les sessions.
+        Verify the code, unbind the device, and revoke sessions.
 
-        **La transaction ecrit, puis se ferme. L exception vient apres.** Lever
-        depuis l interieur annulerait l increment de tentative qu on vient
-        d ecrire : le compteur resterait a zero et le plafond de cinq ne serait
-        jamais atteint. C est le meme defaut que la revocation de famille
-        annulee au lot S1-A.5, et il est invisible en test si l on se contente
-        de verifier que l erreur est bien levee.
+        Failed-attempt writes commit before the public exception is raised;
+        otherwise the transaction rollback would erase the increment and make
+        the attempt limit ineffective.
         """
         outcome, result = self._settle(challenge_id, code)
 
@@ -233,16 +201,13 @@ class DeviceResetService:
         return result
 
     def _settle(self, challenge_id: Any, code: str) -> tuple[str, ResetConfirmResult | None]:
-        """Applique toutes les ecritures et renvoie le verdict, sans lever."""
+        """Apply all state changes and return an outcome without raising a public error."""
         now = timezone.now()
 
         with transaction.atomic():
             challenge = (
-                # `of=("self",)` : on verrouille la ligne du defi, et elle seule.
-                # Sans cette precision, la jointure vers `role` — nullable cote
-                # utilisateur — ferait refuser la requete par PostgreSQL, et la
-                # version permissive aurait serialise toutes les confirmations
-                # derriere les quatre lignes du referentiel des roles.
+                # Lock only the challenge row. Avoid locking joined role data, which would add
+                # unnecessary contention and can conflict with nullable joins.
                 MfaChallenge.objects.select_for_update(of=("self",))
                 .select_related("user", "user__role")
                 .filter(pk=challenge_id, purpose=MFA_PURPOSE_DEVICE_RESET)
@@ -280,10 +245,8 @@ class DeviceResetService:
             if active is not None:
                 device_revoked = bool(self._binding.revoke(active, DEVICE_REVOKED_USER_RESET, now=now))
 
-            # Toutes les sessions tombent, pas seulement celles liees a
-            # l appareil : l appareil est presume perdu, et une session ouverte
-            # ailleurs avec le meme mot de passe n a aucune raison de survivre a
-            # un parcours de recuperation.
+            # Revoke every session, not only sessions bound to the device, because this is
+            # an account-recovery path for a presumed lost or compromised device.
             sessions_revoked = TokenService.revoke_all_for_user(user, SESSION_REVOKED_DEVICE_RESET, now=now)
 
             publish_event(
