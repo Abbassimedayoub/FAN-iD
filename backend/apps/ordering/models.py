@@ -110,7 +110,10 @@ class StockHold(UUIDModel, TimeStampedModel):
 
 
 class StockHoldLine(UUIDModel, TimeStampedModel):
-    """Quantity reserved for one ticket category in a temporary hold; final inventory remains in TicketCategory.sold_count."""
+    """
+    Quantity reserved for one ticket category in a temporary hold; final inventory remains in
+    TicketCategory.sold_count.
+    """
 
     stock_hold = models.ForeignKey(
         StockHold,
