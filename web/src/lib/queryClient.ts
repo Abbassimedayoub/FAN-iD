@@ -1,7 +1,7 @@
 /**
- * Configuration TanStack Query (§4.3 Source B) : staleTime 30s, gcTime 5min,
- * retry 3 avec backoff exponentiel SAUF sur 4xx (rejouer une erreur métier
- * est inutile et masque le vrai problème), refetchOnWindowFocus activé.
+ * TanStack Query configuration: 30 s stale time, 5 min garbage collection,
+ * up to three retries with exponential backoff for retryable errors, and
+ * refetch on window focus.
  */
 import { QueryClient } from "@tanstack/react-query";
 
@@ -9,7 +9,7 @@ import type { AppError } from "./errors";
 
 function isRetryableError(error: unknown): boolean {
   const appError = error as Partial<AppError>;
-  if (appError?.httpStatus == null) return true; // erreur réseau : on retente
+  if (appError?.httpStatus == null) return true; // Retry network failures.
   return appError.httpStatus >= 500;
 }
 
@@ -23,7 +23,7 @@ export const queryClient = new QueryClient({
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10_000),
     },
     mutations: {
-      retry: false, // une mutation ne se rejoue jamais automatiquement (idempotence côté serveur, ADR-S-06)
+      retry: false, // Mutations are never retried automatically.
     },
   },
 });
