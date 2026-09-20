@@ -33,12 +33,7 @@ class ScannerCredentialService:
         *,
         email: str,
     ) -> None:
-        """
-        Réponse générique côté API.
-
-        Une adresse inconnue ou supprimée ne doit
-        jamais permettre d'énumérer les comptes.
-        """
+        """Return a generic API result so unknown or deleted addresses cannot be used to enumerate accounts."""
 
         normalized = email.strip()
 
@@ -85,8 +80,8 @@ class ScannerCredentialService:
                 )
 
         except IntegrityError:
-            # Une demande PENDING existe déjà.
-            # Même réponse générique.
+            # A PENDING request already exists.
+            # Return the same generic result.
             return
 
     @staticmethod
