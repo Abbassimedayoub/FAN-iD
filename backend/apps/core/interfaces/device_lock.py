@@ -4,13 +4,11 @@ from typing import Any
 
 class DeviceLockBackend(ABC):
     """
-    Port de verrou d'appareil (§2.3 Source B — clarifie le "verrou d'appareil"
-    du dossier d'architecture d'origine, formalisé par le binding de session
-    du Sprint 1).
+    Device-lock port used by session/device binding.
 
-    Implémentations prévues : `RedisDeviceLock` (principal), `PostgresDeviceLock`
-    (repli si Redis indisponible), `FakeDeviceLock` (tests — dictionnaire en
-    mémoire, aucun Redis requis).
+    Expected implementations include `RedisDeviceLock` as the primary backend,
+    `PostgresDeviceLock` as a fallback when Redis is unavailable, and
+    `FakeDeviceLock` for tests without Redis.
     """
 
     @abstractmethod
