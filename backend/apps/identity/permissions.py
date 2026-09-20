@@ -1,28 +1,14 @@
 """
-Adaptateurs DRF. Ils ADAPTENT, ils ne decident pas.
+DRF adapters. They adapt requests to the authorization engine; they do not make
+authorization decisions themselves.
 
-Chacune des classes ci-dessous se contente de repondre a deux questions —
-« quelle action la vue tente-t-elle ? » et « quelle ressource vise-t-elle ? » —
-puis delegue le verdict au moteur. Aucune ne compare un role, aucune ne teste
-`is_staff`. C est ce qui permet d affirmer que la matrice de `rules.py` decrit
-REELLEMENT le comportement du systeme : il n existe pas de second endroit ou
-une autorisation se joue.
+Each class resolves the requested action and target resource, then delegates the
+verdict to the policy engine. No adapter compares roles or checks `is_staff`,
+so the policy table remains the single authorization source of truth.
 
-Elles se distinguent uniquement par la STRATEGIE DE RESOLUTION de l action et de
-la ressource :
-
-| Classe                          | Action                        | Ressource                |
-|---------------------------------|-------------------------------|--------------------------|
-| `BasePolicyPermission`          | `required_action` de la vue   | aucune                   |
-| `ActionPermission`              | + table `policy_actions`      | aucune                   |
-| `SelfResourcePermission`        | idem                          | `obj.user_id`            |
-| `OrganizerResourcePermission`   | idem                          | `obj.organizer_id`       |
-| `MethodScopedActionPermission`  | lecture / ecriture selon HTTP | heritee                  |
-
-`DenyAll`, le refus par defaut du projet, vit dans `apps.core.permissions` : il
-ne consulte aucune politique, c est un garde-fou de cadriciel et non une regle
-metier, et `core` peut servir de defaut a tout le projet sans dependre d un
-contexte borne (ADR-S-01).
+The classes differ only in how actions and resources are resolved. `DenyAll`,
+the framework-level default refusal, lives in `apps.core.permissions` because
+it is a safety guard rather than a domain rule.
 """
 
 from __future__ import annotations
@@ -40,19 +26,15 @@ from .authz.context import subject_from_request
 
 logger = logging.getLogger(__name__)
 
-#: Message opaque renvoye pour tout refus sans action corrective cote client.
-#:
-#: Distinguer « role insuffisant » de « ressource d autrui » transformerait
-#: l API en oracle : en lisant le code d erreur, un attaquant apprendrait quels
-#: identifiants existent, sans jamais obtenir une seule donnee. Le motif precis
-#: part dans les journaux, correle par `correlation_id`.
+#: Opaque message returned for denials that offer no client-side corrective action.
+#: Detailed internal reasons stay in correlated logs rather than revealing
+#: resource existence or ownership information.
 FORBIDDEN_MESSAGE = "Vous n avez pas la permission d effectuer cette action."
 FORBIDDEN_CODE = "FORBIDDEN"
 
-#: Premiere exception a l opacite : le client DOIT savoir qu une verification
-#: renforcee est attendue, sinon il ne peut rien entreprendre. Ce code ne revele
-#: rien sur la ressource — il n est renvoye qu a un sujet dont l appartenance a
-#: DEJA ete verifiee (cf. l ordre des controles dans `engine.authorize`).
+#: Step-up is intentionally actionable: the client must know that stronger
+#: verification is required. This does not reveal resource existence because
+#: ownership has already been checked before this reason can be returned.
 STEP_UP_MESSAGE = "Une verification d identite renforcee est requise pour cette action."
 STEP_UP_CODE = "STEP_UP_REQUIRED"
 
@@ -61,7 +43,7 @@ ORGANIZER_NOT_APPROVED_CODE = "ORGANIZER_NOT_APPROVED"
 
 
 def _client_error_for(reason: Reason) -> tuple[str, str]:
-    """Traduit uniquement les refus sur lesquels le client peut agir."""
+    """Translate only denial reasons that the client can act on."""
     if reason is Reason.STEP_UP_REQUIRED:
         return STEP_UP_MESSAGE, STEP_UP_CODE
 
@@ -73,11 +55,11 @@ def _client_error_for(reason: Reason) -> tuple[str, str]:
 
 class IsApprovedOrganizer(BasePermission):
     """
-    Pre-requis actor-level pour les futures ecritures metier organisateur.
+    Actor-level prerequisite for organizer writes.
 
-    Cette permission ne remplace PAS `ActionPermission` : elle compose avec elle.
-    Le verdict vient du moteur pur ; l adaptateur ne fait que construire le sujet
-    et traduire le refus pour DRF.
+    This permission composes with `ActionPermission`; it does not replace it.
+    The policy engine decides, while this adapter only builds the subject and
+    maps a denial into DRF's permission interface.
     """
 
     message: str = FORBIDDEN_MESSAGE
@@ -104,21 +86,17 @@ class IsApprovedOrganizer(BasePermission):
 
 class BasePolicyPermission(BasePermission):
     """
-    Socle commun : resout l action, delegue, traduit le refus.
+    Shared base: resolve the action, delegate the decision, and map denials.
 
-    Par defaut, aucune ressource n est associee. Une action de portee `SELF` ou
-    `OWN_ORGANIZER` verifiee par cette classe seule sera donc REFUSEE
-    (`RESOURCE_ATTRIBUTE_MISSING`) : le socle ne peut pas ouvrir un acces par
-    omission, il faut choisir explicitement une sous-classe qui sait designer la
-    ressource.
+    No resource is associated by default. Resource-scoped actions therefore fail
+    closed unless a subclass explicitly knows how to identify the target.
     """
 
-    #: Action portee par la vue quand elle n en a qu une.
+    #: Action declared by a view when it exposes a single policy action.
     required_action: ClassVar[Action | None] = None
 
-    #: Lus par DRF pour construire la reponse 403. Declares ici parce que
-    #: `BasePermission` ne les definit pas : sans cela, l affectation dans
-    #: `_resolve` serait un attribut cree a la volee, invisible pour mypy.
+    #: Read by DRF when constructing a 403 response. Declared here explicitly
+    #: because BasePermission does not define these attributes.
     message: str = FORBIDDEN_MESSAGE
     code: str = FORBIDDEN_CODE
 
@@ -129,18 +107,16 @@ class BasePolicyPermission(BasePermission):
     def get_resource(self, request: Any, view: Any, obj: Any) -> Resource:
         return Resource()
 
-    # -- points d entree DRF ------------------------------------------------
+    # -- DRF entry points ----------------------------------------------------
 
     def has_permission(self, request: Any, view: Any) -> bool:
         """
-        Pre-controle appele AVANT le chargement de l objet.
+        Pre-check called before an object is loaded.
 
-        Il ne verifie donc que le volet RBAC. Une vue de detail est ensuite
-        repassee par `has_object_permission` ; une vue de LISTE, elle, ne l est
-        jamais — c est a son `get_queryset()` de filtrer, via les gestionnaires
-        du lot S1-A.1b (`Device.objects.for_user`, `Session.objects.for_user`).
-        Cette limite est structurelle a DRF, pas a ce code : la nommer ici evite
-        qu on la decouvre en production.
+        It can validate role/action eligibility but not object ownership. Detail
+        views later call `has_object_permission`; list views must scope their
+        querysets explicitly because DRF does not run object permission checks
+        for every row.
         """
         action = self.get_action(request, view)
         if action is None:
@@ -170,7 +146,7 @@ class BasePolicyPermission(BasePermission):
             role=subject.role,
         )
 
-    # -- traduction ---------------------------------------------------------
+    # -- denial translation -------------------------------------------------
 
     def _resolve(
         self,
@@ -182,18 +158,14 @@ class BasePolicyPermission(BasePermission):
         if decision.allowed:
             return True
 
-        # DRF lit `self.message` et `self.code` sur l INSTANCE de permission
-        # pour construire la reponse 403. Les permissions sont instanciees a
-        # chaque requete par `APIView.get_permissions()`, il n y a donc pas de
-        # fuite d etat entre requetes concurrentes.
+        # DRF reads `self.message` and `self.code` from the permission instance
+        # when building a 403. Permission objects are recreated per request, so
+        # this mutable presentation state cannot leak across concurrent requests.
         self.message, self.code = _client_error_for(decision.reason)
 
-        # Journal : action, motif et role suffisent au diagnostic. Ni
-        # identifiant d utilisateur ni identifiant de ressource — le
-        # `correlation_id` deja pose par le middleware relie cette ligne a la
-        # requete, qui porte le reste. Ces trois champs sont de cardinalite
-        # bornee, donc reutilisables tels quels comme etiquettes de metrique au
-        # lot S1-A.9.
+        # Action, reason, and role are sufficient for diagnostics. Avoid user or
+        # resource identifiers here; the correlation ID links this record to the
+        # request while keeping metric-label cardinality bounded.
         metric_role = role if role is not None else AUTHZ_ROLE_ANONYMOUS
 
         fanid_authz_denied_total.labels(
@@ -213,12 +185,10 @@ class BasePolicyPermission(BasePermission):
 
     def _deny_misconfigured(self, view: Any) -> bool:
         """
-        Vue sans action declaree : refus, et journal de niveau ERREUR.
+        Deny a view with no declared action and log it as a configuration error.
 
-        C est un defaut de configuration, pas un refus metier. Le distinguer
-        evite de chercher une regle d autorisation la ou il manque une ligne
-        `required_action` — et evite surtout la tentation inverse, qui serait
-        d autoriser « puisqu aucune regle ne s applique ».
+        Missing authorization configuration must fail closed rather than being
+        interpreted as "no rule applies".
         """
         self.message = FORBIDDEN_MESSAGE
         self.code = FORBIDDEN_CODE
@@ -231,20 +201,10 @@ class BasePolicyPermission(BasePermission):
 
 class ActionPermission(BasePolicyPermission):
     """
-    Resout l action depuis la table `policy_actions` du `ViewSet`.
+    Resolve the action from a ViewSet's `policy_actions` table.
 
-        class DeviceViewSet(ModelViewSet):
-            policy_actions = {
-                "list": Action.DEVICE_LIST_SELF,
-                "revoke": Action.DEVICE_REVOKE_SELF,
-            }
-            permission_classes = [SelfResourcePermission]
-
-    Une entree manquante n est PAS une autorisation implicite : la resolution
-    echoue et la requete est refusee. Ajouter une methode a un `ViewSet` sans
-    lui donner d action la rend donc inaccessible, ce qui est le sens voulu du
-    « deny by default » — la panne est visible en developpement, la faille ne
-    l aurait pas ete.
+    A missing entry is never implicit authorization. Resolution fails and the
+    request is denied, preserving deny-by-default behavior.
     """
 
     def get_action(self, request: Any, view: Any) -> Action | None:
@@ -258,14 +218,11 @@ class ActionPermission(BasePolicyPermission):
 
 class SelfResourcePermission(ActionPermission):
     """
-    Ressource appartenant au sujet, designee par une colonne de rattachement.
+    Resource owned by the subject through an explicit ownership attribute.
 
-    `owner_lookup` vaut `user_id` par defaut, ce qui couvre `Device`, `Session`
-    et `MfaChallenge`. Pour un point de terminaison dont l objet EST
-    l utilisateur, declarer `owner_lookup = "pk"` dans la sous-classe. Cette
-    designation est explicite plutot que devinee : deduire le proprietaire du
-    type de l objet marcherait jusqu au jour ou un modele nommerait sa colonne
-    autrement, et ce jour-la le controle passerait sans rien verifier.
+    `owner_lookup` defaults to `user_id`; subclasses may override it when the
+    resource itself is the user. Explicit lookup names avoid guessing ownership
+    from object types.
     """
 
     owner_lookup: ClassVar[str] = "user_id"
@@ -275,7 +232,7 @@ class SelfResourcePermission(ActionPermission):
 
 
 class OrganizerResourcePermission(ActionPermission):
-    """Ressource rattachee a un organisateur (`obj.organizer_id`)."""
+    """Resource attached to an organizer through `obj.organizer_id`."""
 
     organizer_lookup: ClassVar[str] = "organizer_id"
 
@@ -285,16 +242,10 @@ class OrganizerResourcePermission(ActionPermission):
 
 class MethodScopedActionPermission(SelfResourcePermission):
     """
-    Deux actions pour un meme point de terminaison, selon la methode HTTP.
+    Resolve one of two actions for the same endpoint based on the HTTP method.
 
-        class MeView(RetrieveUpdateAPIView):
-            read_action = Action.USER_READ_SELF
-            write_action = Action.USER_UPDATE_SELF
-
-    `GET`, `HEAD` et `OPTIONS` passent par l action de lecture ; tout le reste
-    par celle d ecriture. `OPTIONS` est traite comme une lecture parce que DRF
-    y expose le schema du point de terminaison : ce n est pas anodin, mais c est
-    strictement moins que ce que `GET` renvoie.
+    `GET`, `HEAD`, and `OPTIONS` use the read action; all other methods use
+    the write action.
     """
 
     read_action: ClassVar[Action | None] = None
@@ -308,6 +259,6 @@ class MethodScopedActionPermission(SelfResourcePermission):
 
 
 class SelfUserPermission(MethodScopedActionPermission):
-    """Permission de libre-service lorsque la ressource EST le User."""
+    """Self-service permission when the resource itself is the User."""
 
     owner_lookup = "pk"
