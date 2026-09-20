@@ -4,10 +4,10 @@ from typing import Any
 
 class NotificationSender(ABC):
     """
-    Port de notification (§2.3 Source B).
+    Notification port.
 
-    Implémentations prévues : `SesAdapter`, `FcmAdapter` (sprints ultérieurs),
-    `InMemorySender` (tests — capture les envois sans réseau).
+    Expected implementations include `SesAdapter`, `FcmAdapter`, and
+    `InMemorySender` for tests that capture sends without network access.
     """
 
     @abstractmethod
