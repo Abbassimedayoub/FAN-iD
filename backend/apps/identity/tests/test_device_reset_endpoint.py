@@ -1,4 +1,7 @@
-"""HTTP-layer tests for device reset: anonymous access, response uniformity, contract error codes, and both throttle axes."""
+"""
+HTTP-layer tests for device reset: anonymous access, response uniformity, contract error codes, and
+both throttle axes.
+"""
 
 from __future__ import annotations
 
@@ -85,7 +88,10 @@ def body(**overrides) -> dict:
 
 
 def test_the_request_needs_no_authentication(client, fan):
-    """Requiring authentication would make the reset route unusable by the locked-out user it is designed for."""
+    """
+    Requiring authentication would make the reset route unusable by the locked-out user it is
+    designed for.
+    """
     assert client.post(REQUEST_URL, body(), format="json").status_code == 200
 
 
