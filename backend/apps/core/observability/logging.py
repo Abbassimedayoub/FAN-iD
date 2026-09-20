@@ -1,12 +1,9 @@
 """
-Logs JSON structurés + rédaction automatique des secrets (§28 master prompt,
-§5.3 Source B).
+Structured JSON logging with automatic secret redaction.
 
-`SecretRedactor` masque récursivement toute valeur dont la CLÉ correspond à un
-motif sensible — y compris dans des structures imbriquées (dict dans dict,
-dict dans liste) — pour ne jamais logguer un token, un mot de passe, une
-graine cryptographique ou une donnée de paiement, même par accident via un
-`extra={"payload": stripe_response}`.
+`SecretRedactor` recursively masks any value whose key matches a sensitive
+pattern, including nested dictionaries and lists, so tokens, passwords,
+cryptographic seeds, and payment data are never logged accidentally.
 """
 
 import json
@@ -18,12 +15,11 @@ from typing import Any
 
 from .context import get_correlation_id, get_trace_id
 
-# Motifs LARGES (correspondance partielle) : toute clé qui les contient est masquée.
-# Motifs ANCRÉS (`^...$`) : le Sprint 1 introduit des clés courtes et ambiguës —
-# `code`, `did`, `jti`. Les traiter en correspondance partielle masquerait
-# `error_code`, `status_code` ou `candidate`, ce qui détruirait l'observabilité
-# des erreurs sans rien protéger. `^otp` et `^refresh` couvrent les dérivés
-# (`otp_code`, `refresh_jti`) sans attraper `totp`.
+# Broad patterns use partial matching. Anchored patterns are used for short,
+# ambiguous Sprint 1 keys such as `code`, `did`, and `jti`. Partial matching
+# for those names would also hide useful fields such as `error_code`,
+# `status_code`, or `candidate`. The `^otp` and `^refresh` prefixes cover
+# derivatives such as `otp_code` and `refresh_jti` without matching `totp`.
 _SENSITIVE_KEY_PATTERN = re.compile(
     r"password|token|secret|seed|key|authorization|card|fingerprint"
     r"|cookie|set-cookie|sessionid|csrftoken"
@@ -64,7 +60,7 @@ _RESERVED_LOGRECORD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__
 
 
 class SecretRedactor:
-    """Masque récursivement les valeurs dont la clé matche le motif sensible."""
+    """Recursively mask values whose keys match the sensitive-key pattern."""
 
     @classmethod
     def redact(cls, value: Any) -> Any:
@@ -89,7 +85,7 @@ class SecretRedactor:
 
 
 class CorrelationLogFilter(logging.Filter):
-    """Injecte correlation_id/trace_id/service/env dans chaque LogRecord."""
+    """Inject correlation_id, trace_id, service, and environment into each record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.correlation_id = getattr(record, "correlation_id", None) or get_correlation_id()
@@ -98,7 +94,7 @@ class CorrelationLogFilter(logging.Filter):
 
 
 class JsonFormatter(logging.Formatter):
-    """Une ligne JSON par entrée, champs obligatoires §28 master prompt."""
+    """Serialize one structured JSON object per log record."""
 
     def format(self, record: logging.LogRecord) -> str:
         extra_fields = {
