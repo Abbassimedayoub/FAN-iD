@@ -45,26 +45,12 @@ def event_operational_status(
     at: datetime.datetime | None = None,
 ) -> str:
     """
-    Retourne la phase métier visible d'un événement.
+    Return the business phase currently visible for an event.
 
-    Le statut structurel reste stocké dans Event.status.
-
-    Pour un événement PUBLISHED :
-    - avant sales_starts_at : COMING_SOON ;
-    - pendant la fenêtre de vente : SALE_OPEN ;
-    - après sales_ends_at mais avant starts_at : SALE_CLOSED ;
-    - entre starts_at et ends_at : LIVE ;
-    - après ends_at : ENDED.
-
-    Compatibilité historique :
-    - sales_starts_at NULL => vente ouverte dès publication ;
-    - sales_ends_at NULL => vente ouverte jusqu'au début de l'événement.
-
-    SOLD_OUT n'est volontairement pas calculé ici : il dépend du stock
-    TicketCategory et sera ajouté dans la couche catalogue/ordering.
-
-    SCAN_OPEN n'est volontairement pas calculé ici non plus : il dépendra
-    d'une vraie ouverture opérationnelle par l'Organizer.
+    Structural state remains in `Event.status`. Published events derive their
+    temporal phase from sales and event timestamps. Null sales boundaries retain
+    legacy behavior. SOLD_OUT and SCAN_OPEN are deliberately excluded because
+    they depend on inventory and operational admission state.
     """
     structural = STRUCTURAL_OPERATIONAL_STATUSES.get(
         event.status,
@@ -99,13 +85,10 @@ def event_sales_phase(
     at: datetime.datetime | None = None,
 ) -> str:
     """
-    Phase commerciale utilisée par le catalogue et ordering.
+    Commercial phase shared by catalog and ordering.
 
-    PUBLISHED et POSTPONED avec nouvelle date connue utilisent la même
-    fenêtre de vente.
-
-    Un POSTPONED sans nouvelle programmation reste non vendable tant que
-    l'Organizer n'a pas défini sa nouvelle date.
+    PUBLISHED and rescheduled POSTPONED events use the same sales window. A
+    postponed event with no new schedule remains unavailable for sale.
     """
     if event.status == "POSTPONED":
         if event.postponed_to_starts_at is None:
@@ -153,9 +136,8 @@ def event_catalog_status(
     sold_out: bool,
     at: datetime.datetime | None = None,
 ) -> str:
-    # Le catalogue Fan expose actuellement certains brouillons comme
-    # événements à venir. La traduction publique en COMING_SOON doit
-    # appartenir au Backend et non être devinée par le Mobile.
+    # Some drafts are currently exposed to fans as upcoming events. The backend
+    # owns the public COMING_SOON mapping so clients do not have to infer it.
     if event.status == "DRAFT":
         return OPERATIONAL_COMING_SOON
 
