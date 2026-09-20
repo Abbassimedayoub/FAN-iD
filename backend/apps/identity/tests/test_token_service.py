@@ -1,10 +1,9 @@
 """
-Cycle de vie des jetons : emission, rotation, detection de reutilisation.
+Token lifecycle tests cover issuance, rotation, reuse detection, and revocation.
 
-Le test qui compte est `test_two_concurrent_rotations...` : il lance deux vrais
-threads sur une vraie base et prouve qu une seule rotation aboutit. Les autres
-verifient les chemins nominaux et les refus ; celui-la verifie l invariant qui
-n existe que sous concurrence, et qu aucune lecture de code ne garantit.
+The concurrency test uses two real threads against the database to prove that
+only one rotation can win, exercising the invariant that exists only under
+concurrent access.
 """
 
 from __future__ import annotations
@@ -51,16 +50,12 @@ def fan(db, roles) -> User:
 
 
 # ===========================================================================
-# Emission
+# Issuance
 # ===========================================================================
 
 
 def test_issuing_a_pair_opens_a_session_row_aligned_with_the_tokens(fan):
-    """
-    Le `jti` du refresh et l identifiant de session doivent correspondre
-    EXACTEMENT a ce qui est stocke : c est ce qui rend la rotation possible sans
-    redecoder le jeton a chaque requete.
-    """
+    """The refresh `jti` and session identifier must exactly match persisted session state."""
     pair = TokenService.issue_pair(user=fan)
 
     session = Session.objects.get(pk=pair.session.pk)
@@ -75,27 +70,19 @@ def test_issuing_a_pair_opens_a_session_row_aligned_with_the_tokens(fan):
 
 
 def test_the_access_token_carries_the_role_so_authorization_costs_no_query(fan):
-    """
-    Corollaire assume de ce choix (plan §3.5) : un changement de role ne prend
-    effet qu au rafraichissement suivant — 15 minutes au pire. C est le prix
-    d une decision d autorisation a moins d une milliseconde.
-    """
+    """The access token carries the role so authorization can read it without an extra query."""
     pair = TokenService.issue_pair(user=fan)
 
     claims = decode_token(pair.access, expected_type=TokenType.ACCESS)
 
     assert claims["role"] == "FAN"
     assert claims["auth_level"] == 1
-    # Aucun appareil lie : le claim existe et vaut `null`, il n est pas absent.
-    # Une absence serait ambigue — oubli d emission ou absence d appareil ?
+    # With no bound device, the claim is explicitly null rather than omitted.
     assert claims["did"] is None
 
 
 def test_the_refresh_token_never_carries_the_role_or_the_device(fan):
-    """
-    Le refresh ne sert qu a obtenir un access. Lui donner des droits en ferait
-    un second jeton d acces a longue duree de vie.
-    """
+    """A refresh token exists only to obtain access tokens and must not carry access privileges."""
     claims = decode_token(TokenService.issue_pair(user=fan).refresh, expected_type=TokenType.REFRESH)
 
     assert set(claims) == {"family", "token_type", "sub", "jti", "iat", "exp", "iss"}
@@ -115,13 +102,7 @@ def test_two_logins_open_two_independent_families(fan):
 
 
 def test_rotating_keeps_the_session_and_the_family_but_changes_the_token(fan):
-    """
-    Une rotation ne crée PAS de session : elle fait avancer la meme lignee.
-
-    Créer une ligne par rotation ferait grossir la table d une ligne toutes les
-    15 minutes et par utilisateur, et surtout rendrait la revocation de famille
-    proportionnelle au nombre de rotations plutot que constante.
-    """
+    """Rotation advances the existing session lineage rather than creating a new session row."""
     original = TokenService.issue_pair(user=fan)
 
     rotated = TokenService.rotate(original.refresh)
@@ -152,13 +133,7 @@ def test_an_expired_refresh_is_reported_as_expired(fan, settings):
 
 
 def test_a_refresh_from_a_revoked_session_is_invalid_not_a_reuse(fan):
-    """
-    Se deconnecter puis rejouer son ancien refresh n est PAS une reutilisation.
-
-    Distinguer les deux compte : `TOKEN_REUSE_DETECTED` alimente une metrique
-    dont toute valeur non nulle declenche une inspection. Y verser les rejeux
-    apres deconnexion — frequents, benins — rendrait l alerte inutilisable.
-    """
+    """Replaying a refresh after explicit logout is invalid, but is not classified as reuse detection."""
     pair = TokenService.issue_pair(user=fan)
     TokenService.revoke_session(pair.session, SESSION_REVOKED_LOGOUT)
 
@@ -168,19 +143,12 @@ def test_a_refresh_from_a_revoked_session_is_invalid_not_a_reuse(fan):
 
 
 # ===========================================================================
-# Detection de reutilisation
+# Reuse detection
 # ===========================================================================
 
 
 def test_replaying_a_rotated_refresh_revokes_the_whole_family(fan):
-    """
-    Le coeur du dispositif.
-
-    On ne revoque pas le jeton rejoue : on revoque la FAMILLE, y compris le
-    refresh legitime emis une seconde plus tot. Impossible de savoir lequel des
-    deux porteurs est l attaquant — celui qui rejoue peut etre le voleur comme
-    la victime. Deconnecter les deux est le seul choix sur.
-    """
+    """A replayed rotated refresh revokes the whole family because the server cannot identify the legitimate holder."""
     original = TokenService.issue_pair(user=fan)
     rotated = TokenService.rotate(original.refresh)
 
@@ -191,18 +159,13 @@ def test_replaying_a_rotated_refresh_revokes_the_whole_family(fan):
     assert session.revoked_at is not None
     assert session.revoked_reason == SESSION_REVOKED_ROTATION_REUSE
 
-    # Le jeton honnete tombe aussi : c est le prix, et il est assume.
+    # The newly issued legitimate refresh is revoked with the compromised family.
     with pytest.raises(TokenInvalidError):
         TokenService.rotate(rotated.refresh)
 
 
 def test_a_reuse_in_one_family_leaves_the_other_sessions_alive(fan):
-    """
-    La revocation est bornee a la famille : un vol sur le telephone ne doit pas
-    deconnecter l ordinateur portable. C est precisement ce que la blacklist
-    globale de simplejwt ne savait pas faire, et la raison d etre de la table
-    `session`.
-    """
+    """Reuse revocation is scoped to one family so unrelated sessions remain active."""
     compromised = TokenService.issue_pair(user=fan)
     untouched = TokenService.issue_pair(user=fan)
     TokenService.rotate(compromised.refresh)
@@ -215,12 +178,7 @@ def test_a_reuse_in_one_family_leaves_the_other_sessions_alive(fan):
 
 
 def test_a_forged_family_claim_does_not_revoke_anything(fan):
-    """
-    La famille est lue dans le jeton, mais elle ne sert QU A confirmer une
-    reutilisation — jamais a retrouver la session. La recherche se fait sur le
-    `jti`, protege par un index unique. Un jeton signe portant une famille
-    inconnue obtient donc un refus sec, sans effet de bord.
-    """
+    """The family claim confirms reuse but never locates the session; current-session lookup is keyed by unique `jti`."""
     alive = TokenService.issue_pair(user=fan)
     orphan = TokenService.issue_pair(user=fan)
     Session.objects.filter(pk=orphan.session.pk).delete()
@@ -237,10 +195,7 @@ def test_a_forged_family_claim_does_not_revoke_anything(fan):
 
 
 def test_changing_a_password_must_be_able_to_close_every_session(fan):
-    """
-    Un mot de passe change parce qu on le croit compromis ne sert a rien si les
-    sessions ouvertes avec l ancien survivent.
-    """
+    """Password changes must be able to revoke every session authenticated with the previous credential."""
     first = TokenService.issue_pair(user=fan)
     second = TokenService.issue_pair(user=fan)
 
@@ -254,11 +209,7 @@ def test_changing_a_password_must_be_able_to_close_every_session(fan):
 
 
 def test_revoking_twice_reports_no_second_victim(fan):
-    """
-    Idempotence de la revocation : le second appel ne compte rien et n ecrase
-    pas le motif d origine. Sans cela, une deconnexion apres une detection de
-    vol effacerait `ROTATION_REUSE` des journaux d audit.
-    """
+    """Revocation is idempotent and must not overwrite the original audit reason on a second call."""
     pair = TokenService.issue_pair(user=fan)
     TokenService.revoke_family(pair.session.family_id, SESSION_REVOKED_ROTATION_REUSE)
 
@@ -267,25 +218,18 @@ def test_revoking_twice_reports_no_second_victim(fan):
 
 
 # ===========================================================================
-# Concurrence reelle
+# Real concurrency
 # ===========================================================================
 
 
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_rotations_never_produce_two_valid_pairs(roles):
     """
-    Deux threads, une vraie base, un seul gagnant.
+    Two threads, one real database, one winner.
 
-    Sans `SELECT ... FOR UPDATE`, les deux transactions liraient la meme ligne
-    et ecriraient deux `jti` differents : **deux refresh valides pour une seule
-    session**, ce qui supprime purement et simplement la detection de
-    reutilisation. Aucune relecture de code ne prouve cela — il faut deux
-    threads.
-
-    Le perdant recoit `TOKEN_REUSE_DETECTED` et la famille tombe. C est le
-    comportement voulu : deux rafraichissements legitimes concurrents sont
-    indiscernables d un vol. La parade est cote client — serialiser les
-    rafraichissements derriere un seul verrou en vol (plan, § React).
+    Without `SELECT ... FOR UPDATE`, both transactions could replace the same
+    current refresh state. The losing rotation is classified as reuse and the
+    family is revoked.
     """
     fan = make_user(roles, email="concurrence@example.test")
     pair = TokenService.issue_pair(user=fan)
@@ -298,11 +242,10 @@ def test_two_concurrent_rotations_never_produce_two_valid_pairs(roles):
         start.wait(timeout=5)
         try:
             winners.append(TokenService.rotate(pair.refresh))
-        except Exception as exc:  # on capture pour ASSERTER le type, pas pour ignorer
+        except Exception as exc:  # capture so the losing exception type can be asserted
             losers.append(exc)
         finally:
-            # Chaque thread ouvre sa propre connexion : la laisser ouverte
-            # empecherait le demontage de la base en fin de test.
+            # Each thread opens its own database connection and closes it before teardown.
             connection.close()
 
     threads = [threading.Thread(target=rotate_once) for _ in range(2)]
@@ -312,10 +255,8 @@ def test_two_concurrent_rotations_never_produce_two_valid_pairs(roles):
         thread.join(timeout=15)
         assert not thread.is_alive(), "rotation bloquee : verrou non libere"
 
-    # Le message porte les DEUX listes : quand les deux threads echouent pour
-    # une raison commune — une requete refusee par le SGBD, par exemple — un
-    # message qui n affiche que les gagnants dit « deux rotations ont abouti :
-    # [] », c est-a-dire l inverse de ce qui s est produit.
+    # Include both winner and loser lists in the assertion diagnostic so failures
+    # accurately describe concurrent outcomes.
     diagnostic = f"gagnants={winners!r} perdants={losers!r}"
     assert len(winners) == 1, diagnostic
     assert len(losers) == 1, diagnostic
@@ -327,10 +268,7 @@ def test_two_concurrent_rotations_never_produce_two_valid_pairs(roles):
 
 @pytest.mark.django_db(transaction=True)
 def test_a_family_identifier_is_never_reused_across_users(roles):
-    """
-    Garde-fou : deux comptes ne doivent jamais partager une famille, sinon la
-    revocation de l un deconnecterait l autre.
-    """
+    """Two accounts must never share a token family, or revocation would cross account boundaries."""
     first = make_user(roles, email="famille-1@example.test")
     second = make_user(roles, email="famille-2@example.test")
 
