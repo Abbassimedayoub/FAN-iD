@@ -1,7 +1,4 @@
-"""
-Rejeu des en-têtes de réponse "clés" (P1.A.2 du plan de correction) —
-whitelist REPLAYABLE_RESPONSE_HEADERS, jamais l'intégralité des en-têtes.
-"""
+"""Replay only explicitly whitelisted response headers, never the entire original header set."""
 
 import pytest
 from django.http import JsonResponse
@@ -40,18 +37,18 @@ def test_key_response_headers_are_captured_and_replayed(user):
     middleware = IdempotencyMiddleware(get_response)
     key = "purchase-with-headers"
 
-    # 1ère exécution : réelle, capture les en-têtes whitelistés.
+    # First execution is real and captures whitelisted headers.
     first_response = middleware(_make_request(user, key))
     assert first_response.status_code == 201
     assert first_response["Location"] == "/api/v1/orders/1"
 
-    # 2e exécution : rejeu, mêmes en-têtes whitelistés restitués.
+    # Second execution is a replay and restores the same whitelisted headers.
     replay_response = middleware(_make_request(user, key))
     assert replay_response.status_code == 201
     assert replay_response["Location"] == "/api/v1/orders/1"
     assert replay_response["Content-Type"] == "application/json"
     assert replay_response[REPLAYED_MARKER_HEADER] == "true"
-    # Le cookie de session ne doit JAMAIS être rejoué — pas dans la whitelist.
+    # Session cookies must never be replayed because they are not whitelisted.
     assert (
         "Set-Cookie" not in replay_response
         or replay_response.get("Set-Cookie") != "sessionid=should-never-be-replayed"
