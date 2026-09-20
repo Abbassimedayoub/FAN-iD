@@ -8,7 +8,7 @@ from .refund_notification_tasks import send_refund_succeeded_email
 
 
 class PaymentRefundNotificationConsumer(BaseConsumer):
-    """Planifie l'e-mail uniquement après remboursement confirmé."""
+    """Schedule the email only after the refund is confirmed."""
 
     name = "notifying.payment_refund_succeeded_email"
     handled_event_types = {PAYMENT_REFUND_SUCCEEDED}
