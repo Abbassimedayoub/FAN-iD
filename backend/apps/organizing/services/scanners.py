@@ -171,7 +171,10 @@ class ScannerInvitationService:
         actor_id: Any,
         scanner_id: uuid.UUID,
     ) -> Scanner:
-        """Return a pre-active invitation with a new temporary secret; this flow is distinct from recovery requested by an active scanner."""
+        """
+        Return a pre-active invitation with a new temporary secret; this flow is distinct from
+        recovery requested by an active scanner.
+        """
 
         pre_active = {
             SCANNER_INVITED,
