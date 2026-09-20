@@ -52,7 +52,10 @@ _current_correlation_tokens = {}
 
 @before_task_publish.connect
 def _inject_correlation_id(headers=None, **kwargs):
-    """Inject the current application correlation ID into a custom Celery header; traceparent stays managed by CeleryInstrumentor."""
+    """
+    Inject the current application correlation ID into a custom Celery header; traceparent stays
+    managed by CeleryInstrumentor.
+    """
     if headers is None:
         return
 
@@ -86,7 +89,10 @@ def _restore_correlation_id(task_id=None, task=None, **kwargs):
 
 @task_postrun.connect
 def _reset_correlation_id(task_id=None, **kwargs):
-    """Clear the ContextVar after execution so the correlation ID cannot leak into the next task on the same worker."""
+    """
+    Clear the ContextVar after execution so the correlation ID cannot leak into the next task on the
+    same worker.
+    """
     if task_id is None:
         return
 
