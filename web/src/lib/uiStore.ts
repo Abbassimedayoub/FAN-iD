@@ -1,7 +1,7 @@
 /**
- * Zustand — état d'INTERFACE uniquement (filtres, thème, modales). Règle
- * absolue (§4.3 Source B) : aucune donnée serveur dupliquée ici — les
- * données serveur vivent exclusivement dans le cache TanStack Query.
+ * Zustand stores interface-only state such as filters, theme, and modals.
+ * Server data lives exclusively in the TanStack Query cache and is never
+ * duplicated here.
  */
 import { create } from "zustand";
 
