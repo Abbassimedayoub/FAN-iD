@@ -1,5 +1,5 @@
-/// Taxonomie d'échecs (§4.4 Source B) — `Failure` scellée, mappée sur les
-/// cinq états d'écran (§4.2 Source B) au niveau présentation via `AsyncValue`.
+/// Failure taxonomy. Presentation maps these sealed failures to screen states
+/// through `AsyncValue`.
 sealed class Failure {
   const Failure(this.message);
 
@@ -22,8 +22,8 @@ final class NotFoundFailure extends Failure {
   const NotFoundFailure([super.message = 'Introuvable']);
 }
 
-/// Erreur métier — `code` est le contrat machine stable (§17 master prompt),
-/// jamais utilisé pour construire le message affiché directement.
+/// Business error: `code` is the stable machine contract and is never used
+/// directly to build the user-facing message.
 final class BusinessFailure extends Failure {
   const BusinessFailure(this.code, super.message, {this.details = const {}});
 
