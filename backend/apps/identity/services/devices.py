@@ -1,28 +1,13 @@
 """
-`DeviceBindingService` — un seul appareil actif par compte (RM-5).
+`DeviceBindingService` enforces at most one active device per account.
 
-## Ce que le serveur sait, et ce qu il ne sait pas
+The device fingerprint is computed client-side and treated as opaque by the
+server. The server validates only its canonical format and does not substitute
+IP addresses, User-Agent strings, or behavioral fingerprinting.
 
-L empreinte est calculee COTE CLIENT — identifiant materiel, identifiant de
-bundle, sel persistant, le tout passe au SHA-256. Le serveur ne la recalcule
-jamais, n en deduit rien, et n utilise NI l adresse IP, NI le `User-Agent`, NI
-aucune empreinte comportementale comme substitut. Ces signaux sont instables
-— un changement d operateur mobile suffit — et leur collecte serait
-disproportionnee au regard de la minimisation RGPD.
-
-Il valide donc uniquement le FORMAT. C est peu, et c est assume : le verrou
-d appareil protege contre le partage de compte et le vol de jeton, pas contre un
-client malveillant qui fabriquerait une empreinte. Ce dernier cas releve de
-l attestation d application, hors perimetre.
-
-## Deux roles sont exemptes
-
-`ORGANIZER` et `ADMIN` (ADR-03). Un organisateur travaille depuis un poste fixe,
-un telephone et parfois la machine d un collaborateur ; lui imposer un appareil
-unique transformerait chaque changement de poste en parcours de
-reinitialisation par code. Le compromis est explicite : ces roles perdent le
-verrou d appareil et gardent la rotation de jetons, la detection de
-reutilisation et la revocation de famille.
+ORGANIZER and ADMIN roles are intentionally exempt from the single-device lock.
+They still retain refresh-token rotation, reuse detection, and family
+revocation.
 """
 
 from __future__ import annotations
@@ -41,43 +26,32 @@ from ..constants import DEVICE_PLATFORMS, FINGERPRINT_PATTERN, ROLE_ADMIN, ROLE_
 from ..exceptions import DeviceLockedError, DeviceMismatchError, InvalidFingerprintError
 from ..models import Device, User
 
-#: Roles dispenses du verrou d appareil (ADR-03).
+#: Roles exempt from the device lock.
 DEVICE_EXEMPT_ROLES: tuple[str, ...] = (ROLE_ORGANIZER, ROLE_ADMIN)
 
-#: Duree de vie du verrou en cache. Depassee, la decision est simplement relue
-#: en base : un verrou expire n ouvre aucun droit, il coute une requete.
+#: Cache-lock lifetime. After expiry, truth is read from the database; an expired
+#: cache entry grants no additional rights.
 LOCK_TTL_SECONDS = 3600
 
-#: `last_seen_at` n est rafraichi qu au-dela de ce delai.
-#:
-#: Sans cette paresse, CHAQUE requete de l API produirait une ecriture sur
-#: `identity_device`. Au pic de connexions — l ouverture des portes — c est la
-#: base qui sature, pour une donnee dont personne ne lit la minute exacte.
+#: Refresh `last_seen_at` only after this interval to avoid a database write on
+#: every API request.
 LAST_SEEN_REFRESH = datetime.timedelta(hours=1)
 
 _FINGERPRINT = re.compile(FINGERPRINT_PATTERN)
 
 
 def _partial_label(device: Device) -> str:
-    """
-    Libelle tronque, destine au corps d une erreur `DEVICE_LOCKED`.
-
-    Le plan limite volontairement ce detail (§3.4). Il faut en dire assez pour
-    qu un utilisateur reconnaisse son ancien telephone — sinon le message est
-    inutilisable — et assez peu pour qu il ne renseigne pas quelqu un qui
-    viendrait de prouver le mot de passe d autrui.
-    """
+    """Return a truncated device label suitable for a `DEVICE_LOCKED` response."""
     label = device.label or device.platform
     return label if len(label) <= 12 else f"{label[:12]}…"
 
 
 class DeviceBindingService:
-    """Lie un appareil a un compte, et refuse les autres."""
+    """Bind one device to an account and reject competing devices."""
 
     def __init__(self, lock: DeviceLockBackend) -> None:
-        # Le verrou est INJECTE, jamais construit ici : c est ce qui permet aux
-        # tests de simuler une panne Redis sans arreter de conteneur, donc de
-        # tester le repli de facon deterministe.
+        # The lock backend is injected so tests can simulate Redis failure and exercise
+        # fallback behavior deterministically.
         self._lock = lock
 
     # -- validation ---------------------------------------------------------
@@ -85,12 +59,10 @@ class DeviceBindingService:
     @staticmethod
     def validate_fingerprint(fingerprint: str) -> str:
         """
-        64 caracteres hexadecimaux MINUSCULES.
+        Require exactly 64 lowercase hexadecimal characters.
 
-        Accepter les majuscules creerait deux representations de la meme
-        empreinte, donc deux appareils distincts pour un seul telephone — et un
-        verrou declenche a chaque bascule. On refuse plutot que de normaliser :
-        normaliser masquerait un client qui envoie n importe quoi.
+        Reject rather than normalize so one physical device cannot acquire two
+        canonical identities that differ only by case.
         """
         if not isinstance(fingerprint, str) or not _FINGERPRINT.fullmatch(fingerprint):
             raise InvalidFingerprintError()
@@ -100,7 +72,7 @@ class DeviceBindingService:
     def is_exempt(user: User) -> bool:
         return user.role.name in DEVICE_EXEMPT_ROLES
 
-    # -- liaison ------------------------------------------------------------
+    # -- binding ------------------------------------------------------------
 
     def bind(
         self,
@@ -111,11 +83,7 @@ class DeviceBindingService:
         label: str = "",
         now: datetime.datetime | None = None,
     ) -> Device | None:
-        """
-        Renvoie l appareil lie, ou `None` pour un role exempte.
-
-        Leve `DeviceLockedError` si un AUTRE appareil est deja actif.
-        """
+        """Return the bound device, or `None` for an exempt role; reject another active device."""
         if self.is_exempt(user):
             return None
 
@@ -132,10 +100,7 @@ class DeviceBindingService:
                     details={
                         "active_device_label": _partial_label(active),
                         "bound_at": active.bound_at.isoformat(),
-                        # Le parcours de reinitialisation par code arrive au lot
-                        # S1-A.7. Annoncer `false` aujourd hui serait un mensonge
-                        # utile a personne ; le client doit savoir qu une issue
-                        # existe, meme si elle n est pas encore branchee.
+                        # Device reset is available as the recovery path for a competing active device.
                         "reset_available": True,
                     }
                 )
@@ -147,13 +112,10 @@ class DeviceBindingService:
 
     def _create(self, *, user: User, fingerprint: str, platform: str, label: str) -> Device:
         """
-        Cree l appareil, en laissant la BASE arbitrer les créations concurrentes.
+        Create the device and let the database arbitrate concurrent creations.
 
-        Deux connexions simultanees depuis deux telephones passeraient toutes
-        deux le `first()` ci-dessus : entre la lecture et l ecriture, rien ne les
-        separe. Seule l unicite partielle `UNIQUE(user_id) WHERE revoked_at IS
-        NULL` tranche — et c est elle qu on ecoute, plutot que de courir apres la
-        course avec un verrou applicatif qui aurait sa propre fenetre.
+        The partial unique constraint on active devices is the race-safe source
+        of truth when two connections attempt to bind simultaneously.
         """
         try:
             with transaction.atomic():
@@ -164,8 +126,7 @@ class DeviceBindingService:
                     label=label[:60],
                 )
         except IntegrityError as exc:
-            # Le perdant de la course : un autre appareil a ete lie entre-temps.
-            # La reponse est la meme que s il etait arrive une seconde plus tard.
+            # Another device won the concurrent bind. Return the same result as a later request.
             active = Device.objects.active().for_user(user).first()
             details: dict[str, Any] = {"reset_available": True}
             if active is not None:
@@ -177,39 +138,32 @@ class DeviceBindingService:
         return device
 
     def _touch(self, device: Device, now: datetime.datetime) -> None:
-        """Rafraichit `last_seen_at`, au plus une fois par heure."""
+        """Refresh `last_seen_at` at most once per hour."""
         if now - device.last_seen_at < LAST_SEEN_REFRESH:
             return
         Device.objects.filter(pk=device.pk).update(last_seen_at=now)
         device.last_seen_at = now
 
-    # -- verification a chaque requete --------------------------------------
+    # -- per-request verification -------------------------------------------
 
     def assert_matches(self, *, user: User, device_id: Any) -> Device | None:
         """
-        Verifie que le `did` porte par le jeton designe bien l appareil actif.
+        Verify that the token's `did` identifies the account's active device.
 
-        Appelee sur le chemin le plus chaud de l API. Le verrou en cache repond
-        sans toucher la base dans le cas nominal ; en cas de panne Redis, le
-        repli lit la verite, plus lentement.
-
-        Leve `DeviceMismatchError` (401) — pas 403. Un jeton presente depuis un
-        autre appareil est un jeton probablement vole : la bonne reponse est
-        « cette identite n est pas prouvee », pas « vous n avez pas le droit ».
+        The cache handles the nominal hot path; if it is empty or unavailable,
+        the database remains the source of truth. A mismatch is authentication
+        failure because a token used from another device may be stolen.
         """
         if self.is_exempt(user):
             return None
 
         expected = self._lock.get_active(str(user.pk))
         if expected is None:
-            # Cache froid ou verrou expire : on relit la verite. Un cache vide
-            # n autorise RIEN par lui-meme.
+            # Cold or expired cache: read the authoritative state from the database.
             device = Device.objects.active().for_user(user).first()
             if device is None:
-                # Aucun appareil actif. Un `did` ABSENT concorde avec cette
-                # absence : il n y a rien a faire respecter. Un `did` PRESENT
-                # designe en revanche un appareil qui n est plus actif —
-                # revoque — et c est precisement le cas qu on veut fermer.
+                # With no active device, an absent `did` is consistent. A present `did` points
+                # to a no-longer-active device and must be rejected.
                 if device_id is None:
                     return None
                 raise DeviceMismatchError()
@@ -223,34 +177,17 @@ class DeviceBindingService:
 
     def assert_fingerprint(self, *, device: Device, fingerprint: str | None) -> None:
         """
-        Verifie qu une empreinte presentee correspond a l appareil de la session.
+        Verify that a presented fingerprint matches the session device.
 
-        Utilisee au RAFRAICHISSEMENT. Sans elle, le verrou d appareil ne
-        protegerait que l instant de la connexion : un refresh exfiltre
-        fonctionnerait depuis n importe quelle machine pendant toute sa duree de
-        vie, et la detection de reutilisation n interviendrait qu APRES coup —
-        une fois que le voleur et la victime ont tous deux tourne le jeton.
-        Entre le vol et cette collision, l attaquant est libre.
-
-        Un appareil REVOQUE est refuse ici aussi. Sans ce controle, revoquer un
-        appareil n empecherait pas une session deja ouverte de se prolonger
-        indefiniment de rotation en rotation : la revocation ne prendrait effet
-        qu a l expiration du refresh, soit des jours plus tard.
-
-        La comparaison est a temps constant. L empreinte n est pas un secret
-        cryptographique, mais elle est le seul facteur qui distingue le porteur
-        legitime du voleur a cet instant : la comparer avec `==` en laisserait
-        fuiter la valeur caractere par caractere a qui sait mesurer.
+        Refresh flows use this check so a stolen refresh token cannot extend a
+        session from another device. Revoked devices are rejected immediately,
+        and the fingerprint comparison uses constant-time comparison.
         """
         if device.revoked_at is not None:
             raise DeviceMismatchError()
-        # Comparaison sur les OCTETS : `compare_digest` refuse les chaines non
-        # ASCII en levant `TypeError`, et une empreinte exotique envoyee par un
-        # client bricole produirait alors une 500 la ou un 401 est du.
-        #
-        # Aucune validation de FORME non plus, deliberement : une empreinte
-        # malformee ne correspondra tout simplement pas, et lui reserver une
-        # erreur distincte creerait deux reponses la ou une seule suffit.
+        # Compare bytes because `compare_digest` can reject non-ASCII strings. A
+        # malformed fingerprint simply fails to match and receives the same
+        # authentication error rather than a distinct oracle.
         presented = (fingerprint or "").encode("utf-8")
         if not secrets.compare_digest(device.fingerprint.encode("utf-8"), presented):
             raise DeviceMismatchError()
@@ -259,13 +196,11 @@ class DeviceBindingService:
 
     def revoke(self, device: Device, reason: str, *, now: datetime.datetime | None = None) -> int:
         """
-        Revoque l appareil et libere le verrou.
+        Revoke the device and release its cache lock.
 
-        L ordre compte : la base d abord, le cache ensuite. Vider le cache avant
-        d ecrire ouvrirait une fenetre pendant laquelle un autre appareil
-        pourrait se lier alors que l ancien est encore actif en base — et se
-        heurter a la contrainte d unicite, donc a une erreur serveur au lieu
-        d un refus propre.
+        Persist revocation first and clear the cache second so another bind
+        cannot observe an empty cache while the old device is still active in
+        the database.
         """
         updated = Device.objects.filter(pk=device.pk, revoked_at__isnull=True).update(
             revoked_at=now or timezone.now(), revoked_reason=reason
