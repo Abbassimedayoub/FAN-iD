@@ -6,19 +6,16 @@ import '../shadows.dart';
 import '../spacing.dart';
 import '../typography.dart';
 
-/// Boutons FAN iD — les variantes de la planche `DS-01`.
+/// FAN iD button variants from the DS-01 design system.
 ///
-/// Trois regles s appliquent a toutes, et sont tenues par les composants
-/// eux-memes, jamais par l appelant :
+/// Three rules apply to every variant and are enforced by the components themselves:
 ///
-/// 1. **cible tactile >= 48 dp**, meme quand la forme dessinee est plus
+/// 1. **touch target >= 48 dp**, even when the drawn shape is smaller;
 ///    petite. Taille visuelle et zone tapable sont deux choses distinctes ;
-///    les confondre est precisement le defaut qui avait fait naitre
-///    [FanIdFilterChip] a 40 dp dans une version anterieure ;
-/// 2. **`Semantics` de type bouton**, avec le libelle lu par le lecteur
+///    visual size and hit target must remain separate concerns;
+/// 2. **button semantics** with an accessible label;
 ///    d ecran et l etat `enabled` correctement propage ;
-/// 3. **etat desactive distingue par le fond ET par la couleur du texte**,
-///    jamais par la seule opacite.
+/// 3. **disabled state distinguished by background and text color**, never opacity alone.
 class FanIdPrimaryButton extends StatelessWidget {
   const FanIdPrimaryButton({
     required this.label,
@@ -32,14 +29,14 @@ class FanIdPrimaryButton extends StatelessWidget {
 
   final String label;
 
-  /// `null` => bouton desactive. [loading] force egalement la desactivation.
+  /// `null` disables the button; [loading] also forces the disabled state.
   final VoidCallback? onPressed;
   final bool expanded;
 
   /// Variante « Action compacte » de DS-01.
   final bool compact;
 
-  /// Affiche un indicateur de progression DANS le bouton et le rend inerte.
+  /// Show progress inside the button and make it inert.
   ///
   /// On garde volontairement le bouton en place au lieu de le remplacer par un
   /// spinner : la mise en page ne saute pas, et le lecteur d ecran continue
@@ -107,8 +104,7 @@ class FanIdPrimaryButton extends StatelessWidget {
               borderRadius: FanRadius.brMd,
               boxShadow: enabled ? FanShadows.brand : null,
             ),
-            // `minHeight` plutot que `height` : a echelle de texte 2.0 le
-            // libelle doit pouvoir faire grandir le bouton au lieu de deborder.
+            // Use minHeight rather than height so large text can grow the button instead of overflowing.
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: minHeight),
               child: Center(child: content),
@@ -134,7 +130,7 @@ class FanIdSecondaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool expanded;
 
-  /// Variante posee sur un fond navy.
+  /// Variant intended for a navy background.
   final bool onDark;
 
   @override
@@ -273,7 +269,7 @@ class FanIdLinkButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: FanRadius.brSm,
           child: ConstrainedBox(
-            // Meme un lien reste une cible tactile de 48 dp de haut.
+            // Even a link keeps a 48 dp touch target.
             constraints: const BoxConstraints(
               minHeight: FanSpacing.minTouchTarget,
             ),
@@ -314,9 +310,7 @@ class FanIdFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // La pastille MESURE 40 dp de haut — c est ce que montre la maquette —
-    // mais la ZONE TAPABLE en fait 48. C est la correction du defaut
-    // d accessibilite de la version precedente, ou le chip entier tombait a
+    // The visual chip is 40 dp high, while its tappable area remains 48 dp for accessibility.
     // 40 dp.
     return Semantics(
       button: true,
@@ -333,9 +327,8 @@ class FanIdFilterChip extends StatelessWidget {
             ),
             child: Center(
               child: Ink(
-                // 10 dp de padding vertical + la hauteur du libelle donnent
-                // les ~40 dp dessines sur la maquette. A echelle de texte
-                // elevee, la pastille grandit avec son texte au lieu de le
+                // Vertical padding plus label height produces the intended visual size;
+                // with larger text the chip grows instead of clipping.
                 // rogner.
                 padding: const EdgeInsets.symmetric(
                   horizontal: FanSpacing.lg,
@@ -366,9 +359,8 @@ class FanIdFilterChip extends StatelessWidget {
 
 /// Bouton rond (retour, fermeture, torche).
 ///
-/// Provient de `fanid_navigation.dart` dans le prototype d origine. Il est
-/// regroupe ici parce que c est un BOUTON, et parce que le bundle portable ne
-/// reprend pas la barre de navigation — celle-ci depend d ecrans hors
+/// This navigation control is grouped here because it is a button; the portable
+/// bundle does not include the full navigation bar.
 /// Sprint 1.
 class FanIdCircleButton extends StatelessWidget {
   const FanIdCircleButton({
@@ -383,14 +375,11 @@ class FanIdCircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
 
-  /// Libelle lu par le lecteur d ecran et affiche en infobulle. Obligatoire :
-  /// un bouton sans texte visible doit toujours porter un nom accessible.
+  /// Label read by assistive technology and shown as a tooltip; icon-only buttons require an accessible name.
   final String tooltip;
   final bool onDark;
 
-  /// Diametre DESSINE du disque. La cible tactile ne descend jamais sous
-  /// 48 dp, quelle que soit cette valeur — c est la contrainte exterieure qui
-  /// l impose, pas ce parametre.
+  /// Visual disk diameter; the touch target never drops below 48 dp regardless of this value.
   final double size;
 
   @override
