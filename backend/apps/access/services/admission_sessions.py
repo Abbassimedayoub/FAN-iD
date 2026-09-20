@@ -37,10 +37,7 @@ def _locked_event(event_id: UUID) -> Event:
 
 
 def current_event_admission_session(*, event: Event):
-    """
-    Retourne uniquement une session encore valable pour la programmation
-    actuelle. Un report rend donc automatiquement l'ancienne session inactive.
-    """
+    """Return only an admission session that still matches the event's current schedule."""
     if not _event_can_open_admission(event):
         return None
 
@@ -66,8 +63,8 @@ def open_event_admission(*, event_id: UUID, opened_by_id: UUID, now=None):
     if active is not None and active.scheduled_starts_at == event.starts_at:
         return active
 
-    # Une session d'une ancienne programmation est invalidée, avec une trace
-    # explicite, avant l'ouverture de la session de la nouvelle date.
+    # Invalidate the admission session from the previous schedule before opening a
+    # session for the newly scheduled date.
     if active is not None:
         active.closed_at = moment
         active.closed_by_id = opened_by_id
@@ -108,10 +105,10 @@ def require_event_admission_open(*, event_id: UUID) -> None:
 @transaction.atomic
 def close_event_admission_automatically(*, event_id: UUID, now=None):
     """
-    Ferme une session lors de la clôture automatique de l'événement.
+    Close an admission session when the event completes automatically.
 
-    Aucun faux utilisateur n'est attribué : `closed_automatically` constitue
-    la trace d'audit explicite de cette fermeture système.
+    No synthetic user is assigned; `closed_automatically` records that the
+    system performed the closure.
     """
     _locked_event(event_id)
 
