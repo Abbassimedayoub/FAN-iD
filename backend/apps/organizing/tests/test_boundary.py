@@ -1,15 +1,9 @@
 """
-La frontiere `organizing -> identity.api`, et la garantie fail-closed.
+Tests for the organizing-to-identity public boundary and fail-closed behavior.
 
-Le test qui porte le lot est
-`test_forgetting_the_mixin_refuses_instead_of_allowing`. Sans lui, l option B
-d ADR-S1-05 ne serait qu une convention : rien ne prouverait qu un oubli
-d enrichissement REFUSE au lieu d ouvrir.
-
-Ce fichier appartient a `apps.organizing`. Il ne peut donc importer d
-`identity` que `identity.api` — et `import-linter` le verifie. Toute tentative
-d y importer `identity.authz` ou `identity.permissions` casserait la CI, ce qui
-est exactement l intention.
+The critical case proves that omitting request enrichment causes authorization
+to deny rather than silently opening access. The module depends on identity only
+through its public API boundary.
 """
 
 from __future__ import annotations
@@ -61,7 +55,7 @@ def dossier(organizer_user) -> Organizer:
 
 
 def request_for(user, organizer_id=None):
-    """Requete minimale : les classes de permission ne lisent que ces attributs."""
+    """Minimal request double containing only attributes read by permission adapters."""
     payload = SimpleNamespace(user=user)
     if organizer_id is not None:
         payload.organizer_id = organizer_id
@@ -72,21 +66,12 @@ VIEW = SimpleNamespace(required_action=Action.ORGANIZER_READ, action=None, polic
 
 
 # ===========================================================================
-# La garantie fail-closed
+# Fail-closed guarantee
 # ===========================================================================
 
 
 def test_forgetting_the_mixin_refuses_instead_of_allowing(dossier, organizer_user):
-    """
-    **Le test qui porte le lot.**
-
-    Sans `OrganizerScopedMixin`, la requete ne porte pas `organizer_id`. Le
-    sujet se construit avec `organizer_id=None`, et `engine._check_scope`
-    refuse avec `RESOURCE_ATTRIBUTE_MISSING`.
-
-    C est ce qui distingue l option B d une convention : l oubli ne produit pas
-    un acces ouvert par omission, il produit un refus rendu par le moteur.
-    """
+    """Without OrganizerScopedMixin, organizer_id is absent and owner-scoped authorization must fail closed."""
     permission = OrganizerRecordPermission()
 
     granted = permission.has_object_permission(request_for(organizer_user), VIEW, dossier)
@@ -105,7 +90,7 @@ def test_the_enriched_request_authorizes_the_owner(dossier, organizer_user):
 
 
 def test_another_organizer_dossier_is_refused(dossier, organizer_user):
-    """Le droit existe, la ressource n est pas la sienne."""
+    """The action is granted in principle, but the resource belongs to another organizer."""
     permission = OrganizerRecordPermission()
 
     granted = permission.has_object_permission(
@@ -116,11 +101,7 @@ def test_another_organizer_dossier_is_refused(dossier, organizer_user):
 
 
 def test_the_resource_carries_the_state_for_the_next_lot(dossier, organizer_user):
-    """
-    `Resource.state` est renseigne des maintenant. Aucune portee ne le lit au
-    Sprint 1 ; il existe pour que S1-A.8b branche les transitions sans toucher
-    a la signature du moteur.
-    """
+    """Resource.state is populated for state-aware extensions without changing the engine signature."""
     resource = OrganizerRecordPermission().get_resource(request_for(organizer_user), VIEW, dossier)
 
     assert resource.organizer_id == dossier.pk
@@ -128,7 +109,7 @@ def test_the_resource_carries_the_state_for_the_next_lot(dossier, organizer_user
 
 
 # ===========================================================================
-# Le mixin
+# The mixin
 # ===========================================================================
 
 
@@ -183,12 +164,12 @@ def test_the_mixin_resolves_nothing_for_an_anonymous_caller():
 
 
 # ===========================================================================
-# Pre-requis d approbation sur une future ecriture organisateur
+# Organizer-approval prerequisite for future write endpoints
 # ===========================================================================
 
 
 class _ApprovedOrganizerWriteView(OrganizerScopedMixin, APIView):
-    """Faux endpoint S2 : aucune route de production n est ajoutee au Sprint 1."""
+    """Test-only endpoint used to exercise future organizer-write authorization behavior."""
 
     permission_classes = [IsApprovedOrganizer]
 
@@ -228,10 +209,7 @@ def test_approved_organizer_reaches_the_same_fake_write(dossier, organizer_user)
 
 
 def test_granting_the_role_takes_effect_in_the_database(roles, db):
-    """
-    Aucune session n est revoquee : le serveur relit `user.role_id` a chaque
-    requete depuis S1-A.6a, donc le changement vaut immediatement.
-    """
+    """No session revocation is required because the server reads the current user role on every authenticated request."""
     fan = make_user(roles, "supporter@example.test", role="FAN")
 
     assert grant_organizer_role(user_id=fan.pk) is True
