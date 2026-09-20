@@ -193,7 +193,10 @@ def test_a_wrong_fingerprint_returns_device_mismatch(client, opened_on_phone):
 
 
 def test_the_response_carries_the_user_so_a_role_change_is_visible(client, opened, fan, roles):
-    """The refreshed access token carries the current role so the client does not need a separate role lookup."""
+    """
+    The refreshed access token carries the current role so the client does not need a separate role
+    lookup.
+    """
     User.objects.filter(pk=fan.pk).update(role=roles["ORGANIZER"])
 
     response = client.post(URL, {"client": "mobile", "refresh": opened.pair.refresh}, format="json")
