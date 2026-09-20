@@ -1,32 +1,14 @@
 """
-`AuthenticationService` — la connexion, et l ordre non negociable.
+`AuthenticationService` owns login ordering and session authentication flows.
 
-## L ordre des controles
+Credential verification and account state checks happen before device-lock
+checks so a locked account cannot become an account-existence oracle. Unknown
+addresses, wrong passwords, and inactive accounts deliberately share the same
+public failure shape.
 
-1. identifiants (mot de passe Argon2id)
-2. etat du compte
-3. **ensuite seulement** le verrou d appareil
-4. emission des jetons
-
-Inverser les etapes 1 et 3 revelerait l existence d un compte a qui n a rien
-prouve : presenter un mot de passe faux sur une adresse verrouillee renverrait
-`403 DEVICE_LOCKED`, alors que la meme tentative sur une adresse inconnue
-renverrait `401`. L attaquant obtient alors un oracle d existence parfait, sans
-jamais deviner un seul mot de passe.
-
-C est la raison pour laquelle `DeviceLockedError` n est levee qu apres que le
-mot de passe a ete prouve — et un test le fige explicitement.
-
-## Anti-enumeration : le corps ET le temps
-
-Trois situations donnent exactement la meme reponse : adresse inconnue, mot de
-passe faux, compte desactive. Meme code, meme message, aucun detail.
-
-Mais un corps identique ne suffit pas. Si l adresse est inconnue, il n y a aucun
-hachage a verifier : la reponse revient en une milliseconde au lieu des ~200 ms
-que coute Argon2id. Le temps de reponse devient alors l oracle que le corps
-refusait de donner. On hache donc un mot de passe FACTICE dans ce cas, pour que
-les deux chemins coutent la meme chose.
+Unknown addresses also perform a decoy password check so response timing remains
+comparable to real password verification rather than exposing existence through
+a fast failure path.
 """
 
 from __future__ import annotations
@@ -76,16 +58,10 @@ logger = logging.getLogger("fanid.identity")
 @functools.lru_cache(maxsize=1)
 def _decoy_hash() -> str:
     """
-    Hachage factice, calcule une seule fois par processus.
+    Process-wide cached decoy hash used to equalize unknown-account timing.
 
-    Il sert a faire payer a une adresse INCONNUE le meme cout qu a une adresse
-    connue. Le secret hache est tire au hasard au demarrage : personne, pas meme
-    le code, ne connait le mot de passe correspondant, donc aucune comparaison
-    ne peut reussir par accident.
-
-    Mis en cache parce que `make_password` avec Argon2id coute ~200 ms : le
-    calculer a chaque tentative echouee offrirait a un attaquant un moyen de
-    saturer le processeur avec des adresses inexistantes.
+    The random source value has no usable corresponding password. Cache the
+    expensive hash so rejected attempts do not create unnecessary CPU work.
     """
     return make_password(secrets.token_urlsafe(32))
 
@@ -93,12 +69,10 @@ def _decoy_hash() -> str:
 @dataclasses.dataclass(frozen=True, slots=True)
 class LoginCommand:
     """
-    Entree du service.
+    Login service input.
 
-    `fingerprint` est FACULTATIF : un supporter qui se connecte depuis un
-    navigateur n en fournit pas, et il n y a alors aucun appareil a lier. Le
-    verrou ne s applique qu a partir du moment ou une empreinte existe — c est
-    le client mobile qui en fournit une (plan §3.3).
+    `fingerprint` is optional because browser logins do not bind a device. The
+    device lock applies only when a client supplies a fingerprint.
     """
 
     email: str
@@ -121,12 +95,10 @@ class LoginResult:
 @dataclasses.dataclass(frozen=True, slots=True)
 class RefreshCommand:
     """
-    Entree du rafraichissement.
+    Refresh service input.
 
-    `fingerprint` n est exige que si la session porte un appareil. Une session
-    ouverte depuis un navigateur, ou par un role exempte (ADR-03), n en a pas :
-    lui en reclamer une reviendrait a inventer une donnee que le client ne peut
-    pas produire.
+    A fingerprint is required only when the session is bound to a device.
+    Browser sessions and exempt roles therefore do not need to invent one.
     """
 
     refresh: str
@@ -141,23 +113,19 @@ class RefreshResult:
 
 
 class AuthenticationService:
-    """Connexion : identifiants, appareil, jetons — dans cet ordre."""
+    """Authenticate credentials, then device binding, then token issuance."""
 
     def __init__(self, binding: DeviceBindingService) -> None:
         self._binding = binding
 
     def login(self, command: LoginCommand) -> LoginResult:
-        """
-        Ouvre une session. Leve `InvalidCredentialsError` (401) ou
-        `DeviceLockedError` (403), jamais l inverse.
-        """
+        """Open a session after validating credentials and device constraints in order."""
         user = self._verify_credentials(command)
 
         try:
             with transaction.atomic():
-                # Deux connexions Web concurrentes du meme compte doivent etre
-                # serialisees. Le verrou utilisateur garantit qu une seule
-                # nouvelle session Web gagne.
+                # Serialize concurrent web logins for the same account so only one new web
+                # session wins.
                 if command.client == CLIENT_WEB or user.must_change_password:
                     user = User.objects.select_for_update().select_related("role").get(pk=user.pk)
 
@@ -239,31 +207,27 @@ class AuthenticationService:
 
         fanid_auth_login_total.labels(result="success").inc()
 
-        # Ni adresse, ni empreinte, ni jeton. Le `correlation_id` pose par le
-        # middleware relie cette ligne a la requete, qui porte le reste.
+        # Do not log email, fingerprint, or tokens. The correlation ID links this entry
+        # to request context when diagnostics need more information.
         logger.info(
             "auth.login.success",
             extra={"session_id": str(pair.session.pk), "device_bound": device is not None},
         )
         return LoginResult(user=user, device=device, pair=pair)
 
-    # -- etape 1 : les identifiants -----------------------------------------
+    # -- step 1: credentials -------------------------------------------------
 
     def _verify_credentials(self, command: LoginCommand) -> User:
         """
-        Trois echecs, une seule reponse : adresse inconnue, mot de passe faux,
-        compte desactive ou anonymise.
-
-        La recherche est insensible a la casse sans `LOWER()` : la colonne est
-        de type `citext` (lot S1-A.1a), donc l index unique reste utilisable.
+        Map unknown address, wrong password, and inactive/anonymized account to
+        one public failure. The `citext` email column provides case-insensitive
+        lookup without wrapping the indexed value in `LOWER()`.
         """
         user = User.objects.select_related("role").filter(email=command.email).first()
 
         if user is None:
-            # Le hachage factice n est PAS une precaution theorique : sans lui,
-            # une adresse inconnue repond en une milliseconde la ou une adresse
-            # connue coute le temps d Argon2id. La difference se mesure depuis
-            # l exterieur, et suffit a enumerer les comptes.
+            # Run the decoy hash so unknown-address failures have comparable password-check
+            # cost instead of exposing a fast timing oracle.
             check_password(command.password, _decoy_hash())
             logger.info("auth.login.failed", extra={"reason": "unknown_email"})
             fanid_auth_login_total.labels(result="bad_credentials").inc()
@@ -275,28 +239,22 @@ class AuthenticationService:
             raise InvalidCredentialsError()
 
         if not user.is_active or user.anonymized_at is not None:
-            # Meme code que ci-dessus, deliberement. Un motif distinct
-            # confirmerait que l adresse existe — et qu on a devine le mot de
-            # passe, ce qui est encore pire.
+            # Deliberately return the same public failure so account existence and password
+            # correctness are not disclosed.
             logger.warning("auth.login.failed", extra={"reason": "inactive_account"})
             fanid_auth_login_total.labels(result="inactive").inc()
             raise InvalidCredentialsError()
 
         return user
 
-    # -- etape 2 : l appareil, APRES les identifiants ------------------------
+    # -- step 2: device binding, after credentials ----------------------------
 
     def _bind_device(self, user: User, command: LoginCommand) -> Device | None:
         """
-        Lie l appareil si le client en fournit un.
+        Bind a device only when the client supplies a fingerprint.
 
-        Aucune empreinte fournie : aucun appareil lie, et la session s ouvre
-        sans `did`. Le verrou ne s applique qu a partir du moment ou une
-        empreinte existe — exiger une empreinte du navigateur reviendrait a
-        inventer une donnee que le client ne peut pas produire de facon stable.
-
-        Un role exempte (ADR-03) ignore l empreinte meme si elle est fournie :
-        le service d appareil s en charge et renvoie `None`.
+        Browser sessions may open without a `did`; exempt roles are handled by
+        the device service and return no bound device.
         """
         if command.fingerprint is None:
             return None
@@ -307,22 +265,16 @@ class AuthenticationService:
             label=command.label,
         )
 
-    # -- rafraichissement ----------------------------------------------------
+    # -- refresh -------------------------------------------------------------
 
     def refresh(self, command: RefreshCommand) -> RefreshResult:
         """
-        Tourne un refresh et emet une nouvelle paire.
+        Rotate a refresh token and issue a new pair.
 
-        **L ordre est l inverse de celui de la connexion, et pour la meme
-        raison.** A la connexion, l appareil passe APRES le mot de passe pour ne
-        pas reveler l existence d un compte. Ici, l appareil passe AVANT la
-        rotation pour ne pas CONSOMMER le jeton du porteur legitime : tourner
-        d abord puis refuser sur l appareil transformerait chaque refus en
-        deconnexion definitive, y compris quand le client se contente d oublier
-        son empreinte.
-
-        Le controle d appareil ne court-circuite jamais la rotation quand la
-        session est introuvable — voir `_session_for`.
+        For refresh, device verification happens before token consumption so a
+        device mismatch does not destroy the legitimate holder's refresh token.
+        An unresolvable current session does not short-circuit rotation because
+        reuse detection still needs to run.
         """
         try:
             session = self._session_for(command.refresh)
@@ -360,25 +312,19 @@ class AuthenticationService:
     @staticmethod
     def _session_for(raw_refresh: str) -> Session | None:
         """
-        Retrouve la session dont ce refresh est le jeton COURANT — sans verrou.
+        Find the session for which this refresh is currently active, without locking.
 
-        Lecture seule, dans le seul but de connaitre l appareil attendu avant de
-        rotationner. Le verrou pessimiste reste ou il doit etre, dans
-        `TokenService.rotate`.
-
-        **Un jeton deja tourne ne trouve rien ici, et c est voulu.** On renvoie
-        `None` sans rien refuser : la rotation DOIT s executer pour constater la
-        reutilisation et revoquer la famille. Refuser des maintenant laisserait
-        vivre une famille compromise — le controle passerait au vert pendant que
-        la protection ne s appliquerait jamais.
+        This read exists only to discover the expected device before rotation;
+        pessimistic locking remains in `TokenService.rotate`. A previously
+        rotated token intentionally returns `None` here so rotation can continue
+        and perform family-reuse detection.
         """
         claims = decode_token(raw_refresh, expected_type=TokenType.REFRESH)
         try:
             jti = uuid.UUID(str(claims.get("jti")))
         except (TypeError, ValueError):
-            # Un jeton signe par nous ne devrait jamais en arriver la, mais
-            # « ne devrait jamais » n est pas une garantie : passe tel quel a un
-            # `UUIDField`, ce claim produirait une 500 au lieu d un 401.
+            # Normalize malformed UUID claims into token invalidity rather than letting a
+            # model-field conversion surface as a server error.
             raise TokenInvalidError() from None
 
         return (
@@ -387,27 +333,20 @@ class AuthenticationService:
             .first()
         )
 
-    # -- deconnexion ---------------------------------------------------------
+    # -- logout --------------------------------------------------------------
 
     def logout(self, *, session_id: uuid.UUID) -> int:
         """
-        Revoque la session courante. Renvoie le nombre de lignes touchees.
+        Revoke the current session and return the number of affected rows.
 
-        **Une seule session, pas la famille.** Se deconnecter d un appareil ne
-        doit pas fermer les autres : `revoke_family` est reserve a la detection
-        de reutilisation, ou l on ne sait pas lequel des porteurs est
-        l attaquant. Ici on le sait — c est celui qui demande.
-
-        Idempotence STRUCTURELLE et non par cle (ADR-S1-03) : un second appel
-        presente un jeton dont la session est deja revoquee, et
-        `JWTAuthentication` le refuse avant meme d arriver ici. Aucun double
-        effet possible, donc aucun besoin de rejouer une reponse.
+        Logout revokes one session, not the whole family. Family revocation is
+        reserved for token-reuse detection where the legitimate holder is
+        unknown.
         """
         session = Session.objects.filter(pk=session_id).first()
         if session is None:
-            # La session a disparu entre l authentification et ici — purge
-            # concurrente, revocation par un administrateur. Il n y a rien a
-            # revoquer, et l appelant obtient le meme resultat.
+            # The session may disappear between authentication and this call because of
+            # concurrent cleanup or revocation; there is then nothing left to revoke.
             return 0
 
         revoked = TokenService.revoke_session(session, SESSION_REVOKED_LOGOUT)
@@ -417,29 +356,16 @@ class AuthenticationService:
         )
         return revoked
 
-    # -- changement de mot de passe ------------------------------------------
+    # -- password change -----------------------------------------------------
 
     def change_password(self, *, user: User, current_password: str, new_password: str) -> int:
         """
-        Change le mot de passe et revoque TOUTES les sessions du compte.
+        Change the password and revoke every active session for the account.
 
-        **Y compris celle de l appelant.** Un mot de passe qu on change parce
-        qu on le croit compromis ne sert a rien si les sessions ouvertes avec
-        l ancien survivent — et epargner le navigateur qui declenche
-        l operation serait exactement l exception dont un attaquant profiterait,
-        puisque c est peut-etre lui qui la declenche. Le client se reconnecte.
-
-        **L appareil n est PAS revoque.** Le liberer ouvrirait le verrou au
-        moment precis ou le compte est presume compromis : le premier a se
-        connecter avec le nouveau mot de passe lierait son appareil, et rien ne
-        garantit que ce soit le proprietaire. Laisser la liaison en place refuse
-        au contraire tout appareil etranger. Le plan n exige pas cette
-        revocation ; la constante `DEVICE_REVOKED_PASSWORD_CHANGE` existe pour
-        le parcours de reinitialisation (S1-A.7), pas pour ce chemin.
-
-        La verification precede toute ecriture, et l ecriture est atomique avec
-        la revocation : une panne entre les deux laisserait un mot de passe
-        change avec les anciennes sessions vivantes — le pire etat possible.
+        The caller's session is revoked too. The bound device is deliberately
+        preserved so a credential change does not open the account to a new
+        device while compromise is suspected. Password update and session
+        revocation happen atomically.
         """
         if not user.check_password(current_password):
             logger.warning(
