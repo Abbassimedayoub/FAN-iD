@@ -1,8 +1,6 @@
 """
-P1.B — timeout DB réellement appliqué + masquage des détails d'infrastructure
-dans /health/ready (aucun test ici ne nécessite une vraie base : psycopg est
-mocké pour observer précisément les paramètres passés et le comportement en
-cas d'échec).
+Database timeout enforcement and infrastructure-detail redaction for
+/health/ready. These tests mock psycopg and do not require a real database.
 """
 
 from unittest import mock
@@ -77,10 +75,7 @@ def test_check_celery_never_leaks_exception_text_to_response():
 
 
 def test_check_celery_no_heartbeat_is_a_safe_fixed_string_not_removed():
-    """Le message fixe 'no heartbeat' n'est pas dérivé d'une exception.
-
-    Il est donc conservé (§P1.B.2) : ce n'est pas une sur-correction.
-    """
+    """The fixed 'no heartbeat' detail is not derived from an exception and remains safe."""
     with mock.patch("config.celery.app") as mocked_app:
         mocked_app.control.ping.return_value = []
         result = ReadinessView._check_celery(timeout=2.0)
