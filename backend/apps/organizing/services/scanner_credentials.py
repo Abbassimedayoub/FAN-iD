@@ -33,7 +33,10 @@ class ScannerCredentialService:
         *,
         email: str,
     ) -> None:
-        """Return a generic API result so unknown or deleted addresses cannot be used to enumerate accounts."""
+        """
+        Return a generic API result so unknown or deleted addresses cannot be used to enumerate
+        accounts.
+        """
 
         normalized = email.strip()
 
