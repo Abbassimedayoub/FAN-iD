@@ -6,8 +6,8 @@ import 'package:fanid_mobile/design_system/design_system.dart';
 ///
 /// ## Contrat
 ///
-/// Cette vue ne possede aucun etat metier. Elle recoit tout ce qu elle
-/// affiche et remonte tout ce que l utilisateur declenche :
+/// This view owns no business state. It receives everything it displays and
+/// reports user actions back to its caller.
 ///
 /// ```dart
 /// LoginView(
@@ -23,21 +23,17 @@ import 'package:fanid_mobile/design_system/design_system.dart';
 /// )
 /// ```
 ///
-/// Elle n importe ni Riverpod, ni `go_router`, ni aucun controleur. Elle est
-/// donc testable sans `ProviderScope` et sans routeur — ce qui compte quand la
-/// couverture est protegee par une porte de non-regression stricte.
+/// It imports no Riverpod, go_router, or controller dependency, so it remains
+/// testable without provider or router setup.
 ///
-/// ## Trois invariants tenus par la vue
+/// ## Three invariants enforced by the view
 ///
-/// 1. **Le bouton est reellement inerte pendant [isLoading]** : `onPressed`
-///    vaut `null`, ce n est pas un simple changement de couleur.
-/// 2. **La validation clavier respecte [isLoading]** : `onSubmitted` est mis a
-///    `null` sur le champ mot de passe. Griser le bouton sans neutraliser la
-///    touche Entree laisse passer une double soumission — c est le piege
-///    classique de cet ecran.
-/// 3. **Aucun code machine ne peut s afficher** : [errorText] est un message
-///    deja traduit. La correspondance `BusinessFailure.code` -> message
-///    appartient a l appelant, pas a la vue. Voir `PORTING_MANIFEST.md`.
+/// 1. **The button is truly inert while [isLoading]**: `onPressed` is null,
+///    rather than only changing appearance.
+/// 2. **Keyboard submission respects [isLoading]**: `onSubmitted` is null on
+///    the password field, preventing duplicate submission via Enter.
+/// 3. **No machine error code is rendered**: [errorText] is already-localized
+///    presentation text; failure-code mapping belongs to the caller.
 class LoginView extends StatelessWidget {
   const LoginView({
     required this.emailController,
@@ -54,39 +50,38 @@ class LoginView extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController passwordController;
 
-  /// Declenche la soumission. La vue ne sait pas ce que cela fait.
+  /// Trigger submission; the view does not know what the action performs.
   final VoidCallback onSubmit;
 
   /// Soumission en cours : bouton inerte + indicateur, touche Entree
   /// neutralisee.
   final bool isLoading;
 
-  /// Message d erreur DEJA TRADUIT, affiche sous le champ mot de passe.
+  /// Already-localized error message displayed below the password field.
   final String? errorText;
 
   /// Bandeau d information en haut du formulaire — par exemple
   /// [sessionExpiredNotice] apres un echec de rafraichissement.
   ///
-  /// Il ne remplace pas l avertissement permanent de liaison d appareil, qui
-  /// fait partie de la maquette et reste affiche en bas.
+  /// It does not replace the permanent device-binding notice shown by the design.
   final String? noticeText;
 
   final VoidCallback? onForgotPassword;
   final VoidCallback? onRegister;
 
-  /// Message a passer dans [noticeText] apres une expiration de session.
+  /// Message to pass in [noticeText] after session expiration.
   static const String sessionExpiredNotice =
       'Votre session a expiré. Reconnectez-vous pour accéder à vos billets.';
 
-  /// Avertissement permanent de la maquette FAN-04.
+  /// Permanent notice from the FAN-04 design.
   static const String deviceBindingNotice =
       'Votre compte est lié à un seul appareil pour protéger vos billets '
       'contre la fraude.';
 
   @override
   Widget build(BuildContext context) {
-    // Une seule source de verite pour « peut-on soumettre ? ». Le bouton et la
-    // touche Entree la lisent tous les deux, donc ils ne peuvent pas diverger.
+    // One source of truth determines whether submission is allowed; both the
+    // button and Enter-key path use it.
     final VoidCallback? submitAction = isLoading ? null : onSubmit;
 
     return Scaffold(
@@ -146,8 +141,8 @@ class LoginView extends StatelessWidget {
                       errorText: errorText,
                       textInputAction: TextInputAction.done,
                       autofillHints: const <String>[AutofillHints.password],
-                      // `null` pendant le chargement : la touche Entree est
-                      // reellement neutralisee, pas seulement le bouton.
+                      // Null while loading so the Enter key is truly disabled,
+                      // not only the visible button.
                       onSubmitted:
                           submitAction == null ? null : (_) => submitAction(),
                     ),
