@@ -21,7 +21,10 @@ from .models import User
 
 
 class RegistrationSerializer(serializers.Serializer):
-    """Closed request body for registration, using Serializer rather than ModelSerializer so new model fields never become writable by default."""
+    """
+    Closed request body for registration, using Serializer rather than ModelSerializer so new model
+    fields never become writable by default.
+    """
 
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(
@@ -50,7 +53,10 @@ class RegistrationSerializer(serializers.Serializer):
         return value
 
     def validate_password(self, value: str) -> str:
-        """Run configured password validators with the candidate user context; password whitespace is never trimmed because that would change the secret."""
+        """
+        Run configured password validators with the candidate user context; password whitespace is
+        never trimmed because that would change the secret.
+        """
         # Seuls `username`, `first_name`, `last_name` et `email` sont lus par
         # `UserAttributeSimilarityValidator`. Passer `date_of_birth=None` ne
         # This field declaration also keeps the type checker aligned with DRF behavior.
@@ -139,7 +145,10 @@ class DeviceSerializer(serializers.Serializer):
 
 
 class UserPublicSerializer(serializers.Serializer):
-    """Closed user representation that exposes only client-relevant fields and the stable role name, never privilege flags or password data."""
+    """
+    Closed user representation that exposes only client-relevant fields and the stable role name,
+    never privilege flags or password data.
+    """
 
     id = serializers.UUIDField(read_only=True)
     email = serializers.EmailField(read_only=True)
@@ -225,7 +234,10 @@ class UserMeSerializer(serializers.Serializer):
 
 
 class ProfileUpdateSerializer(serializers.Serializer):
-    """Closed PATCH input for the current profile; privileged and identity-defining fields are not writable through this contract."""
+    """
+    Closed PATCH input for the current profile; privileged and identity-defining fields are not
+    writable through this contract.
+    """
 
     first_name = serializers.CharField(max_length=150, required=False)
     last_name = serializers.CharField(max_length=150, required=False)
@@ -284,7 +296,10 @@ class DeviceMeResponseSerializer(serializers.Serializer):
 
 
 class PasswordChangeSerializer(serializers.Serializer):
-    """Password-change input validates password shape with the real user context; business checks remain in the service and password whitespace is never trimmed."""
+    """
+    Password-change input validates password shape with the real user context; business checks
+    remain in the service and password whitespace is never trimmed.
+    """
 
     current_password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
     new_password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
@@ -361,14 +376,20 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 
 class DeviceResetRequestSerializer(serializers.Serializer):
-    """Device-reset request body uses credentials because the caller is locked out and no token is issued by this route."""
+    """
+    Device-reset request body uses credentials because the caller is locked out and no token is
+    issued by this route.
+    """
 
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
 
 
 class DeviceResetConfirmSerializer(serializers.Serializer):
-    """Device-reset confirmation keeps code shape deliberately loose so bad values count as OTP attempts instead of bypassing the attempt counter through shape validation."""
+    """
+    Device-reset confirmation keeps code shape deliberately loose so bad values count as OTP
+    attempts instead of bypassing the attempt counter through shape validation.
+    """
 
     challenge_id = serializers.UUIDField()
     code = serializers.CharField(max_length=16, trim_whitespace=True)
