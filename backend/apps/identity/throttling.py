@@ -53,7 +53,10 @@ class AtomicFixedWindowRateThrottle(SimpleRateThrottle):
 
 
 class LoginAccountRateThrottle(SimpleRateThrottle):
-    """Limit attempts against the same account target regardless of origin, hashing the normalized address before using it as a cache key."""
+    """
+    Limit attempts against the same account target regardless of origin, hashing the normalized
+    address before using it as a cache key.
+    """
 
     scope = "login_account"
 
