@@ -1,9 +1,5 @@
 """
-`POST /api/v1/auth/login` — transport du refresh et limitation de debit.
-
-Le service est teste ailleurs (`test_login.py`). Ce fichier ne verifie que ce
-qui appartient a la couche HTTP : le choix du transport, les en-tetes du cookie,
-et les deux axes de limitation.
+HTTP tests for `POST /api/v1/auth/login`: refresh transport, cookie headers, and rate-limit axes.
 """
 
 from __future__ import annotations
@@ -35,14 +31,7 @@ TABLET = "b" * 64
 
 @pytest.fixture(autouse=True)
 def isolated_throttle_cache(settings):
-    """
-    Compteur local au test.
-
-    Sans cela, le compteur vit dans le Redis partage : les huit processus de
-    `pytest -n auto` s incrementeraient mutuellement — toutes les requetes de
-    test viennent de la meme adresse — et le premier test malchanceux recevrait
-    un 429.
-    """
+    """Use a test-local throttle counter so parallel test workers do not affect one another."""
     settings.CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -63,11 +52,7 @@ def binding() -> DeviceBindingService:
 
 @pytest.fixture(autouse=True)
 def in_memory_lock(binding, monkeypatch):
-    """
-    La vue construit son service via `build_authentication_service()`. On
-    remplace ce seul point : les tests n ouvrent donc aucune connexion Redis,
-    et le verrou est remis a zero entre chaque cas.
-    """
+    """Replace the view's service-construction seam so endpoint tests do not open Redis connections."""
     monkeypatch.setattr(views, "build_authentication_service", lambda: AuthenticationService(binding=binding))
 
 
@@ -96,18 +81,12 @@ def payload(**overrides) -> dict:
 
 
 # ===========================================================================
-# Transport du jeton de rafraichissement
+# Refresh-token transport
 # ===========================================================================
 
 
 def test_a_web_client_receives_the_refresh_only_in_an_httponly_cookie(client, fan, settings):
-    """
-    Le refresh ne doit PAS apparaitre dans le corps.
-
-    S il y figurait, une injection JavaScript lisant la reponse de connexion
-    obtiendrait le jeton — cookie HttpOnly ou pas. Les deux transports ne se
-    cumulent pas : ils s annulent.
-    """
+    """Web login must not expose the refresh token in the response body when it is stored in an HttpOnly cookie."""
     response = client.post(URL, payload(client="web"), format="json")
 
     assert response.status_code == 200, response.data
@@ -124,10 +103,7 @@ def test_a_web_client_receives_the_refresh_only_in_an_httponly_cookie(client, fa
 
 
 def test_a_mobile_client_receives_the_refresh_in_the_body_and_no_cookie(client, fan, settings):
-    """
-    Le mobile depose le jeton dans le stockage securise du systeme
-    (Keychain/Keystore), mieux protege qu un fichier de cookies applicatif.
-    """
+    """Mobile receives the refresh token for storage in the platform secure store."""
     response = client.post(URL, payload(client="mobile"), format="json")
 
     assert response.status_code == 200, response.data
@@ -136,10 +112,7 @@ def test_a_mobile_client_receives_the_refresh_in_the_body_and_no_cookie(client, 
 
 
 def test_the_client_field_is_required(client, fan):
-    """
-    Deduire le client du `User-Agent` serait plus discret et beaucoup moins
-    sur : cet en-tete se falsifie et change a chaque version de navigateur.
-    """
+    """Client transport is explicit rather than inferred from the mutable User-Agent header."""
     body = payload()
     del body["client"]
 
@@ -154,7 +127,7 @@ def test_an_unknown_client_value_is_refused(client, fan):
 
 
 # ===========================================================================
-# Corps de la reponse
+# Response body
 # ===========================================================================
 
 
@@ -216,10 +189,7 @@ def test_a_second_device_gets_403_with_enough_detail_to_be_recognised(client, fa
 
 
 def test_a_wrong_password_on_a_locked_account_still_returns_401(client, fan, binding):
-    """
-    L invariant du lot, verifie cette fois DE BOUT EN BOUT : la couche HTTP ne
-    doit pas reintroduire l ordre inverse que le service refuse.
-    """
+    """End-to-end guard that the HTTP layer preserves the service's credential-before-device ordering."""
     binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     response = client.post(
@@ -240,14 +210,7 @@ def test_a_wrong_password_on_a_locked_account_still_returns_401(client, fan, bin
 
 
 def test_the_same_address_is_throttled_even_from_different_ips(client, fan, monkeypatch):
-    """
-    **La moitie que DRF ne fournit pas.**
-
-    Limiter par IP seule laisse passer une attaque distribuee : mille adresses
-    testant chacune cinq mots de passe sur LE MEME compte restent sous le seuil.
-    Ce test change d adresse a chaque tentative — seul le compteur par compte
-    peut l arreter.
-    """
+    """Account-target throttling must still stop a distributed attack that rotates source IP addresses."""
     from apps.identity.throttling import LoginAccountRateThrottle
 
     monkeypatch.setattr(LoginAccountRateThrottle, "THROTTLE_RATES", {"login_account": "3/hour"})
@@ -281,11 +244,7 @@ def test_a_single_address_is_throttled_by_origin_too(client, fan, monkeypatch):
 
 
 def test_the_account_throttle_never_stores_the_address_in_clear(client, fan):
-    """
-    Les cles de Redis se listent, s exportent avec une sauvegarde et
-    apparaissent dans les outils d exploitation. Y deposer l adresse de tous
-    ceux qui tentent de se connecter transformerait le cache en annuaire.
-    """
+    """Throttle cache keys must not store login addresses in plaintext."""
     from django.core.cache import cache
 
     from apps.identity.throttling import LoginAccountRateThrottle
@@ -299,11 +258,7 @@ def test_the_account_throttle_never_stores_the_address_in_clear(client, fan):
 
 
 def test_the_account_throttle_ignores_the_case_of_the_address():
-    """
-    `Ines@Example.test` et `ines@example.test` designent le meme compte — la
-    colonne est `citext`. Deux compteurs distincts offriraient le double du
-    quota a qui varie la casse.
-    """
+    """Case variants of the same citext account must share one throttle bucket."""
     from apps.identity.throttling import LoginAccountRateThrottle
 
     throttle = LoginAccountRateThrottle()
@@ -314,14 +269,14 @@ def test_the_account_throttle_ignores_the_case_of_the_address():
 
 
 def test_a_request_without_any_address_is_not_throttled_by_account():
-    """Rien a limiter : le serialiseur renverra un 400 juste apres."""
+    """When no account target can be derived, serializer validation handles the bad request."""
     from apps.identity.throttling import LoginAccountRateThrottle
 
     assert LoginAccountRateThrottle().get_cache_key(_FakeRequest({}), None) is None
 
 
 class _FakeRequest:
-    """Requete minimale : la classe de limitation ne lit que `data`."""
+    """Minimal request double: the throttle reads only `data`."""
 
     def __init__(self, data: dict) -> None:
         self.data = data
