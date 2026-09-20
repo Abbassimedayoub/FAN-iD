@@ -1,27 +1,21 @@
 """
-BaseConsumer — consommateurs idempotents (§22/§23 master prompt, ADR-S-03).
+BaseConsumer — idempotent Outbox consumers.
 
-La livraison Outbox est *at-least-once* : chaque consommateur DOIT être
-idempotent. La table `consumed_event` (PK composite `(consumer_name,
-event_id)`) est le mécanisme de déduplication : l'insertion est tentée en
-DÉBUT de traitement, une IntegrityError signifie "déjà traité".
+Outbox delivery is at-least-once, so every consumer MUST be idempotent.
+The `consumed_event` table, keyed by `(consumer_name, event_id)`, provides
+deduplication: insertion is attempted at the START of processing, and an
+IntegrityError means the event was already handled.
 
-RÈGLE ABSOLUE (§24 master prompt, audit P1.C.1) — `consume()` s'exécute à
-l'intérieur de la transaction du relais (`relay.relay_batch()`), qui tient
-les verrous `SELECT ... FOR UPDATE SKIP LOCKED` sur le lot d'événements en
-cours de traitement. **`handle()` ne doit donc JAMAIS effectuer d'appel
-réseau direct** (email, push, HTTP externe, `requests.post`, appel Stripe...)
-— un appel lent ou bloquant y tiendrait les verrous de TOUT le lot ouvert
-pendant la latence réseau, exactement le scénario que le master prompt
-interdit explicitement ("un timeout Stripe de 10s à l'intérieur d'un SELECT
-FOR UPDATE... bloque toute la vente de cette catégorie pendant 10
-secondes" — même risque ici, appliqué au relais).
+Absolute rule: `consume()` runs inside the relay transaction, which holds
+`SELECT ... FOR UPDATE SKIP LOCKED` locks on the current event batch.
+Therefore `handle()` must NEVER perform direct network calls such as email,
+push, external HTTP, or payment-provider requests. A slow or blocked call
+would hold locks for the entire batch during network latency.
 
-Tout effet de bord réseau DOIT passer par `self.defer(callback)`, qui
-n'exécute `callback` qu'APRÈS que la transaction du relais ait committé et
-donc APRÈS libération des verrous. `handle()` ne doit contenir que de
-l'écriture DB (rapide, locale) et, le cas échéant, l'enregistrement d'un
-callback différé :
+All network side effects MUST use `self.defer(callback)`, which runs only
+AFTER the relay transaction commits and the locks are released. `handle()`
+should contain only fast local database work and, when necessary, registration
+of a deferred callback:
 
     class NotifyOrderPaidConsumer(BaseConsumer):
         name = "notifying.order_paid_email"
@@ -29,8 +23,7 @@ callback différé :
 
         def handle(self, event: OutboxEvent) -> None:
             order_id = event.aggregate_id
-            # PAS d'appel réseau ici. On planifie une tâche Celery qui, elle,
-            # peut appeler SES/SMTP sans tenir aucun verrou Outbox.
+            # Do not perform network I/O here. Schedule a Celery task instead.
             self.defer(lambda: send_order_confirmation_email.delay(order_id=str(order_id)))
 """
 
@@ -46,7 +39,7 @@ logger = logging.getLogger("fanid.outbox")
 
 
 class BaseConsumer(ABC):
-    name: str  # nom stable, unique par consommateur — clé de `consumed_event`
+    name: str  # stable name, unique per consumer; key in `consumed_event`
     handled_event_types: set[str] = set()
 
     def handles(self, event_type: str) -> bool:
@@ -67,21 +60,18 @@ class BaseConsumer(ABC):
     @staticmethod
     def defer(callback: Callable[[], None]) -> None:
         """
-        Enregistre `callback` pour exécution APRÈS le commit de la
-        transaction englobante (`transaction.on_commit`, sémantique Django :
-        différé jusqu'au commit de la transaction ATOMIC LA PLUS EXTERNE,
-        donc jusqu'à la fin de `relay.relay_batch()` — les verrous
-        `SKIP LOCKED` du lot entier sont déjà libérés quand `callback`
-        s'exécute). C'est l'UNIQUE mécanisme sanctionné pour tout effet de
-        bord réseau déclenché par un consumer (§24 master prompt).
+        Register `callback` to run AFTER the surrounding transaction commits.
+        Django's `transaction.on_commit` defers execution until the outermost
+        atomic transaction commits, so the relay batch locks are already
+        released when `callback` runs. This is the required mechanism for any
+        network side effect triggered by a consumer.
         """
         transaction.on_commit(callback)
 
     @abstractmethod
     def handle(self, event: OutboxEvent) -> None:
         """
-        Traitement métier de l'événement — implémenté par chaque bounded
-        context. DB uniquement (voir règle absolue ci-dessus) ; tout effet
-        de bord réseau passe par `self.defer(...)`.
+        Process the business event in the bounded context. Database work only;
+        all network side effects must go through `self.defer(...)`.
         """
         raise NotImplementedError
