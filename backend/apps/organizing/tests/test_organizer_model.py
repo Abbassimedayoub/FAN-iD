@@ -1,9 +1,8 @@
 """
-`Organizer` — les invariants que la BASE fait respecter.
+Database-enforced Organizer invariants.
 
-Chaque test tente une insertion INTERDITE et verifie que le SGBD la refuse. Un
-invariant verifie seulement par le code applicatif tombe a la premiere commande
-d administration ou reprise de donnees.
+Each test attempts a forbidden write directly enough to prove the database, not
+only application code, protects the invariant.
 """
 
 from __future__ import annotations
@@ -54,11 +53,7 @@ def test_a_new_dossier_starts_pending(applicant):
 
 
 def test_one_account_carries_at_most_one_dossier(applicant):
-    """
-    Sans cette unicite, l API renverrait une 500 de violation d integrite la ou
-    un 403 est la bonne reponse — c est aussi pourquoi `ORGANIZER_CREATE` n est
-    pas accorde au role ORGANIZER dans la matrice.
-    """
+    """A user may own only one organizer dossier; the database uniqueness constraint enforces that rule."""
     Organizer.objects.create(
         user=applicant,
         org_name="Premier",
@@ -74,11 +69,7 @@ def test_one_account_carries_at_most_one_dossier(applicant):
 
 
 def test_the_commercial_name_is_unique_regardless_of_case(applicant, roles):
-    """
-    « Stade de France » et « stade de france » designent le meme organisateur.
-    Une unicite sensible a la casse laisserait creer les deux, et le doublon ne
-    se verrait qu au moment ou un acheteur choisit le mauvais.
-    """
+    """Organizer names are unique case-insensitively so letter-case variants cannot create duplicates."""
     Organizer.objects.create(
         user=applicant,
         org_name="Stade de France",
@@ -106,11 +97,7 @@ def test_the_commission_rate_stays_between_zero_and_one(applicant, rate):
 
 
 def test_an_unknown_status_is_rejected_by_the_database(applicant):
-    """
-    La contrainte lit le MEME tuple que le code (`constants.py`). Deux
-    enumerations aux memes valeurs finissent par diverger — la panne tombe
-    alors sur un chemin d ecriture, au pire moment.
-    """
+    """The database status constraint must stay aligned with the runtime status constants."""
     with pytest.raises(IntegrityError), transaction.atomic():
         Organizer.objects.create(
             user=applicant,
@@ -121,10 +108,7 @@ def test_an_unknown_status_is_rejected_by_the_database(applicant):
 
 
 def test_deleting_an_account_that_carries_a_dossier_is_refused(applicant):
-    """
-    `PROTECT`, jamais `CASCADE` : supprimer le compte effacerait evenements,
-    ventes et journaux de scan. L effacement RGPD passe par l anonymisation.
-    """
+    """Account deletion is protected rather than cascading through organizer business history."""
     Organizer.objects.create(
         user=applicant,
         org_name="Protege",
