@@ -1,9 +1,9 @@
 """
-Gestionnaires du contexte `organizing` (plan S1 §2.5).
+QuerySets for the `organizing` context.
 
-Un filtre de perimetre ecrit dans une vue ne protege que cette vue. Ecrit ici,
-il devient reutilisable et surtout RELISIBLE : la question « qui voit quoi »
-se lit a un seul endroit.
+A scope filter written inside a single view protects only that view. Defining
+it here makes the rule reusable and keeps "who can see what" readable in one
+place.
 """
 
 from __future__ import annotations
@@ -16,22 +16,22 @@ from .constants import ORGANIZER_APPROVED, ORGANIZER_PENDING
 
 
 class OrganizerQuerySet(models.QuerySet):
-    """Filtres de perimetre, nommes d apres le metier et non d apres la colonne."""
+    """Business-named scope filters rather than column-named helpers."""
 
     def approved(self) -> "OrganizerQuerySet":
-        """Seuls les organisateurs approuves peuvent vendre (RM-1)."""
+        """Return only approved organizers."""
         return self.filter(validation_status=ORGANIZER_APPROVED)
 
     def pending(self) -> "OrganizerQuerySet":
-        """File d attente de la console d administration."""
+        """Return the administration review queue."""
         return self.filter(validation_status=ORGANIZER_PENDING)
 
     def with_user(self) -> "OrganizerQuerySet":
         """
-        Charge le compte rattache en une requete.
+        Load the linked account in the same query.
 
-        La liste d administration affiche l adresse du demandeur : sans cela,
-        une page de vingt lignes declenche vingt et une requetes.
+        Administration lists display the applicant email; without this helper a
+        page of twenty rows would trigger twenty-one queries.
         """
         return self.select_related("user")
 
