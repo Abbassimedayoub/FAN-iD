@@ -29,7 +29,7 @@ def complete_event_if_elapsed(
     event_id: UUID,
     now=None,
 ) -> bool:
-    """Clôture un événement terminé, une seule fois, avec outbox atomique."""
+    """Complete an ended event exactly once with an atomic Outbox event."""
     moment = now or timezone.now()
 
     event = Event.objects.select_for_update().filter(pk=event_id).first()
@@ -63,7 +63,7 @@ def complete_event_if_elapsed(
 
 
 def complete_elapsed_events(*, now=None) -> int:
-    """Traite les événements terminés, y compris ceux finissant après minuit."""
+    """Process ended events, including events whose end time crosses midnight."""
     moment = now or timezone.now()
 
     event_ids = list(
