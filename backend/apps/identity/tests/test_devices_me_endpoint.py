@@ -1,11 +1,8 @@
 """
-GET /api/v1/devices/me — appareil actif + historique révoqué.
+GET /api/v1/devices/me — active device plus revoked-device history.
 
-Le contrat important est fermé :
-- aucun appareil d'un autre utilisateur ;
-- jamais de fingerprint ;
-- historique limité à 20 ;
-- ordre du plus récent au plus ancien.
+The contract is closed: no other user's devices, no fingerprint disclosure,
+history capped at 20, ordered newest first.
 """
 
 from __future__ import annotations
@@ -176,7 +173,7 @@ def test_revoked_devices_are_returned_newest_first(
         revoked_reason="USER_RESET",
     )
 
-    # bound_at est auto_now_add : on fixe explicitement l'ordre après création.
+    # bound_at uses auto_now_add, so set ordering explicitly after creation.
     Device.objects.filter(pk=old.pk).update(bound_at=timezone.now() - datetime.timedelta(days=20))
     Device.objects.filter(pk=recent.pk).update(bound_at=timezone.now() - datetime.timedelta(days=3))
 
