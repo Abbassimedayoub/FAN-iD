@@ -14,7 +14,7 @@ logger = logging.getLogger("fanid.core")
 
 
 class InMemorySender(NotificationSender):
-    """Tests / dev sans SMTP réel — capture les envois pour assertion."""
+    """Test/development sender that captures messages without real SMTP traffic."""
 
     def __init__(self) -> None:
         self.emails_sent: list[dict] = []
@@ -54,12 +54,7 @@ class InMemorySender(NotificationSender):
 
 
 class ConsoleSender(NotificationSender):
-    """
-    Journalise au lieu d envoyer — DEVELOPPEMENT UNIQUEMENT.
-
-    Le backend console permet de vérifier les notifications en local sans
-    effectuer de trafic SMTP réel.
-    """
+    """Log notifications instead of sending them; development only."""
 
     def send_email(
         self,
@@ -127,13 +122,7 @@ def _environment_bool(
 
 
 class SmtpSender(NotificationSender):
-    """
-    Envoi SMTP réel.
-
-    Les secrets restent exclusivement dans l environnement du processus.
-    Ce backend fonctionne avec un serveur SMTP standard, notamment Gmail,
-    Amazon SES SMTP, Mailgun SMTP ou un relais d entreprise.
-    """
+    """Real SMTP sender whose credentials remain in process environment settings."""
 
     def send_email(
         self,
@@ -277,11 +266,7 @@ class SmtpSender(NotificationSender):
 
 
 def build_notification_sender() -> NotificationSender:
-    """
-    Fabrique l expediteur selon `NOTIFICATION_BACKEND`.
-
-    Aucun repli silencieux : une valeur inconnue provoque une erreur.
-    """
+    """Build the configured notification sender and fail explicitly on an unknown backend."""
 
     backend = str(settings.NOTIFICATION_BACKEND)
 
