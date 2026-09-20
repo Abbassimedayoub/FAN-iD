@@ -1,10 +1,8 @@
 """
-Routes appareils, montees sous `/api/v1/devices/`.
+Device routes mounted under `/api/v1/devices/`.
 
-Module distinct de `urls.py` parce que le prefixe l est : `urls.py` sert
-`/api/v1/auth/`, qui correspond a `REFRESH_COOKIE_PATH`. Melanger les deux
-ferait envoyer le cookie de rafraichissement aux routes appareils, sans aucune
-raison de le faire.
+They live separately from authentication routes so the refresh-cookie path stays
+narrow and the browser does not send that cookie to device endpoints.
 """
 
 from django.urls import path
