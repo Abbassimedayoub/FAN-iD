@@ -1,8 +1,7 @@
 /**
- * Primitives socles restantes (§4.3 Source B) : Button, Input, Card, Table,
- * Badge, Modal, Toast, Spinner. Accessibilité WCAG 2.1 AA : contraste ≥
- * 4.5:1 (tokens Tailwind validés), cibles ≥ 44px, focus visible (styles.css),
- * navigation clavier, `aria-live` pour les toasts.
+ * Foundation primitives: Button, Input, Card, Table, Badge, Modal, Toast, and
+ * Spinner. Accessibility targets include AA contrast, 44px touch targets,
+ * visible focus, keyboard navigation, and `aria-live` for toasts.
  */
 import type {
   ButtonHTMLAttributes,
