@@ -1,8 +1,8 @@
 """
-Contrat d'alimentation des métriques métier d'identity.
+Identity business-metric increment contract.
 
-Les assertions portent sur des DELTAS et jamais sur une valeur absolue :
-le registre Prometheus par défaut est global au processus de test.
+Assertions use deltas rather than absolute values because the default Prometheus
+registry is process-global during the test run.
 """
 
 from __future__ import annotations
