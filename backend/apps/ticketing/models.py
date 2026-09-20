@@ -17,7 +17,7 @@ TICKET_STATUSES = (
 
 
 class Ticket(UUIDModel, TimeStampedModel):
-    """Billet individuel émis uniquement après confirmation du paiement."""
+    """Individual ticket issued only after payment confirmation."""
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -79,7 +79,7 @@ class Ticket(UUIDModel, TimeStampedModel):
 
 
 class TicketTransferAudit(UUIDModel, TimeStampedModel):
-    """Trace immuable d’un transfert de billet entre deux Fans."""
+    """Immutable record of a ticket transfer between two fans."""
 
     ticket = models.ForeignKey(
         Ticket,
