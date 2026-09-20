@@ -26,10 +26,10 @@ def create_payment_intent(
     now=None,
 ) -> PaymentIntent:
     """
-    Crée ou réutilise l'intent actif de la commande.
+    Create or reuse the order's active payment intent.
 
-    Le gateway est injecté : les tests utilisent FakeGateway, tandis qu'un
-    futur adaptateur Stripe pourra être fourni sans modifier cette règle métier.
+    The gateway is injected so tests can use FakeGateway while a real provider
+    adapter can be supplied without changing the business rule.
     """
     moment = now or timezone.now()
 
@@ -115,12 +115,7 @@ def mark_payment_intent_succeeded(
     provider_intent_id: str,
     now=None,
 ) -> PaymentIntent:
-    """
-    Finalise l'intent après validation par le fournisseur de paiement.
-
-    Les retries du fournisseur sont sûrs : un intent déjà réussi est renvoyé
-    sans incrémenter le stock une seconde fois.
-    """
+    """Finalize the intent after provider confirmation; retries return an already-succeeded intent without incrementing stock twice."""
     try:
         intent = PaymentIntent.objects.select_for_update().get(
             provider_intent_id=provider_intent_id,
