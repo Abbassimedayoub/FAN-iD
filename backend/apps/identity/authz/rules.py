@@ -1,20 +1,18 @@
 """
-La politique : qui a le droit de faire quoi, et sous quelle condition.
+The authorization policy: who may do what and under which conditions.
 
-CE FICHIER EST LA SOURCE DE VERITE DE L AUTORISATION (ADR-02).
+THIS FILE IS THE SOURCE OF TRUTH FOR AUTHORIZATION.
 
-`Role.permissions` en base est une colonne JSONB DESCRIPTIVE : elle sert a
-afficher les droits dans une interface d administration, jamais a en decider.
-Une politique stockee en base est modifiable sans revue de code, sans test et
-sans trace — c est-a-dire exactement ce qu on ne veut pas d un controle
-d autorisation. Ici, tout changement passe par un diff, une relecture et la
-matrice de test.
+`Role.permissions` in the database is DESCRIPTIVE JSONB used for display in
+administration interfaces, never for making authorization decisions. A policy
+stored in the database can be changed without code review, tests, or a source
+diff, which is exactly what authorization controls should avoid. Changes here
+go through review and the policy test matrix.
 
-Structure retenue : une table `role -> action -> Grant`. L ABSENCE d entree
-signifie REFUS. Il n existe volontairement pas d effet `DENY` explicite : un
-modele melangeant autorisations et interdictions oblige a definir un ordre de
-precedence, et cet ordre est la source d erreur numero un des systemes de
-politiques. Ici la question « ce role peut-il ? » se lit d une seule facon.
+The structure is `role -> action -> Grant`. A missing entry means DENY. There
+is intentionally no explicit `DENY` effect, avoiding precedence rules between
+allows and denies. The question "may this role do this?" therefore has a single,
+unambiguous interpretation.
 """
 
 from __future__ import annotations
@@ -30,52 +28,48 @@ from .actions import Action
 
 
 class Scope(StrEnum):
-    """Portee ABAC : sur QUELLES instances le droit s exerce."""
+    """ABAC scope: which resource instances a grant applies to."""
 
-    #: Aucune ressource visee (creation, action de collection).
+    #: No target resource instance, e.g. creation or collection-level action.
     NONE = "none"
-    #: La ressource doit appartenir au sujet (`resource.owner_id`).
+    #: The resource must belong to the subject through `resource.owner_id`.
     SELF = "self"
-    #: La ressource doit relever de l organisateur du sujet.
+    #: The resource must belong to the subject's organizer.
     OWN_ORGANIZER = "own_organizer"
-    #: Aucune restriction d instance. Reserve aux roles de supervision, et
-    #: toujours accompagne d une justification dans la table ci-dessous.
+    #: No instance restriction. Reserved for supervisory roles and justified
+    #: explicitly in the policy table below.
     ANY = "any"
 
 
 @dataclass(frozen=True, slots=True)
 class Grant:
-    """Un droit accorde, et ses conditions."""
+    """An allowed action together with its conditions."""
 
     scope: Scope
-    #: Exige `auth_level >= AUTH_LEVEL_STEP_UP`. Reserve aux actions dont un
-    #: usage abusif est IRREVERSIBLE ou permet la prise de controle du compte.
+    #: Requires `auth_level >= AUTH_LEVEL_STEP_UP`. Reserved for actions whose
+    #: abuse is irreversible or could enable account takeover.
     step_up: bool = False
 
 
 # --------------------------------------------------------------------------
-# Libre-service : identique pour les quatre roles, par conception.
+# Self-service: identical for all four roles by design.
 # --------------------------------------------------------------------------
-# Tout humain authentifie gere son propre compte, quel que soit son role. Ce
-# bloc est factorise parce que le dupliquer quatre fois inviterait a le laisser
-# diverger par inadvertance. L exhaustivite reste prouvee : la matrice de test
-# reecrit les 56 cellules en clair, sans reutiliser cette table (§ double
-# saisie). Factoriser l implementation, jamais la verification.
+# Every authenticated human manages their own account regardless of role.
+# This block is factored out so four copies cannot drift accidentally. The
+# exhaustive test matrix still spells out expected permissions independently.
 _SELF_SERVICE: Final[Mapping[Action, Grant]] = MappingProxyType(
     {
         Action.USER_READ_SELF: Grant(Scope.SELF),
         Action.USER_UPDATE_SELF: Grant(Scope.SELF),
-        # Suppression de compte : irreversible. Verification renforcee exigee.
+        # Account deletion is irreversible and requires step-up verification.
         Action.USER_DELETE_SELF: Grant(Scope.SELF, step_up=True),
         Action.DEVICE_LIST_SELF: Grant(Scope.SELF),
-        # Revoquer l appareil lie, c est ouvrir le compte a un nouvel appareil.
-        # C est le geste que cherche a obtenir un voleur de session : il exige
-        # une preuve d identite fraiche, pas un simple jeton valide.
+        # Revoking the bound device can open the account to a new device, so it
+        # requires fresh proof of identity rather than only a valid token.
         Action.DEVICE_REVOKE_SELF: Grant(Scope.SELF, step_up=True),
         Action.SESSION_LIST_SELF: Grant(Scope.SELF),
-        # Revoquer une session RESTREINT l acces : aucune raison d en durcir
-        # l acces. Exiger une verification renforcee pour se deconnecter
-        # decouragerait le seul geste utile face a un vol de jeton.
+        # Revoking a session reduces access. Requiring step-up to sign out would
+        # obstruct the useful response to token theft.
         Action.SESSION_REVOKE_SELF: Grant(Scope.SELF),
     }
 )
@@ -90,26 +84,24 @@ POLICY: Final[Mapping[str, Mapping[Action, Grant]]] = MappingProxyType(
         # ------------------------------------------------------------------
         ROLE_FAN: _with_self_service(
             {
-                # Un supporter peut deposer une candidature d organisateur.
-                # C est le point d entree unique de l onboarding (S1-A.8).
+                # A fan may submit an organizer application.
                 Action.ORGANIZER_CREATE: Grant(Scope.NONE),
             }
         ),
         # ------------------------------------------------------------------
         ROLE_ORGANIZER: _with_self_service(
             {
-                # Pas de ORGANIZER_CREATE : un compte ne porte qu un seul
-                # organisateur. La regle est ici, pas seulement dans une
-                # contrainte d unicite — sinon l API renverrait une erreur 500
-                # de violation d integrite la ou un 403 est la bonne reponse.
+                # No ORGANIZER_CREATE: one account maps to one organizer.
+                # Enforce the rule in policy instead of relying only on a
+                # uniqueness violation that would surface as the wrong API error.
                 Action.ORGANIZER_READ: Grant(Scope.OWN_ORGANIZER),
                 Action.ORGANIZER_UPDATE: Grant(Scope.OWN_ORGANIZER),
                 Action.SCANNER_INVITE: Grant(Scope.NONE),
                 Action.SCANNER_READ: Grant(Scope.NONE),
                 Action.SCANNER_REVOKE: Grant(Scope.NONE),
                 Action.SCANNER_CREDENTIAL_RESET: Grant(Scope.NONE),
-                # Catalogue organisateur. L approbation est un prérequis
-                # actor-level supplémentaire appliqué par IsApprovedOrganizer.
+                # Organizer catalog. Approval is an additional actor-level
+                # prerequisite enforced by IsApprovedOrganizer.
                 Action.CATEGORY_READ: Grant(Scope.NONE),
                 Action.CATEGORY_CREATE: Grant(Scope.NONE),
                 Action.CATEGORY_DELETE: Grant(Scope.OWN_ORGANIZER),
@@ -133,28 +125,24 @@ POLICY: Final[Mapping[str, Mapping[Action, Grant]]] = MappingProxyType(
         ROLE_SCANNER: _with_self_service(
             {
                 Action.ORGANIZER_READ: Grant(Scope.OWN_ORGANIZER),
-                # Un scanner lit, il ne modifie pas la fiche organisateur.
+                # A scanner may read organizer context but not modify it.
                 Action.TICKET_SCAN: Grant(Scope.OWN_ORGANIZER),
             }
         ),
         # ------------------------------------------------------------------
         ROLE_ADMIN: _with_self_service(
             {
-                # `ANY` justifie : la moderation suppose de voir les dossiers
-                # d autrui. C est le seul role qui y a droit, et la seule
-                # portee `ANY` de la politique.
+                # `ANY` is justified because moderation requires access to
+                # other users' organizer records. This is the only role with
+                # that scope in this policy.
                 Action.ORGANIZER_READ: Grant(Scope.ANY),
                 Action.ORGANIZER_UPDATE: Grant(Scope.ANY),
                 Action.ORGANIZER_APPROVE: Grant(Scope.ANY, step_up=True),
                 Action.ORGANIZER_REJECT: Grant(Scope.ANY, step_up=True),
                 Action.ORGANIZER_SUSPEND: Grant(Scope.ANY, step_up=True),
-                # Pas de TICKET_SCAN : separation des fonctions. Un
-                # administrateur n a aucune raison metier de valider un billet
-                # a l entree ; s il doit le faire, on lui attribue le role
-                # SCANNER, ce qui laisse une trace. « Administrateur » ne
-                # signifie pas « tous les droits » — c est precisement la
-                # confusion qui transforme un compte compromis en incident
-                # majeur.
+                # No TICKET_SCAN: separation of duties. If an administrator
+                # needs scanning privileges, grant the SCANNER role explicitly
+                # so that change is visible and auditable.
             }
         ),
     }
