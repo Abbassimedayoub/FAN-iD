@@ -41,7 +41,7 @@ def transfer_ticket(
     recipient_email: str,
     now: datetime | None = None,
 ) -> Ticket:
-    """Transfère un billet de manière atomique et invalide ses QR existants."""
+    """Transfer a ticket atomically and invalidate its existing QR codes."""
     ticket = Ticket.objects.select_for_update().select_related("event").get(pk=ticket_id)
 
     if ticket.user_id != owner_user_id:
