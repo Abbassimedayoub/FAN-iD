@@ -2,28 +2,24 @@ import 'package:flutter/material.dart';
 
 import 'colors.dart';
 
-/// Typographie FAN iD — echelle litterale de la planche `DS-01`.
+/// FAN iD typography scale from the DS-01 design-system board.
 ///
 /// « Titre H1 — Sora 28 » / « Titre H2 — Sora 22 » / « Titre H3 — Sora 18 »
 /// « Corps de texte — Inter 15 » / « Legende — Inter 12 ».
 ///
-/// ## Aucun telechargement de police a l execution
+/// ## No runtime font downloads
 ///
-/// Ce fichier n utilise PAS `google_fonts`. Les deux familles sont declarees
-/// par leur nom et resolues depuis les polices embarquees dans l application
-/// (cf. `PUBSPEC_CHANGES.md`). Trois raisons, dans cet ordre :
+/// This file does not use `google_fonts`. Both families are resolved from fonts
+/// bundled with the application.
 ///
-/// 1. un premier lancement hors ligne afficherait le splash — tout premier
-///    ecran vu — dans une police systeme, pas dans celle de la marque ;
-/// 2. une requete vers un tiers au demarrage pose une question RGPD que ce
-///    projet n a aucune raison de se creer ;
-/// 3. le rendu devient deterministe, donc les tests de mise en page le sont
+/// 1. offline first launch still uses the intended brand fonts;
+/// 2. startup makes no unnecessary third-party font request;
+/// 3. rendering stays deterministic for layout tests.
 ///    aussi.
 ///
-/// Les styles sont `const` : leur cout d instanciation est nul et ils peuvent
-/// etre utilises dans des constructeurs constants.
+/// Styles are const so they can be reused in constant constructors.
 abstract final class FanType {
-  /// Nom des familles tel que declare dans `pubspec.yaml`.
+  /// Family names as declared in `pubspec.yaml`.
   static const String headingFamily = 'Sora';
   static const String bodyFamily = 'Inter';
 
@@ -92,7 +88,7 @@ abstract final class FanType {
     height: 1.2,
   );
 
-  /// Grand chiffre : KPI, compte a rebours (non libelle dans DS-01).
+  /// Large numeric style for KPIs and countdowns.
   static const TextStyle display = TextStyle(
     fontFamily: headingFamily,
     fontSize: 32,
@@ -101,7 +97,7 @@ abstract final class FanType {
     color: FanColors.textPrimary,
   );
 
-  /// Le mot-symbole « FANID » du splash : Sora, tres espace.
+  /// Splash wordmark style: Sora with wide tracking.
   static const TextStyle wordmark = TextStyle(
     fontFamily: headingFamily,
     fontSize: 34,
