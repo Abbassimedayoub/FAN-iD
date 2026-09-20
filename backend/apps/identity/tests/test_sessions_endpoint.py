@@ -1,11 +1,7 @@
 """
-Surface self-service des sessions.
-
-Les tests importants ne se contentent pas d'inspecter la base :
-- la portée multi-tenant est prouvée par HTTP ;
-- les clés de sortie sont figées exactement ;
-- révoquer la session courante est suivi d'une DEUXIÈME requête avec le même
-  access token, qui doit être refusée par Zero Trust.
+Self-service session endpoint tests verify tenant scoping through HTTP, the exact
+output contract, and immediate rejection of an access token after its current
+session is revoked.
 """
 
 from __future__ import annotations
@@ -157,7 +153,7 @@ def test_list_never_exposes_internal_token_identifiers(client, service, fan):
         "current",
     }
 
-    # Les assertions explicites documentent le motif de sécurité.
+    # Explicit assertions document the security invariant.
     assert "refresh_jti" not in item
     assert "family_id" not in item
 
@@ -214,7 +210,7 @@ def test_revoke_another_own_session_returns_204_and_sets_reason(client, service,
     assert target.pair.session.revoked_at is not None
     assert target.pair.session.revoked_reason == SESSION_REVOKED_LOGOUT
 
-    # La session appelante reste valide.
+    # The calling session remains valid.
     still_authenticated = client.get(ME_URL)
     assert still_authenticated.status_code == 200, still_authenticated.data
 
@@ -230,7 +226,7 @@ def test_revoke_current_session_invalidates_same_access_token_immediately(
     first = authenticated.delete(session_url(opened.pair.session))
     assert first.status_code == 204
 
-    # Preuve Zero Trust : même access token, seconde requête HTTP.
+    # Zero-trust proof: reuse the same access token for a second HTTP request.
     replay = authenticated.get(ME_URL)
     assert replay.status_code == 401, replay.data
 
