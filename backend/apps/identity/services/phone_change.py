@@ -35,11 +35,7 @@ PHONE_SEPARATORS_RE = re.compile(r"[\s().-]+")
 
 
 def phone_key(value: Any) -> str:
-    """
-    Forme canonique uniquement pour comparaison/hash.
-
-    La valeur affichee au client conserve sa mise en forme.
-    """
+    """Return a canonical form only for comparison and hashing; the client-facing value keeps its formatting."""
     raw = str(value or "").strip()
     key = PHONE_SEPARATORS_RE.sub("", raw)
 
@@ -50,9 +46,7 @@ def phone_key(value: Any) -> str:
 
 
 def clean_phone(value: Any) -> str:
-    """
-    Valide le numéro tout en conservant les séparateurs saisis.
-    """
+    """Validate the phone number while preserving the separators entered by the user."""
     raw = str(value or "").strip()
     phone_key(raw)
     return raw
@@ -109,12 +103,7 @@ class PhoneChangeConfirmResult:
 
 
 class PhoneChangeService:
-    """
-    Remplacement de téléphone protégé par OTP.
-
-    Le nouveau numéro n'est jamais persisté avant la
-    confirmation du challenge.
-    """
+    """OTP-protected phone replacement; the new number is never persisted before challenge confirmation."""
 
     def __init__(
         self,
