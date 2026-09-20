@@ -5,16 +5,14 @@ import '../radius.dart';
 import '../spacing.dart';
 import '../typography.dart';
 
-/// Champ de saisie FAN iD — les trois etats de `DS-01` : defaut, focus,
-/// erreur.
+/// FAN iD input field covering the three DS-01 states: default, focused,
+/// and error.
 ///
-/// L erreur n est JAMAIS portee par la seule couleur : elle ajoute un message
-/// texte sous le champ, une icone, et une region vivante annoncee au lecteur
-/// d ecran. C est la regle « erreurs visibles autrement que par la couleur »
-/// du cahier des charges.
+/// Errors never rely on color alone: the field adds text, an icon, and a live
+/// region announced by assistive technology.
 ///
-/// Le composant ne connait aucune regle metier : `errorText` lui est fourni de
-/// l exterieur, deja traduit en francais. Il ne doit jamais recevoir un code
+/// The component contains no business rule: `errorText` is provided by the
+/// caller as already-localized presentation text, never as a raw error code.
 /// machine.
 class FanIdTextField extends StatefulWidget {
   const FanIdTextField({
@@ -36,10 +34,10 @@ class FanIdTextField extends StatefulWidget {
   final TextEditingController? controller;
   final String? hintText;
 
-  /// Non nul => le champ passe en etat erreur.
+  /// Non-null => the field enters the error state.
   final String? errorText;
 
-  /// Mot de passe : ajoute l action « Afficher » de la maquette.
+  /// Password field: adds the reveal action from the design.
   final bool obscure;
 
   final bool enabled;
@@ -50,8 +48,8 @@ class FanIdTextField extends StatefulWidget {
 
   /// Validation au clavier (touche Entree / « Go »).
   ///
-  /// Passer `null` neutralise reellement la touche — c est ainsi qu un ecran
-  /// en cours de soumission empeche une seconde validation, et pas seulement
+  /// Passing `null` truly disables the action, preventing a second submission
+  /// while the screen is already submitting.
   /// en grisant son bouton.
   final ValueChanged<String>? onSubmitted;
 
