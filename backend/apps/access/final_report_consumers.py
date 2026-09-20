@@ -9,14 +9,14 @@ from .services.final_reports import build_event_final_report
 
 
 class EventCompletionFinalReportConsumer(BaseConsumer):
-    """Crée le snapshot final et programme l’e-mail Organizer après le commit."""
+    """Create the final snapshot and schedule the organizer email after commit."""
 
     name = "access.event_completion_final_report"
     handled_event_types = {CATALOG_EVENT_COMPLETED}
 
     def handle(self, event: OutboxEvent) -> None:
-        # Les anciens jeux de données peuvent contenir un événement terminé
-        # sans Organizer : ils ne sont pas éligibles à un rapport commercial.
+        # Legacy data may contain completed events without an organizer; those events
+        # are not eligible for a commercial final report.
         organizer_id = (
             Event.objects.only("organizer_id")
             .get(
