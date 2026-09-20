@@ -1,10 +1,4 @@
-"""
-`POST /api/v1/devices/reset/{request,confirm}` — couche HTTP.
-
-Le service est teste ailleurs. Ce fichier verifie ce qui appartient a HTTP :
-l absence d authentification, l uniformite de la reponse, les codes d erreur du
-contrat, et les deux axes de quota.
-"""
+"""HTTP-layer tests for device reset: anonymous access, response uniformity, contract error codes, and both throttle axes."""
 
 from __future__ import annotations
 
@@ -91,10 +85,7 @@ def body(**overrides) -> dict:
 
 
 def test_the_request_needs_no_authentication(client, fan):
-    """
-    Le coeur d ADR-S1-04 : exiger un jeton rendrait la route inutilisable par
-    la seule personne qui en a besoin.
-    """
+    """Requiring authentication would make the reset route unusable by the locked-out user it is designed for."""
     assert client.post(REQUEST_URL, body(), format="json").status_code == 200
 
 
@@ -196,7 +187,7 @@ def test_a_malformed_challenge_id_is_a_validation_error(client, fan):
 
 
 def test_default_account_quota_is_three_per_hour(client, fan):
-    """Le contrat produit autorise trois demandes par heure et par compte."""
+    """The API contract allows three reset requests per hour per account."""
 
     codes = [
         client.post(
@@ -212,10 +203,7 @@ def test_default_account_quota_is_three_per_hour(client, fan):
 
 
 def test_the_same_address_is_throttled_even_from_different_ips(client, fan, monkeypatch):
-    """
-    L axe qui protege la victime. Sans lui, mille adresses IP suffisent a noyer
-    la boite d une personne ciblee, et le quota par origine n y peut rien.
-    """
+    """The per-account limit protects the target mailbox from distributed request flooding."""
     from apps.identity.throttling import DeviceResetAccountRateThrottle
 
     monkeypatch.setattr(DeviceResetAccountRateThrottle, "THROTTLE_RATES", {"device_reset_account": "2/hour"})
