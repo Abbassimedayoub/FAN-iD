@@ -1,6 +1,6 @@
 """
-Routes racine. Au Sprint 0 : uniquement les 4 endpoints plateforme (§3.2 Source B).
-Aucune route métier — les bounded contexts n'exposent rien avant leur sprint.
+Root URL configuration. Sprint 0 exposes only the platform endpoints.
+Business routes are introduced by their bounded contexts when their sprint ships.
 """
 
 from django.conf import settings
