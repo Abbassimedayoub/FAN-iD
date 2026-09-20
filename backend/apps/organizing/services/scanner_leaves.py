@@ -84,8 +84,7 @@ class ScannerLeaveService:
             scanner.leave_requested_at = timezone.now()
             scanner.leave_rejected_at = None
 
-            # Une nouvelle demande après un précédent refus
-            # doit pouvoir renvoyer ses propres notifications.
+            # A new request after a previous rejection must be able to emit its own notifications.
             scanner.leave_request_scanner_email_sent_at = None
             scanner.leave_request_organizer_email_sent_at = None
             scanner.leave_rejected_scanner_email_sent_at = None
@@ -183,9 +182,8 @@ class ScannerLeaveService:
         actor_id: Any,
         expected_version: int,
     ) -> Scanner:
-        # La révocation existante reste l'unique endroit
-        # responsable de la désactivation, de l'anonymisation
-        # et de la révocation des sessions.
+        # Existing revocation remains the single place responsible for deactivation,
+        # anonymization, and session revocation.
         return ScannerAccessService.revoke(
             organizer=organizer,
             scanner_id=scanner_id,
