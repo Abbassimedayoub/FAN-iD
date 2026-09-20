@@ -14,9 +14,9 @@ class AuthController extends AsyncNotifier<LoginSession?> {
   Future<LoginSession?> build() async {
     ref.watch(authExpiryGenerationProvider);
 
-    // Une nouvelle instance de l'application constitue une nouvelle session.
-    // Le refresh token d'un ancien processus ne doit donc jamais restaurer
-    // automatiquement l'utilisateur. Le fingerprint appareil reste persistant.
+    // A new application process starts a new session. A refresh token from an
+    // earlier process must not silently restore the user; the device fingerprint
+    // remains persistent.
     await ref.read(tokenStoreProvider).clear();
 
     return null;
@@ -148,8 +148,7 @@ class AuthController extends AsyncNotifier<LoginSession?> {
       state = const AsyncData(null);
       return false;
     } on Failure {
-      // Une panne réseau temporaire ne doit jamais déconnecter
-      // un scanner dont la session est encore valide.
+      // A temporary network failure must not log out a scanner whose session is still valid.
       return true;
     }
   }
