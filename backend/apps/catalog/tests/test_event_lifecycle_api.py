@@ -636,7 +636,7 @@ def test_postponed_event_can_receive_a_new_schedule_later(
     assert event.postponed_from_starts_at == original_start
     assert event.postponed_from_ends_at == original_end
 
-    # La nouvelle programmation devient effective.
+    # The new schedule becomes effective.
     assert event.postponed_to_starts_at == new_start
     assert event.postponed_to_ends_at == new_end
     assert event.starts_at == new_start
