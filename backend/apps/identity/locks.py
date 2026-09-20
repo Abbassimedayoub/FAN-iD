@@ -44,7 +44,10 @@ class PostgresDeviceLock(DeviceLockBackend):
     """Database fallback using the authoritative active-device constraint rather than a second lock table."""
 
     def acquire(self, user_id: str, device_id: str, ttl_seconds: int) -> bool:
-        """The database fallback ignores TTL because a persisted device binding remains valid until an explicit revocation."""
+        """
+        The database fallback ignores TTL because a persisted device binding remains valid until an
+        explicit revocation.
+        """
         active = self.get_active(user_id)
         return active is None or active == str(device_id)
 
@@ -53,7 +56,10 @@ class PostgresDeviceLock(DeviceLockBackend):
         return str(device_id) if device_id is not None else None
 
     def release(self, user_id: str) -> None:
-        """Deliberate no-op: database binding release is a business revocation operation, not a cache unlock."""
+        """
+        Deliberate no-op: database binding release is a business revocation operation, not a cache
+        unlock.
+        """
         return None
 
 
