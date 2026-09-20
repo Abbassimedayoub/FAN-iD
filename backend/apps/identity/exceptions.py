@@ -1,13 +1,12 @@
 """
-Erreurs metier du contexte `identity`.
+Business errors for the `identity` context.
 
-Elles heritent de la hierarchie gelee de `core` (§17) plutot que d en creer une
-seconde : le contrat d erreur — `code`, `message`, `details`, `correlation_id`,
-`trace_id` — reste unique pour tout le systeme, et le gestionnaire d exception
-du Sprint 0 les traite sans modification.
+They inherit from the shared `core` hierarchy instead of defining a second
+error contract. The system therefore keeps one shape for `code`, `message`,
+`details`, `correlation_id`, and `trace_id`.
 
-`core` ne les connait pas et ne doit pas les connaitre (ADR-S-01) : la dependance
-va bien de `identity` vers `core`, jamais l inverse.
+The dependency direction remains one-way: `identity` may depend on `core`,
+while `core` must not know about identity-specific errors.
 """
 
 from __future__ import annotations
@@ -17,26 +16,16 @@ from apps.core.exceptions import AuthError, PermissionBusinessError, RateLimitEr
 
 class EmailAlreadyExistsError(ValidationBusinessError):
     """
-    400 — l adresse est deja utilisee.
+    400 — the address is already used.
 
-    **400 et non 409, par respect d un contrat publie.** Semantiquement, 409
-    decrirait mieux la situation : conflit avec une ressource existante. Mais le
-    plan `plan-dev-v2/04-sprint-1-identite.md` §3.4 fige `EMAIL_ALREADY_EXISTS`
-    en 400, et les clients React (S1-B) et Flutter (S1-C) seront ecrits contre
-    ce contrat. Un code d erreur est une interface : le meilleur choix arrive
-    trop tard une fois qu il est publie.
+    The 400 status is part of the published API contract even though 409 could
+    also describe a resource conflict. Once clients depend on an error contract,
+    compatibility matters more than changing the semantic choice later.
 
-    **Divulgation assumee, pas oubliee.** Repondre franchement permet
-    d enumerer les comptes. La seule parade complete — repondre 202 dans tous
-    les cas et lever l ambiguite par courriel — suppose une chaine d envoi
-    inexistante avant le contexte `notifying`. Repondre 202 aujourd hui
-    jetterait silencieusement les inscriptions en doublon sans qu aucun
-    utilisateur ne puisse comprendre pourquoi son compte n existe pas : moins
-    sur en pratique, et franchement hostile.
-
-    Le compromis retenu est donc de rendre l enumeration COUTEUSE plutot
-    qu impossible : `throttle_scope = "register"`, 3 tentatives par heure et par
-    adresse IP (§3.3 du plan). A rouvrir des que `notifying` existe.
+    Account existence disclosure is an explicit tradeoff here. A fully opaque
+    registration flow would require a notification channel capable of resolving
+    duplicate registrations out-of-band. Until that exists, throttling makes
+    enumeration more expensive while keeping the registration experience usable.
     """
 
     default_code = "EMAIL_ALREADY_EXISTS"
@@ -45,15 +34,12 @@ class EmailAlreadyExistsError(ValidationBusinessError):
 
 class UnderageError(ValidationBusinessError):
     """
-    400 — l age minimum n est pas atteint (RM-13).
+    400 — minimum age is not met.
 
-    Le SGBD porte deja la contrainte `ck_user_min_age_16`, mais une violation de
-    contrainte remonterait en `IntegrityError` — donc en 500, avec un message
-    inexploitable. Le service verifie donc AVANT, pour produire une erreur
-    lisible ; la contrainte reste le filet qui tient face a une insertion directe.
-
-    Les deux niveaux ne font pas double emploi : l un sert l utilisateur,
-    l autre sert l integrite.
+    The database already enforces `ck_user_min_age_16`, but a database
+    IntegrityError would produce an unusable client response. The service checks
+    first for a readable error while the database constraint remains the final
+    integrity guard for direct writes.
     """
 
     default_code = "UNDERAGE"
@@ -61,7 +47,7 @@ class UnderageError(ValidationBusinessError):
 
 
 class TermsNotAcceptedError(ValidationBusinessError):
-    """400 — les conditions generales n ont pas ete acceptees."""
+    """400 — required terms have not been accepted."""
 
     default_code = "TERMS_NOT_ACCEPTED"
     default_message = "L acceptation des conditions generales est obligatoire."
@@ -69,13 +55,11 @@ class TermsNotAcceptedError(ValidationBusinessError):
 
 class InvalidFingerprintError(ValidationBusinessError):
     """
-    400 — empreinte d appareil mal formee, ou plateforme inconnue.
+    400 — malformed device fingerprint or unknown platform.
 
-    L empreinte est calculee cote client et reste opaque pour le serveur : il ne
-    la recalcule jamais et n en deduit rien. Il valide uniquement le format —
-    64 caracteres hexadecimaux MINUSCULES. On refuse plutot que de normaliser :
-    mettre en minuscules a la volee masquerait un client qui envoie n importe
-    quoi, et le probleme reapparaitrait ailleurs, sans lien apparent.
+    The fingerprint is computed client-side and remains opaque to the server.
+    The server validates only the canonical format and rejects malformed input
+    instead of silently normalizing it.
     """
 
     default_code = "INVALID_FINGERPRINT"
@@ -84,18 +68,14 @@ class InvalidFingerprintError(ValidationBusinessError):
 
 class DeviceLockedError(PermissionBusinessError):
     """
-    403 — un AUTRE appareil est deja lie a ce compte (RM-5).
+    403 — another device is already bound to the account.
 
-    `details` porte un libelle TRONQUE de l appareil actif, sa date de liaison et
-    la disponibilite du parcours de reinitialisation. Assez pour qu un
-    utilisateur reconnaisse son ancien telephone — sinon le message est
-    inutilisable — et assez peu pour ne pas renseigner quelqu un qui viendrait
-    de prouver le mot de passe d autrui.
+    `details` contains only enough information for the account owner to
+    recognize the active device without disclosing unnecessary information.
 
-    **Cette erreur ne doit JAMAIS precederez la verification des identifiants.**
-    Un mot de passe faux sur un compte verrouille renvoie 401
-    `INVALID_CREDENTIALS`, jamais 403 : sinon l API confirme l existence du
-    compte a qui n a rien prouve.
+    This error must never be returned before credential verification. Invalid
+    credentials on a locked account still return `INVALID_CREDENTIALS`, so the
+    API does not confirm account existence to an unauthenticated caller.
     """
 
     default_code = "DEVICE_LOCKED"
@@ -104,12 +84,11 @@ class DeviceLockedError(PermissionBusinessError):
 
 class DeviceMismatchError(AuthError):
     """
-    401 — jeton presente depuis un appareil qui n est pas celui lie.
+    401 — token presented from a device other than the bound device.
 
-    401 et non 403, deliberement : un jeton valide presente depuis un autre
-    appareil est un jeton probablement vole. La bonne reponse est « cette
-    identite n est pas prouvee », pas « vous n avez pas le droit ». Le lot
-    S1-A.9 y branchera un journal de niveau AVERTISSEMENT.
+    This is intentionally authentication failure rather than authorization
+    failure: a valid token presented from another device may be stolen, so the
+    caller's identity is not considered proven.
     """
 
     default_code = "DEVICE_MISMATCH"
@@ -118,19 +97,11 @@ class DeviceMismatchError(AuthError):
 
 class InvalidCredentialsError(AuthError):
     """
-    401 — adresse inconnue, mot de passe faux, ou compte desactive.
+    401 — unknown address, wrong password, or disabled account.
 
-    **Un seul code pour les trois**, et c est le point le plus important de ce
-    fichier. Distinguer « adresse inconnue » de « mot de passe faux » donnerait
-    a un attaquant un oracle d existence : il enumererait les comptes sans
-    jamais deviner un mot de passe.
-
-    Un motif distinct pour « compte desactive » serait pire encore : il
-    confirmerait a la fois que l adresse existe ET que le mot de passe a ete
-    devine.
-
-    Le corps identique ne suffit pas : le TEMPS de reponse doit l etre aussi.
-    Voir `AuthenticationService._verify_credentials` et son hachage factice.
+    One public code deliberately covers all three cases. Distinguishing them
+    would turn authentication into an account-existence oracle. Response timing
+    must also remain comparable; see the authentication service's dummy hash.
     """
 
     default_code = "INVALID_CREDENTIALS"
@@ -139,18 +110,11 @@ class InvalidCredentialsError(AuthError):
 
 class InvalidCurrentPasswordError(ValidationBusinessError):
     """
-    400 `VALIDATION_ERROR` — le mot de passe actuel ne correspond pas.
+    400 `VALIDATION_ERROR` — the current password does not match.
 
-    **Pourquoi 400 et non 401**, alors que « identifiants faux » vaut 401
-    ailleurs : l appelant EST authentifie, son jeton est valide, et c est un
-    champ du corps qui est faux. Un 401 declencherait les intercepteurs des
-    clients React et Flutter — tentative de rafraichissement, puis deconnexion
-    — pour une simple faute de frappe sur l ancien mot de passe.
-
-    Le code reste `VALIDATION_ERROR` : le tableau §3.4 du plan est gele et le
-    prevoit explicitement pour les erreurs « par champ ». La classe Python est
-    distincte pour que le service exprime sa regle, mais le contrat publie ne
-    gagne pas un code de plus — S1-B et S1-C seront ecrits contre le tableau.
+    The caller is already authenticated, so this is a body-field validation
+    error rather than a 401 authentication failure. Returning 401 would cause
+    clients to treat a typo as session expiry.
     """
 
     default_code = "VALIDATION_ERROR"
@@ -159,12 +123,10 @@ class InvalidCurrentPasswordError(ValidationBusinessError):
 
 class PasswordUnchangedError(ValidationBusinessError):
     """
-    400 `VALIDATION_ERROR` — le nouveau mot de passe est identique a l ancien.
+    400 `VALIDATION_ERROR` — the new password matches the old password.
 
-    Refuse plutot qu accepte silencieusement : un changement qui ne change rien
-    revoquerait quand meme TOUTES les sessions du compte. L utilisateur serait
-    deconnecte partout au prix d une operation sans effet, ce qui est le pire
-    des deux mondes.
+    Rejecting this avoids revoking every session for a change that produced no
+    actual credential update.
     """
 
     default_code = "VALIDATION_ERROR"
@@ -173,16 +135,10 @@ class PasswordUnchangedError(ValidationBusinessError):
 
 class OtpInvalidError(ValidationBusinessError):
     """
-    400 `OTP_INVALID` — defi introuvable, expire, deja consomme, ou code faux.
+    400 `OTP_INVALID` — challenge missing, expired, consumed, or code invalid.
 
-    **Un seul code pour quatre situations, deliberement.** Distinguer « expire »
-    de « introuvable » confirmerait qu un defi a existe pour cet identifiant,
-    donc qu un compte a demande une reinitialisation. Le tableau §3.4 du plan
-    prevoit `OTP_EXPIRED` ; il reste inutilise ici pour cette raison, et
-    l ADR-S1-04 le consigne.
-
-    Le detail precis part dans les journaux, ou il sert au diagnostic sans etre
-    offert a qui essaie des identifiants au hasard.
+    One public code intentionally covers all these states so an attacker cannot
+    infer whether a challenge ever existed for a guessed account.
     """
 
     default_code = "OTP_INVALID"
@@ -191,14 +147,10 @@ class OtpInvalidError(ValidationBusinessError):
 
 class OtpMaxAttemptsError(RateLimitError):
     """
-    429 `OTP_MAX_ATTEMPTS` — le plafond de cinq tentatives est atteint.
+    429 `OTP_MAX_ATTEMPTS` — the five-attempt limit has been reached.
 
-    Sous-classe de `RateLimitError` pour heriter du 429 sans creer une seconde
-    base a ce statut ; seul le code change, parce que le tableau §3.4 le fige a
-    `OTP_MAX_ATTEMPTS` et que S1-B comme S1-C seront ecrits contre lui.
-
-    A ce stade le defi est **consomme definitivement** : meme presente ensuite,
-    le bon code ne le rouvrira pas. L utilisateur repasse par une demande.
+    Once this happens the challenge is permanently consumed; even the correct
+    code cannot reopen it and the user must request a new challenge.
     """
 
     default_code = "OTP_MAX_ATTEMPTS"
