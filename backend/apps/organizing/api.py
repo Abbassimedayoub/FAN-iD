@@ -1,8 +1,8 @@
 """
-Interface publique minimale du contexte organizing.
+Minimal public interface for the organizing context.
 
-Les autres bounded contexts ne doivent pas importer directement les modèles
-internes d organizing pour résoudre le propriétaire courant.
+Other bounded contexts resolve current ownership through this API rather than
+importing organizing's internal models directly.
 """
 
 from __future__ import annotations
@@ -39,12 +39,7 @@ def resolve_organizer_context(
     *,
     user_id: uuid.UUID,
 ) -> tuple[uuid.UUID | None, bool]:
-    """
-    Retourne l organisateur du compte et son état d approbation.
-
-    Un seul SELECT fournit les deux primitives nécessaires au moteur
-    d autorisation.
-    """
+    """Return the account's organizer identifier and approval state in one query."""
 
     row = (
         Organizer.objects.filter(user_id=user_id)
@@ -96,13 +91,7 @@ def resolve_organizer_commercial_context(
     *,
     user_id: uuid.UUID,
 ) -> tuple[uuid.UUID | None, bool, bool]:
-    """
-    Retourne :
-    (organizer_id, compte_approuve, commission_convenue).
-
-    Le troisieme booleen ne devient vrai que si le compte est APPROVED
-    ET qu'un accord financier explicite existe.
-    """
+    """Return organizer_id, account approval state, and whether an explicit commission agreement exists."""
 
     row = (
         Organizer.objects.filter(
@@ -210,12 +199,7 @@ def get_scanner_assignment_summary(
     scanner_id: uuid.UUID,
     assignable_only: bool = False,
 ) -> ScannerAssignmentSummary | None:
-    """
-    Retourne un scanner appartenant strictement à organizer_id.
-
-    En mode affectation, seuls les scanners encore préparables /
-    opérationnels sont acceptés.
-    """
+    """Return a scanner strictly owned by organizer_id; assignment mode accepts only operationally eligible scanners."""
 
     queryset = Scanner.objects.filter(
         pk=scanner_id,
@@ -243,10 +227,7 @@ def list_scanner_assignment_summaries(
     organizer_id: uuid.UUID,
     scanner_ids: list[uuid.UUID],
 ) -> tuple[ScannerAssignmentSummary, ...]:
-    """
-    Résout les scanners d'un ensemble d'affectations sans exposer
-    ceux d'un autre organisateur.
-    """
+    """Resolve scanners for assignments without exposing scanners from another organizer."""
 
     if not scanner_ids:
         return ()
@@ -278,13 +259,7 @@ def list_scanner_assignment_summaries(
     slots=True,
 )
 class ScannerPortalContext:
-    """
-    Identité minimale nécessaire au portail opérationnel scanner.
-
-    Le portail n'est disponible qu'après remplacement du mot de passe
-    temporaire et uniquement pour un scanner OPENED ou ACTIVE rattaché
-    à un organisateur approuvé.
-    """
+    """Return the minimal scanner identity required by the operational portal after temporary-password replacement and organizer approval."""
 
     id: uuid.UUID
     organizer_id: uuid.UUID
