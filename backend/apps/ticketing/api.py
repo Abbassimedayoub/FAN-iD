@@ -32,7 +32,7 @@ def list_ticket_buyer_notification_recipients(
     *,
     event_id: UUID,
 ) -> list[TicketBuyerNotificationRecipient]:
-    """Acheteurs uniques de billets payés et non annulés d'un événement."""
+    """Unique buyers of paid, non-cancelled tickets for an event."""
     recipients: list[TicketBuyerNotificationRecipient] = []
     seen_user_ids: set[UUID] = set()
 
