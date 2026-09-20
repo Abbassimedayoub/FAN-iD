@@ -1,6 +1,6 @@
 /**
- * État `loading` (§4.2 Source B) : reproduit la FORME finale du contenu,
- * jamais un spinner plein écran (saut de mise en page, perception de lenteur).
+ * Loading state that mirrors the final content shape instead of showing a
+ * full-screen spinner, reducing layout shifts and perceived latency.
  */
 interface SkeletonProps {
   className?: string;
