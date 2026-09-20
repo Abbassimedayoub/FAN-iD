@@ -1,9 +1,8 @@
 """
-Classe d authentification : un jeton devient un utilisateur, ou rien.
+Authentication-class tests: a token resolves to a current user or is rejected.
 
-Deux tests portent le fond du lot : celui qui prouve qu une session revoquee est
-refusee IMMEDIATEMENT, et celui qui prouve que le claim `role` du jeton
-n autorise rien. Les autres verifient les refus de forme.
+Key cases prove immediate session revocation and that the token's role claim
+does not authorize server-side actions.
 """
 
 from __future__ import annotations
@@ -58,8 +57,7 @@ def fan(db, roles) -> User:
 
 
 def request_with(token: str | None, *, scheme: str = "Bearer"):
-    # En-tete passe en argument nomme : `**headers` est vu par mypy comme le
-    # parametre `data` de `APIRequestFactory.get`, pas comme les entrees de META.
+    # Pass headers explicitly because the type stubs otherwise interpret **headers as request data.
     if token is None:
         return factory.get("/api/v1/whatever")
     return factory.get("/api/v1/whatever", HTTP_AUTHORIZATION=f"{scheme} {token}".strip())
@@ -71,11 +69,7 @@ def request_with(token: str | None, *, scheme: str = "Bearer"):
 
 
 def test_a_session_without_any_device_authenticates(auth, fan):
-    """
-    Un supporter sans appareil lie, dont le jeton ne porte pas de `did` : les
-    deux sont absents, ils concordent. Le cas inverse — un `did` designant un
-    appareil revoque — reste refuse.
-    """
+    """A user with no bound device may authenticate with a token whose did is null; a token pointing to a revoked device remains invalid."""
     pair = TokenService.issue_pair(user=fan)
 
     resolved, claims = auth.authenticate(request_with(pair.access))
@@ -94,12 +88,7 @@ def test_a_valid_token_resolves_the_user(auth, fan):
 
 
 def test_the_authentication_level_is_read_from_the_session_not_from_the_token(auth, fan):
-    """
-    Une elevation en verification renforcee met a jour la SESSION. Le jeton emis
-    avant porte encore l ancien niveau : lire le jeton ferait attendre quinze
-    minutes a l utilisateur qui vient de saisir son code — et, plus grave,
-    ignorerait une RETROGRADATION.
-    """
+    """Step-up changes session state, so authentication must read the session rather than stale token claims."""
     pair = TokenService.issue_pair(user=fan)
     Session.objects.filter(pk=pair.session.pk).update(auth_level=AUTH_LEVEL_STEP_UP)
 
@@ -110,14 +99,7 @@ def test_the_authentication_level_is_read_from_the_session_not_from_the_token(au
 
 
 def test_a_role_changed_in_the_database_takes_effect_immediately(auth, fan, roles):
-    """
-    **Le claim `role` n autorise rien.**
-
-    Il voyage dans le jeton pour le client — afficher le bon menu sans un appel
-    supplementaire. La decision d autorisation, elle, lit `user.role_id` sur
-    l utilisateur charge depuis la base. Sans cette separation, promouvoir ou
-    RETROGRADER un compte n aurait d effet qu au rafraichissement suivant.
-    """
+    """The token role claim is client metadata only; server authorization uses the current database-backed user role."""
     pair = TokenService.issue_pair(user=fan)
     User.objects.filter(pk=fan.pk).update(role=roles["ADMIN"])
 
@@ -138,10 +120,7 @@ def test_a_role_changed_in_the_database_takes_effect_immediately(auth, fan, role
 
 
 def test_no_authorization_header_is_not_an_error(auth, db):
-    """
-    Un point de terminaison public — l inscription — n envoie aucun jeton. Lever
-    ici les casserait tous.
-    """
+    """Public endpoints may legitimately have no token, so missing Bearer authentication is not itself an error."""
     assert auth.authenticate(factory.get("/api/v1/whatever")) is None
 
 
@@ -151,10 +130,7 @@ def test_another_scheme_is_left_to_the_other_authentication_classes(auth, db):
 
 @pytest.mark.parametrize("header", ["Bearer", "Bearer a b", "Bearer  "])
 def test_a_malformed_bearer_header_is_refused_rather_than_ignored(auth, db, header):
-    """
-    L intention d utiliser un jeton est claire, la forme ne l est pas. Retomber
-    en anonyme donnerait un 403 incomprehensible la ou un 401 explicite est du.
-    """
+    """A malformed Bearer header clearly attempts token authentication and must produce an explicit 401 rather than anonymous fallback."""
     request = factory.get("/api/v1/whatever", HTTP_AUTHORIZATION=header)
 
     with pytest.raises(TokenInvalidError):
@@ -168,10 +144,7 @@ def test_a_token_that_is_not_a_token_is_refused(auth, db, rubbish):
 
 
 def test_a_refresh_token_cannot_authenticate(auth, fan):
-    """
-    Sans le claim `token_type`, le jeton de sept jours deviendrait un jeton
-    d acces permanent et la rotation entiere serait contournee.
-    """
+    """The token_type claim prevents a long-lived refresh token from being accepted as an access token."""
     pair = TokenService.issue_pair(user=fan)
 
     with pytest.raises(TokenInvalidError):
@@ -184,13 +157,7 @@ def test_a_refresh_token_cannot_authenticate(auth, fan):
 
 
 def test_a_revoked_session_is_refused_immediately(auth, fan):
-    """
-    **Le test qui justifie la requete SQL par appel.**
-
-    Sans relecture de la session, un jeton vole resterait valable quinze minutes
-    apres la detection du vol, et la table `session` ne servirait qu au
-    rafraichissement.
-    """
+    """Re-reading the session on each call makes revocation effective immediately instead of waiting for access-token expiry."""
     pair = TokenService.issue_pair(user=fan)
     assert auth.authenticate(request_with(pair.access)) is not None
 
@@ -201,14 +168,10 @@ def test_a_revoked_session_is_refused_immediately(auth, fan):
 
 
 def test_an_expired_session_is_refused_even_if_the_access_token_is_still_valid(auth, fan):
-    """
-    Les deux durees de vie sont independantes : la session expire avec le
-    refresh (7 jours), l access dure 15 minutes. Une session forcee dans le
-    passe doit fermer l acces sans attendre l expiration du jeton.
-    """
+    """Session lifetime and access-token lifetime are independent; an expired session must block access immediately."""
     pair = TokenService.issue_pair(user=fan)
     # L emission ET l expiration sont antidatees : `ck_session_expiry_after_issue`
-    # refuse — a juste titre — une session qui expirerait avant d avoir ete emise.
+    # The database correctly rejects a session whose expiration precedes issuance.
     Session.objects.filter(pk=pair.session.pk).update(
         issued_at=timezone.now() - datetime.timedelta(days=8),
         expires_at=timezone.now() - datetime.timedelta(days=1),
@@ -237,16 +200,12 @@ def test_an_unknown_or_malformed_session_identifier_is_refused(auth, fan):
 
 
 # ===========================================================================
-# Appareil
+# Device
 # ===========================================================================
 
 
 def test_a_token_presented_from_another_device_is_refused(auth, binding, fan):
-    """
-    401 et non 403 : un jeton valide presente depuis un autre appareil est un
-    jeton probablement vole. La bonne reponse est « cette identite n est pas
-    prouvee ».
-    """
+    """A valid token presented from another device is treated as authentication failure, not authorization failure."""
     device = binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     assert device is not None
     pair = TokenService.issue_pair(user=fan, device=device)
@@ -259,7 +218,7 @@ def test_a_token_presented_from_another_device_is_refused(auth, binding, fan):
 
 
 def test_an_exempt_role_authenticates_without_any_device(roles, auth):
-    """ADR-03 : organisateurs et administrateurs n ont pas d appareil lie."""
+    """Organizer and administrator roles are exempt from device binding."""
     organizer = make_user(roles, role="ORGANIZER")
     pair = TokenService.issue_pair(user=organizer)
 
@@ -269,10 +228,7 @@ def test_an_exempt_role_authenticates_without_any_device(roles, auth):
 
 
 def test_the_device_identifier_is_verified_against_the_lock_not_the_token(auth, binding, fan):
-    """
-    Le jeton PORTE `did`, il ne le decide pas. Revoquer l appareil doit fermer
-    l acces des la requete suivante, sans attendre l expiration du jeton.
-    """
+    """The token carries did but does not define device state; revoking the device must take effect on the next request."""
     device = binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
     assert device is not None
     pair = TokenService.issue_pair(user=fan, device=device)
@@ -288,11 +244,7 @@ def test_the_challenge_header_names_the_expected_scheme(auth):
 
 
 def test_two_users_never_share_a_session(auth, roles):
-    """
-    Garde-fou : le `sid` d un jeton ne doit jamais resoudre l utilisateur d un
-    autre. C est la faille multi-comptes classique quand la session est
-    retrouvee par un identifiant fourni par le client.
-    """
+    """A token sid must never resolve to another user's session or account."""
     first = make_user(roles, email="premier-auth@example.test")
     second = make_user(roles, email="second-auth@example.test")
     pair = TokenService.issue_pair(user=first)
