@@ -28,13 +28,13 @@ def _commission_cents(*, amount_cents: int, rate: Decimal) -> int:
 @transaction.atomic
 def build_event_final_report(*, event_id: UUID) -> EventFinalReport:
     """
-    Crée une seule fois le rapport final d'un événement terminé.
+    Create the final report for a completed event exactly once.
 
-    Le verrou Event et la contrainte OneToOne garantissent l'idempotence,
-    même si le worker ou l'outbox rejoue l'événement de clôture.
+    The event lock and one-to-one constraint preserve idempotency even when the
+    worker or Outbox replays the completion event.
     """
-    # Organizer est une relation nullable : ne pas le joindre pendant
-    # SELECT FOR UPDATE, sinon PostgreSQL refuse de verrouiller ce côté externe.
+    # Organizer is nullable, so do not join it under SELECT FOR UPDATE; PostgreSQL
+    # cannot lock the nullable side of that outer join.
     event = Event.objects.select_for_update().get(pk=event_id)
 
     existing = EventFinalReport.objects.filter(event=event).first()
