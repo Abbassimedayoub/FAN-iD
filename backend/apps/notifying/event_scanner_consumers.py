@@ -16,11 +16,7 @@ from .event_scanner_tasks import send_event_scanner_assignment_emails, send_even
 class EventScannerNotificationConsumer(
     BaseConsumer,
 ):
-    """
-    Transforme les événements Catalog en tâches e-mail.
-
-    Aucun SMTP n'est exécuté sous le verrou Outbox.
-    """
+    """Turn Catalog events into email tasks; no SMTP call executes while the Outbox lock is held."""
 
     name = "notifying.event_scanner_notifications"
 
