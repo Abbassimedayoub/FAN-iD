@@ -1,20 +1,16 @@
 """
-Relais Outbox — consomme `outbox_event` et publie vers les consommateurs.
+Outbox relay — consumes `outbox_event` rows and dispatches them to consumers.
 
-Point technique décisif (§21 master prompt / §3.1 Source B) :
-`SELECT ... FOR UPDATE SKIP LOCKED` permet à plusieurs relais concurrents de
-consommer la file SANS se bloquer et sans traiter deux fois le même
-événement. Sans `SKIP LOCKED`, un second worker attendrait le premier et le
-débit s'effondrerait.
+The key concurrency mechanism is `SELECT ... FOR UPDATE SKIP LOCKED`, which
+allows multiple relay workers to consume the queue concurrently without
+blocking each other or processing the same event twice.
 
-Corollaire de sécurité (§24 master prompt, audit P1.C.1) : `relay_batch()`
-tient ces verrous pour la durée de TOUT le lot. Les consumers appelés par
-`_dispatch_to_consumers()` ne doivent donc contenir AUCUN appel réseau
-direct — voir la règle absolue et le mécanisme `BaseConsumer.defer()` dans
-`consumer.py`.
+Security corollary: `relay_batch()` holds these locks for the whole batch.
+Consumers called by `_dispatch_to_consumers()` must therefore contain NO
+direct network calls. See `BaseConsumer.defer()` in `consumer.py`.
 
-Backoff exponentiel (2s, 8s, 32s, 2min, 8min) puis `DEAD` après 5 tentatives
-— jamais de rejeu infini (§21 master prompt).
+Exponential backoff uses 2s, 8s, 32s, 2min, and 8min delays, then marks the
+event `DEAD` after 5 attempts. Retries are never infinite.
 """
 
 import logging
@@ -31,8 +27,8 @@ from .models import OutboxEvent
 
 logger = logging.getLogger("fanid.outbox")
 
-# Registre des consommateurs — chaque bounded context enregistre les siens
-# via `register_consumer()` au chargement de son app (apps.py `ready()`).
+# Consumer registry: each bounded context registers its consumers through
+# `register_consumer()` when its app loads.
 _CONSUMER_REGISTRY: list = []
 
 
@@ -50,12 +46,12 @@ class RelayResult:
 @transaction.atomic
 def relay_batch(batch_size: int | None = None) -> RelayResult:
     """
-    Traite un lot d'événements PENDING/FAILED disponibles (`available_at <= now`).
+    Process a batch of available PENDING/FAILED events
+    (`available_at <= now`).
 
-    Toute la fonction s'exécute dans UNE transaction : le SELECT FOR UPDATE
-    SKIP LOCKED verrouille les lignes choisies pour la durée du traitement, ce
-    qui est exactement ce qui empêche un second relais concurrent de
-    sélectionner les mêmes lignes (elles sont "sautées", pas attendues).
+    The whole function runs in one transaction. `SELECT FOR UPDATE SKIP
+    LOCKED` locks the selected rows for the duration of processing, preventing
+    another concurrent relay from selecting the same rows.
     """
     batch_size = batch_size or settings.OUTBOX_RELAY_BATCH_SIZE
     now = timezone.now()
@@ -71,7 +67,7 @@ def relay_batch(batch_size: int | None = None) -> RelayResult:
     for event in events:
         try:
             _dispatch_to_consumers(event)
-        except Exception as exc:  # pragma: no cover - chemin d'erreur générique
+        except Exception as exc:  # pragma: no cover - generic error path
             _mark_failed_or_dead(event, exc)
             if event.status == OutboxEvent.Status.DEAD:
                 dead += 1
