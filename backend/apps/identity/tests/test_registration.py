@@ -85,7 +85,10 @@ def test_a_valid_registration_returns_201_and_the_public_representation(client, 
 
 @pytest.mark.django_db
 def test_the_response_never_echoes_the_password(client, roles):
-    """Verify against the raw response body so password leakage cannot hide under a different or nested key."""
+    """
+    Verify against the raw response body so password leakage cannot hide under a different or nested
+    key.
+    """
     response = client.post(URL, payload(), format="json")
 
     assert response.status_code == 201
@@ -94,7 +97,10 @@ def test_the_response_never_echoes_the_password(client, roles):
 
 @pytest.mark.django_db
 def test_the_stored_password_is_hashed_by_the_configured_hasher(client, roles):
-    """The stored password must be unreadable and verifiable; algorithm selection is tested separately as configuration."""
+    """
+    The stored password must be unreadable and verifiable; algorithm selection is tested separately
+    as configuration.
+    """
     client.post(URL, payload(), format="json")
     user = User.objects.get(email="supporter@example.test")
 
@@ -105,7 +111,10 @@ def test_the_stored_password_is_hashed_by_the_configured_hasher(client, roles):
 
 
 def test_production_settings_hash_passwords_with_argon2id():
-    """Read production password-hasher configuration from base settings rather than test-overridden active settings."""
+    """
+    Read production password-hasher configuration from base settings rather than test-overridden
+    active settings.
+    """
     from config.settings import base as base_settings
 
     assert base_settings.PASSWORD_HASHERS[0] == "apps.identity.hashers.FanIdArgon2PasswordHasher"
@@ -187,7 +196,10 @@ def test_a_weak_password_is_refused_and_never_appears_in_the_error(client, roles
 
 @pytest.mark.django_db
 def test_a_password_too_similar_to_the_email_is_refused(client, roles):
-    """Provide a non-persisted user to similarity validation so registration can compare account attributes and password safely."""
+    """
+    Provide a non-persisted user to similarity validation so registration can compare account
+    attributes and password safely.
+    """
     response = client.post(
         URL, payload(email="chataigne.orageuse@example.test", password="chataigne.orageuse"), format="json"
     )
@@ -221,7 +233,10 @@ def test_a_birth_date_in_the_future_is_a_form_error_not_an_age_refusal(client, r
 
 @pytest.mark.django_db
 def test_over_posting_privileged_fields_has_no_effect(client, roles):
-    """Privilege fields are structurally absent from both serializer and RegistrationCommand, preventing over-posting."""
+    """
+    Privilege fields are structurally absent from both serializer and RegistrationCommand,
+    preventing over-posting.
+    """
     response = client.post(
         URL,
         payload(
@@ -268,7 +283,10 @@ def test_registration_publishes_exactly_one_event_with_no_personal_data(client, 
 
 @pytest.mark.django_db
 def test_a_refused_registration_publishes_no_event(client, roles):
-    """Account creation and event publication share one transaction; no event may survive a failed account creation."""
+    """
+    Account creation and event publication share one transaction; no event may survive a failed
+    account creation.
+    """
     with patch("apps.identity.services.registration.publish_event") as publish_event_mock:
         client.post(URL, payload(terms_accepted=False), format="json")
 
@@ -278,7 +296,10 @@ def test_a_refused_registration_publishes_no_event(client, roles):
 
 @pytest.mark.django_db
 def test_the_endpoint_throttles_repeated_attempts(client, roles, monkeypatch):
-    """The dedicated registration throttle must apply to this endpoint rather than the generic anonymous limit."""
+    """
+    The dedicated registration throttle must apply to this endpoint rather than the generic
+    anonymous limit.
+    """
     # `override_settings` serait SANS EFFET ici : DRF fige
     # `SimpleRateThrottle.THROTTLE_RATES` a l import du module, en capturant
     # l objet dictionnaire. Recharger les reglages remplace le dictionnaire de
