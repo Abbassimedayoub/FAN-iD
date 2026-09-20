@@ -195,7 +195,10 @@ class AdminOrganizerListResponseSerializer(serializers.Serializer):
 
 
 def organizer_apply_data(data: dict[str, Any]) -> dict[str, Any]:
-    """Build the closed service command; fields outside the contract cannot pass through even if present in the raw request body."""
+    """
+    Build the closed service command; fields outside the contract cannot pass through even if
+    present in the raw request body.
+    """
     return {
         "org_name": data["org_name"],
         "contact_email": data["contact_email"],
