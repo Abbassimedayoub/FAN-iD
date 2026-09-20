@@ -1,26 +1,26 @@
 """
-Le resultat d une decision d autorisation.
+The result of an authorization decision.
 
-Deux exigences opposees se rencontrent ici :
+Two opposing requirements meet here:
 
-- l EXPLOITATION a besoin de savoir POURQUOI un acces a ete refuse, sinon un
-  refus legitime et un bug de configuration se ressemblent dans les journaux ;
-- le CLIENT ne doit rien apprendre de plus que « non ». Distinguer « tu n as pas
-  le role » de « ce n est pas ta ressource » transforme l API en oracle
-  d existence : un attaquant enumere les identifiants en lisant les codes
-  d erreur, sans jamais obtenir une seule donnee.
+- OPERATIONS needs to know WHY access was denied, otherwise a legitimate denial
+  and a configuration bug look the same in logs.
+- The CLIENT must learn nothing more than "no". Distinguishing "you do not have
+  the role" from "this is not your resource" turns the API into an existence
+  oracle: an attacker could enumerate identifiers by reading error codes
+  without ever obtaining the underlying data.
 
-D ou la separation : `Reason` est un code interne, destine aux journaux et aux
-metriques ; il n est jamais renvoye tel quel au client. L adaptateur DRF
-(`permissions.py`) traduit les refus en `FORBIDDEN` opaque, sauf lorsqu une
-action client explicite est possible : `STEP_UP_REQUIRED` pour fournir une
-preuve renforcee, et `ORGANIZER_NOT_APPROVED` pour attendre ou obtenir la
-validation du dossier. Aucun de ces codes ne revele l existence d une ressource.
+Hence the separation: `Reason` is an internal code for logs and metrics; it is
+never returned to the client as-is. The DRF adapter (`permissions.py`)
+translates denials to opaque `FORBIDDEN`, except when the client can take a
+specific action: `STEP_UP_REQUIRED` to provide stronger proof, and
+`ORGANIZER_NOT_APPROVED` to wait for or obtain dossier approval. Neither code
+reveals whether a resource exists.
 
-Les valeurs de `Reason` sont volontairement en nombre fini et sans donnee
-variable : elles servent d etiquette Prometheus. Une etiquette portant un
-identifiant de ressource ou un message d erreur ferait exploser la cardinalite
-et exfiltrerait des donnees personnelles dans la supervision (regle §Metriques).
+`Reason` values are intentionally finite and contain no variable data because
+they are used as Prometheus labels. A label containing a resource identifier or
+error message would explode cardinality and could leak personal data into
+monitoring.
 """
 
 from __future__ import annotations
@@ -30,39 +30,38 @@ from enum import StrEnum
 
 
 class Reason(StrEnum):
-    """Motif stable d une decision. Cardinalite bornee, aucune donnee variable."""
+    """Stable decision reason with bounded cardinality and no variable data."""
 
     ALLOWED = "allowed"
-    #: Aucun sujet authentifie.
+    #: No authenticated subject.
     UNAUTHENTICATED = "unauthenticated"
-    #: Compte desactive ou anonymise (RGPD) : plus aucun droit, meme sur soi.
+    #: Disabled or anonymized account: no remaining rights, including self-access.
     INACTIVE_SUBJECT = "inactive_subject"
-    #: Role inconnu du referentiel — donnee corrompue ou role retire du code.
+    #: Role unknown to the policy: corrupted data or role removed from code.
     UNKNOWN_ROLE = "unknown_role"
-    #: Action absente du catalogue — faute de frappe ou action non declaree.
+    #: Action missing from the catalog: typo or undeclared action.
     UNKNOWN_ACTION = "unknown_action"
-    #: Le role existe mais cette action ne lui est pas accordee.
+    #: The role exists but this action is not granted to it.
     ROLE_NOT_GRANTED = "role_not_granted"
-    #: Le role est accorde mais la ressource n appartient pas au sujet.
+    #: The role is granted but the resource does not belong to the subject.
     NOT_OWNER = "not_owner"
-    #: La ressource ne porte pas l attribut exige par la regle.
+    #: The resource lacks an attribute required by the rule.
     RESOURCE_ATTRIBUTE_MISSING = "resource_attribute_missing"
-    #: L organisateur existe mais n a pas encore ete approuve.
+    #: The organizer exists but has not yet been approved.
     ORGANIZER_NOT_APPROVED = "organizer_not_approved"
-    #: Droits suffisants, mais verification renforcee exigee et non fournie.
+    #: Rights are sufficient, but stronger authentication is required and missing.
     STEP_UP_REQUIRED = "step_up_required"
 
 
 @dataclass(frozen=True, slots=True)
 class Decision:
     """
-    Verdict du moteur.
+    Authorization-engine verdict.
 
-    `bool(decision)` LEVE une exception. Par defaut, une dataclass est toujours
-    vraie : `if decision:` autoriserait donc tous les refus, sans bruit, sans
-    trace, et en passant la revue de code. Plutot que de documenter ce piege en
-    esperant qu on le lise, on le rend impossible — la faute devient une panne
-    immediate et lisible au lieu d une faille silencieuse.
+    `bool(decision)` raises an exception. A dataclass is truthy by default, so
+    `if decision:` would silently authorize denials. Instead of relying on
+    documentation, make that mistake impossible so it fails loudly rather than
+    becoming a silent authorization flaw.
     """
 
     allowed: bool
@@ -75,20 +74,19 @@ class Decision:
         )
 
     def __post_init__(self) -> None:
-        # Garde-fou contre une construction incoherente : un `Decision(True,
-        # Reason.NOT_OWNER)` passerait tous les tests de bord et ruinerait
-        # l exploitabilite des journaux.
+        # Guard against inconsistent construction: `Decision(True,
+        # Reason.NOT_OWNER)` would pass edge checks while making logs misleading.
         coherent = self.allowed is (self.reason is Reason.ALLOWED)
         if not coherent:
             raise ValueError(f"decision incoherente : allowed={self.allowed} reason={self.reason}")
 
 
-#: Instance unique du verdict positif : une decision favorable n a qu une forme.
+#: Singleton positive verdict: an allowed decision has only one valid shape.
 ALLOW = Decision(allowed=True, reason=Reason.ALLOWED)
 
 
 def deny(reason: Reason) -> Decision:
-    """Construit un refus. Interdit de refuser avec le motif `ALLOWED`."""
+    """Build a denial and reject `ALLOWED` as a denial reason."""
     if reason is Reason.ALLOWED:
         raise ValueError("un refus ne peut pas porter le motif ALLOWED")
     return Decision(allowed=False, reason=reason)
