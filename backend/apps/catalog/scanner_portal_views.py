@@ -16,11 +16,11 @@ from .scanner_portal_serializers import ScannerPortalEventSerializer
 
 class ScannerAssignedEventListView(APIView):
     """
-    Liste opérationnelle du scanner connecté.
+    Operational list for the authenticated scanner.
 
-    TICKET_SCAN est la capacité métier déjà réservée au rôle SCANNER.
-    Cette route ne donne aucun EVENT_READ général : elle filtre ensuite
-    strictement sur l'identité scanner et ses affectations actives.
+    TICKET_SCAN is the scanner-specific capability. This route does not grant
+    general event-reading rights and remains scoped to the scanner's active
+    assignments.
     """
 
     permission_classes = [
