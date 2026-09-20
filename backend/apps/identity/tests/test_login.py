@@ -66,7 +66,10 @@ def command(**overrides) -> LoginCommand:
 
 
 def test_a_wrong_password_on_a_locked_account_never_reveals_the_lock(service, binding, fan):
-    """A wrong password on a device-locked account must still return INVALID_CREDENTIALS, never reveal the lock."""
+    """
+    A wrong password on a device-locked account must still return INVALID_CREDENTIALS, never reveal
+    the lock.
+    """
     binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     with pytest.raises(InvalidCredentialsError) as caught:
@@ -107,7 +110,10 @@ def test_an_unknown_address_and_a_wrong_password_are_indistinguishable(service, 
 
 
 def test_an_unknown_address_still_pays_the_price_of_a_hash(service, roles, monkeypatch):
-    """Unknown addresses must still execute the decoy password hash so timing does not reveal account existence."""
+    """
+    Unknown addresses must still execute the decoy password hash so timing does not reveal account
+    existence.
+    """
     calls: list[str] = []
     import apps.identity.services.authentication as module
 
@@ -158,7 +164,10 @@ def test_a_successful_login_opens_a_session_and_issues_a_pair(service, fan):
 
 
 def test_a_login_without_any_fingerprint_binds_no_device(service, fan):
-    """Browser clients may authenticate without a device fingerprint; IP and User-Agent are not substitutes."""
+    """
+    Browser clients may authenticate without a device fingerprint; IP and User-Agent are not
+    substitutes.
+    """
     result = service.login(command())
 
     assert result.device is None
@@ -199,7 +208,10 @@ def test_a_successful_login_publishes_one_event_without_personal_data(service, f
 
 
 def test_a_refused_login_publishes_nothing(service, fan):
-    """The login event must be emitted only inside a successful login transaction, never after a failed attempt."""
+    """
+    The login event must be emitted only inside a successful login transaction, never after a failed
+    attempt.
+    """
     with pytest.raises(InvalidCredentialsError):
         service.login(command(password="Faux-Mot-De-Passe-2026"))
 
@@ -208,7 +220,10 @@ def test_a_refused_login_publishes_nothing(service, fan):
 
 
 def test_a_login_blocked_by_the_device_lock_leaves_no_session_behind(service, binding, fan):
-    """Device binding and token issuance share one transaction so device rejection leaves neither a session nor an event."""
+    """
+    Device binding and token issuance share one transaction so device rejection leaves neither a
+    session nor an event.
+    """
     binding.bind(user=fan, fingerprint=PHONE, platform=PLATFORM_ANDROID)
 
     with pytest.raises(DeviceLockedError):
