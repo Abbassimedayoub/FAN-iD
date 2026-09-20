@@ -1,10 +1,9 @@
 """
-Ports (§19 master prompt / §2.3 Source B) — six frontières de test.
+Ports — six testable boundaries.
 
-Chaque port est une classe abstraite (contrat), sans implémentation métier.
-Les adaptateurs concrets vivent dans `apps.core.adapters` ; les sprints
-suivants y ajoutent les implémentations réelles (Stripe, SES, S3, SSM) sans
-jamais modifier ces contrats ni le code qui les consomme.
+Each port is an abstract contract with no business implementation. Concrete
+adapters live in `apps.core.adapters`; real integrations can be added there
+without changing these contracts or the code that consumes them.
 """
 
 from .device_lock import DeviceLockBackend
