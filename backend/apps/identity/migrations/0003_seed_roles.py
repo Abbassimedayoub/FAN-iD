@@ -1,21 +1,16 @@
 """
-Seed du référentiel des rôles (plan S1 §3.1 : « migration de données idempotente,
-avec fonction inverse »).
+Seed the role reference table with deterministic identifiers.
 
-Idempotence : `update_or_create` sur un identifiant FIXE (voir
-`apps/identity/constants.py`). Rejouer la migration ne crée pas de doublon et ne
-casse pas les clés étrangères existantes.
+Idempotency comes from `update_or_create` using fixed UUIDs. Replaying the
+migration cannot create duplicate roles or break existing foreign keys.
 
-Réversibilité : la fonction inverse ne supprime QUE les rôles encore inutilisés.
-Supprimer un rôle référencé par un utilisateur échouerait de toute façon sur la
-contrainte `PROTECT` — autant le dire explicitement plutôt que de laisser
-l'erreur remonter du SGBD.
+The reverse function deletes only roles that are still unused. Referenced roles
+are intentionally preserved.
 """
 from django.db import migrations
 
-# Dupliqué depuis apps/identity/constants.py à dessein : une migration doit
-# rester figée dans le temps. Si les constantes évoluent, cette migration
-# continue de décrire l'état du schéma tel qu'il était à sa date.
+# Duplicated from apps/identity/constants.py intentionally: migrations are
+# historical artifacts and must remain frozen even if runtime constants evolve.
 ROLES = [
     ("80d63969-f419-5bd6-b682-653e21e74a65", "FAN"),
     ("ea173779-0ab3-56b8-9924-23915ef7fc29", "ORGANIZER"),
@@ -23,7 +18,7 @@ ROLES = [
     ("58d71579-cab7-576e-b233-27c1c424b8bd", "ADMIN"),
 ]
 
-#: Descriptif uniquement (ADR-02) : la source de vérité est le PolicyEngine.
+#: Descriptive metadata only; runtime authorization comes from the code policy.
 PERMISSIONS = {
     "FAN": {"description": "Achète, détient et transfère ses billets."},
     "ORGANIZER": {"description": "Crée et administre ses événements, une fois le compte approuvé."},
