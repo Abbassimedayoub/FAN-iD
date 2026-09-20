@@ -1,9 +1,9 @@
 """
-Verification renforcee de la session courante.
+Step-up verification for the current session.
 
-Le code OTP eleve uniquement la session qui a demande le challenge.
-Aucun nouveau JWT n'est emis : JWTAuthentication relit auth_level depuis
-la session a chaque requete.
+The OTP elevates only the session that requested the challenge. No new JWT is
+issued because JWTAuthentication re-reads `auth_level` from the session on
+every request.
 """
 
 from __future__ import annotations
@@ -32,13 +32,7 @@ CODE_DIGITS = 6
 
 
 def _hash_code(session_id: uuid.UUID, code: str) -> str:
-    """
-    Lie cryptographiquement le code a la session qui l'a demande.
-
-    MfaChallenge ne porte volontairement pas de FK session. Inclure le sid
-    dans le digest empeche qu'un code demande depuis une session A eleve
-    une session B du meme utilisateur.
-    """
+    """Bind the code cryptographically to the requesting session so a code from one session cannot elevate another session of the same user."""
     raw = f"{session_id}:{code}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -64,8 +58,8 @@ class StepUpService:
         now = timezone.now()
 
         with transaction.atomic():
-            # Le verrou utilisateur serialise les demandes concurrentes :
-            # un seul challenge STEP_UP reste utilisable pour ce compte.
+            # The user-row lock serializes concurrent step-up requests:
+            # only one STEP_UP challenge remains usable for the account.
             locked_user = User.objects.select_for_update().get(pk=user.pk)
 
             session = (
@@ -204,7 +198,7 @@ class StepUpService:
 
                 return "exhausted" if exhausted else "invalid"
 
-            # On verrouille exactement la session courante.
+            # Lock exactly the current session.
             session = (
                 Session.objects.select_for_update()
                 .active()
@@ -216,8 +210,8 @@ class StepUpService:
             )
 
             if session is None:
-                # La session a ete revoquee entre authentification et
-                # confirmation. Le challenge ne doit plus etre reutilisable.
+                # The session was revoked between authentication and confirmation; the
+                # challenge must no longer remain usable.
                 challenge.consumed_at = now
                 challenge.save(update_fields=["consumed_at"])
                 return "invalid"
