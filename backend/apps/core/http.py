@@ -1,17 +1,9 @@
 """
-Requête HTTP enrichie par les middlewares du socle.
+HTTP request typing enriched with attributes installed by project middleware.
 
-Django ne permet pas de déclarer statiquement les attributs qu'un middleware
-ajoute à `HttpRequest`. Les déclarer ici donne à mypy — et surtout au lecteur —
-le contrat réel de l'objet qui circule dans l'application, au lieu de disperser
-un `# type: ignore[attr-defined]` à chaque point d'usage.
-
-Ce module est le point d'extension prévu : le Sprint 1 y ajoutera `device` et
-`session` (DeviceBindingMiddleware), et l'acteur résolu pour AuthAuditMiddleware.
-
-`FanIdRequest` n'est jamais instanciée : Django continue de fabriquer des
-`WSGIRequest`. C'est une déclaration de contrat destinée au vérificateur de
-types, pas une classe à construire.
+Django cannot statically declare middleware-added attributes on `HttpRequest`.
+These protocol-like subclasses document the real request contract for readers
+and type checking without changing what Django instantiates at runtime.
 """
 
 import uuid
@@ -25,42 +17,29 @@ if TYPE_CHECKING:  # pragma: no cover - déclaration de type uniquement
 
 
 class FanIdRequest(HttpRequest):
-    """`HttpRequest` augmentée des attributs posés par les middlewares du socle."""
+    """`HttpRequest` augmented with attributes installed by core middleware."""
 
-    #: Posé par `CorrelationMiddleware` sur CHAQUE requête (jamais absent).
+    #: Set by CorrelationMiddleware on every request.
     correlation_id: str
 
-    #: Posé par `IdempotencyMiddleware` uniquement sur les requêtes portant un
-    #: en-tête `Idempotency-Key` valide — absent sinon.
+    #: Set by IdempotencyMiddleware only for requests carrying a valid Idempotency-Key header.
     idempotency_record: "IdempotencyRecord"
 
 
 class FanIdApiRequest(Request):
     """
-    `Request` de DRF, augmentee par l authentification du contexte `identity`.
+    DRF Request augmented by identity authentication.
 
-    Distincte de `FanIdRequest`, qui decrit la `HttpRequest` de Django vue par
-    les middlewares. `JWTAuthentication` s execute DANS la vue DRF et pose ses
-    attributs sur l objet `Request` — lequel n herite pas de `HttpRequest`, il
-    l enveloppe. Les declarer sur `FanIdRequest` aurait decrit un objet qui ne
-    les porte jamais.
-
-    Types PRIMITIFS uniquement : y mettre `Session` ferait dependre `core` du
-    contexte `identity` (ADR-S-01), ce que `lint-imports` interdit.
-
-    Jamais instanciee, comme `FanIdRequest`. Ces attributs n existent que si
-    `JWTAuthentication` a authentifie l appel : un autre authentificateur
-    laisserait une requete sans eux.
+    Keep this distinct from Django's underlying HttpRequest because
+    JWTAuthentication runs inside DRF and decorates the wrapper request. Only
+    primitive types are declared here so core does not depend on identity models.
     """
 
-    #: Session relue en base a chaque requete authentifiee.
+    #: Session identifier re-read from the database for each authenticated request.
     session_id: uuid.UUID
 
-    #: 1 = mot de passe, 2 = verification renforcee. Lu sur la SESSION, jamais
-    #: sur le jeton, pour qu une retrogradation prenne effet immediatement.
+    #: 1 = password, 2 = step-up verification. Read from the session so changes take effect immediately.
     auth_level: int
 
-    #: Organisateur de rattachement, pose par le contexte proprietaire
-    #: avant le controle des permissions (ADR-S1-05). Absent partout
-    #: ailleurs : son absence REFUSE la portee `OWN_ORGANIZER`.
+    #: Organizer identifier installed by the owning context before permission checks; absence denies OWN_ORGANIZER scope.
     organizer_id: uuid.UUID | None
