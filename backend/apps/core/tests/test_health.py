@@ -1,10 +1,9 @@
 """
-/health et /health/ready — nominal, base coupée ⇒ 503, Celery coupé ⇒ degraded/200
-(§56 master prompt / §6.1 Source B).
+Tests for /health and /health/ready: nominal behavior, database failure, and
+degraded Celery behavior.
 
-Nécessite une vraie base PostgreSQL (voir docker-compose.yml) : ces tests
-s'exécutent via `docker compose exec api pytest`, pas dans ce sandbox sans
-réseau/Docker (voir SPRINT_TEST_REPORT.md).
+These tests require a real PostgreSQL database and are intended to run through
+the project test environment.
 """
 
 from unittest import mock
@@ -86,7 +85,7 @@ def test_readiness_returns_503_when_database_down():
 
 @pytest.mark.django_db
 def test_readiness_degraded_when_celery_down_but_db_up():
-    """Celery indisponible ne doit PAS transformer une panne partielle en panne totale (§36)."""
+    """Celery failure must remain degraded/200 instead of becoming a total outage."""
     client = APIClient()
     with mock.patch(
         "apps.core.views.ReadinessView._check_celery",
@@ -94,7 +93,7 @@ def test_readiness_degraded_when_celery_down_but_db_up():
     ):
         response = client.get(reverse("health-ready"))
 
-    assert response.status_code == 200  # PAS 503 : Celery n'est pas critique
+    assert response.status_code == 200  # Celery is non-critical, so this is not 503.
     body = response.json()
     assert body["status"] == "degraded"
     assert body["checks"]["celery"]["status"] == "degraded"
