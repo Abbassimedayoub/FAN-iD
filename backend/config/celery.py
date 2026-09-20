@@ -1,17 +1,10 @@
 """
-Application Celery FAN-iD.
+FAN-iD Celery application.
 
-La propagation OpenTelemetry du contexte W3C (`traceparent`) à travers
-Celery est assurée par `CeleryInstrumentor`, initialisé dans
-`apps.core.observability.tracing.bootstrap_tracing()`.
-
-Le `correlation_id` applicatif est propagé séparément via le header
-personnalisé `X-Correlation-ID` :
-- injection avant publication ;
-- restauration dans le ContextVar côté worker ;
-- nettoyage du ContextVar après exécution.
-
-`traceparent` et `correlation_id` sont deux mécanismes distincts.
+OpenTelemetry propagates the W3C trace context through Celery instrumentation.
+The application correlation ID is propagated separately through a custom
+X-Correlation-ID header, restored in the worker context, then cleared after task
+execution. Trace context and correlation ID remain distinct mechanisms.
 """
 
 import os
@@ -34,13 +27,12 @@ app.config_from_object(
 app.autodiscover_tasks()
 
 
-# Les tâches core sont organisées par sous-domaines et ne résident donc pas
-# dans apps.core.tasks, que l'autodiscovery Celery recherche par défaut.
+# Core tasks are organized by subdomain rather than living in apps.core.tasks,
+# which is Celery's default autodiscovery target.
 #
 # IMPORTANT :
-# les modules de tests ne sont jamais importés par défaut. Le test
-# d'intégration réel P0-8 peut explicitement activer son module de tâche
-# avec FANID_IMPORT_TEST_TASKS=1 sur un worker dédié.
+# Test task modules are never imported by default; dedicated integration workers
+# may opt in explicitly through FANID_IMPORT_TEST_TASKS=1.
 _celery_imports = [
     "apps.core.outbox.tasks",
     "apps.core.idempotency.tasks",
@@ -52,8 +44,7 @@ if os.environ.get("FANID_IMPORT_TEST_TASKS") == "1":
 app.conf.imports = tuple(_celery_imports)
 
 
-# Ne surtout pas utiliser "correlation_id" ici :
-# c'est une propriété réservée par Celery/AMQP.
+# Do not use the name "correlation_id" here; Celery/AMQP reserves it.
 _CORRELATION_ID_HEADER_KEY = "X-Correlation-ID"
 
 _current_correlation_tokens = {}
@@ -61,11 +52,7 @@ _current_correlation_tokens = {}
 
 @before_task_publish.connect
 def _inject_correlation_id(headers=None, **kwargs):
-    """
-    Injecte le correlation_id applicatif courant dans un header Celery custom.
-
-    Le `traceparent` reste entièrement géré par CeleryInstrumentor.
-    """
+    """Inject the current application correlation ID into a custom Celery header; traceparent stays managed by CeleryInstrumentor."""
     if headers is None:
         return
 
@@ -79,9 +66,7 @@ def _inject_correlation_id(headers=None, **kwargs):
 
 @task_prerun.connect
 def _restore_correlation_id(task_id=None, task=None, **kwargs):
-    """
-    Restaure le correlation_id reçu dans le ContextVar du worker.
-    """
+    """Restore the received correlation ID into the worker ContextVar."""
     if task is None:
         return
 
@@ -101,10 +86,7 @@ def _restore_correlation_id(task_id=None, task=None, **kwargs):
 
 @task_postrun.connect
 def _reset_correlation_id(task_id=None, **kwargs):
-    """
-    Nettoie le ContextVar après exécution afin d'empêcher toute fuite
-    du correlation_id vers une tâche suivante du même worker.
-    """
+    """Clear the ContextVar after execution so the correlation ID cannot leak into the next task on the same worker."""
     if task_id is None:
         return
 
