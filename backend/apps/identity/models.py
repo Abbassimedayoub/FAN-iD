@@ -1,15 +1,10 @@
 """
-Bounded context `identity` — Role et User (plan S1 §3.1).
+Bounded context `identity`: roles, users, devices, sessions, and MFA state.
 
-**Point de non-retour** : neuf tables du schéma porteront une clé étrangère vers
-`user`. Le modèle est donc figé ici avec ses contraintes, pas ajusté au fil des
-sprints.
-
-Ce que ce module NE fait pas : aucune règle métier. L'inscription, la validation
-d'âge avec message exploitable, le refus du sur-postage et le consentement CGU
-appartiennent à `RegistrationService` (lot S1-A.3). Les modèles ne portent que
-les invariants structurels — ceux qui doivent tenir même face à une insertion
-SQL directe.
+These models contain structural invariants only. Registration, age-validation
+messages, over-posting protection, and explicit terms consent belong to
+services. Database constraints remain responsible for invariants that must hold
+even for direct SQL writes.
 """
 
 import uuid
@@ -44,13 +39,11 @@ from .querysets import DeviceQuerySet, MfaChallengeQuerySet, SessionQuerySet
 
 class Role(models.Model):
     """
-    Référentiel des rôles — 4 lignes, quasi statique (plan S1 §3.1).
+    Role reference table with four nearly static rows.
 
-    `permissions` est **descriptif** (ADR-02) : il documente les capacités du
-    rôle pour la console d'administration. La source de vérité de l'autorisation
-    est la politique en code de `apps.identity.authz` (master prompt §10). Ne
-    jamais autoriser une
-    requête sur la foi de ce JSON.
+    `permissions` is descriptive metadata for administration interfaces. The
+    authorization source of truth is the code policy in `apps.identity.authz`;
+    requests must never be authorized from this JSON field.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -61,8 +54,8 @@ class Role(models.Model):
     class Meta:
         db_table = "identity_role"
         constraints = [
-            # Second niveau de défense (ADR-S-04 règle 7) : le SGBD refuse un
-            # rôle inconnu même inséré directement en SQL.
+            # Second line of defense: the database rejects an unknown role name even when
+            # inserted directly with SQL.
             models.CheckConstraint(
                 condition=models.Q(name__in=list(ROLE_NAMES)),
                 name="ck_role_name_valid",
@@ -75,27 +68,20 @@ class Role(models.Model):
 
 class User(AbstractUser, TimeStampedModel, VersionedModel):
     """
-    Utilisateur — l'email est l'identité canonique de l'application.
+    User model whose canonical application identity is the email address.
 
-    **`username` conservé mais neutralisé** (décision D-4) : `AbstractUser`
-    l'impose en `UNIQUE NOT NULL`. Plutôt que de le supprimer — migration
-    destructive, contraire au §9 — il devient nullable et non unique. Il ne
-    sert plus à rien fonctionnellement ; il est conservé pour ne pas casser
-    l'historique de migration et pourra être retiré plus tard en
-    expand/contract (ADR-S-08).
+    `username` is retained but neutralized because it comes from `AbstractUser`;
+    keeping it nullable and non-unique avoids a destructive historical migration.
+    `date_joined` is retained for the same compatibility reason while
+    `created_at` is the project's canonical creation timestamp.
 
-    **`date_joined` conservé** pour la même raison. L'horodatage canonique du
-    projet est `created_at`, hérité de `TimeStampedModel` comme sur toutes les
-    autres tables — c'est lui que référence la contrainte d'âge.
-
-    **Suppression** : jamais de `CASCADE` depuis `user`. Toutes les références
-    entrantes seront en `PROTECT` ; l'effacement RGPD passe par l'anonymisation
-    (`anonymized_at`, Sprint 5).
+    Incoming business references use PROTECT rather than CASCADE; account
+    erasure is handled through anonymization instead of deleting business data.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
-    # --- Identité ---
+    # --- Identity ---
     email = CITextEmailField(unique=True)
     username = models.CharField(  # type: ignore[misc]
         max_length=150,
@@ -111,15 +97,15 @@ class User(AbstractUser, TimeStampedModel, VersionedModel):
         help_text="V1 : un seul rôle par utilisateur (ADR-01).",
     )
 
-    # --- État civil ---
+    # --- Personal details ---
     date_of_birth = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=32, null=True, blank=True)
 
-    # --- Conformité ---
+    # --- Compliance ---
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
     anonymized_at = models.DateTimeField(null=True, blank=True)
 
-    # Comptes SCANNER créés par invitation.
+    # Scanner accounts created by invitation.
     must_change_password = models.BooleanField(
         default=False,
         db_default=False,
@@ -141,8 +127,8 @@ class User(AbstractUser, TimeStampedModel, VersionedModel):
 
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
-    #: `createsuperuser` demandera la date de naissance ; la contrainte d'âge
-    #: s'applique aussi aux administrateurs.
+    #: `createsuperuser` asks for the date of birth; the age constraint also applies
+    #: to administrator accounts.
     REQUIRED_FIELDS = ["date_of_birth"]
 
     objects = UserManager()  # type: ignore[misc,assignment]
@@ -174,29 +160,19 @@ class User(AbstractUser, TimeStampedModel, VersionedModel):
 
 class Device(UUIDModel):
     """
-    Appareil lié à un compte (plan S1 §2.4 et §3.1, matérialise RM-5).
+    Device bound to an account.
 
-    **Un seul appareil actif par compte**, garanti par une unicité PARTIELLE en
-    base : `UNIQUE(user_id) WHERE revoked_at IS NULL`. L'historique des appareils
-    révoqués est conservé pour l'audit ; seul l'appareil courant est contraint.
-    Vérifié sur PostgreSQL 16 : révoquer l'actif puis en lier un nouveau
-    fonctionne, lier un second actif est rejeté.
+    At most one active device per account is enforced by a partial uniqueness
+    constraint: `UNIQUE(user_id) WHERE revoked_at IS NULL`. Revoked devices are
+    retained as history while only the current device is constrained.
 
-    **L'empreinte est opaque.** Elle est calculée côté client (identifiant
-    matériel + bundle id + sel persistant, puis SHA-256). Le serveur ne la
-    recalcule jamais, n'en déduit rien, et n'utilise NI l'IP, NI le User-Agent,
-    NI aucune empreinte comportementale comme substitut — c'est instable,
-    intrusif, et non conforme à la minimisation RGPD. Il valide uniquement le
-    format.
+    The fingerprint is opaque and computed client-side. The server never
+    recomputes it or substitutes IP, User-Agent, or behavioral fingerprinting;
+    it validates only the canonical format.
 
-    **Pas de `TimeStampedModel`** : `bound_at` EST l'horodatage de création.
-    Ajouter `created_at` créerait deux champs pour la même information, donc une
-    occasion de divergence.
-
-    **`on_delete=CASCADE`** : contrairement aux tables métier (commandes, billets,
-    journaux de scan) qui seront en `PROTECT`, une empreinte d'appareil est une
-    donnée personnelle sans valeur d'audit propre. La conserver après suppression
-    du compte serait un passif RGPD, pas une protection.
+    `bound_at` is the creation timestamp, so this model does not also inherit a
+    second generic creation field. Device rows cascade with the account because
+    the fingerprint is personal data with no independent business-history value.
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="devices")
@@ -236,9 +212,9 @@ class Device(UUIDModel):
                 | models.Q(revoked_reason__in=list(DEVICE_REVOKED_REASONS)),
                 name="ck_device_revoked_reason_valid",
             ),
-            # Un appareil révoqué SANS motif perd toute valeur d'audit ; un motif
-            # SANS date de révocation décrit un état qui n'existe pas. Les deux
-            # champs vont ensemble ou pas du tout.
+            # A revoked device without a reason has incomplete audit value, while a reason
+            # without a revocation timestamp is incoherent. The two fields must
+            # therefore be set together or both remain null.
             models.CheckConstraint(
                 condition=models.Q(revoked_at__isnull=True, revoked_reason__isnull=True)
                 | models.Q(revoked_at__isnull=False, revoked_reason__isnull=False),
@@ -255,21 +231,16 @@ class Device(UUIDModel):
 
 class Session(UUIDModel):
     """
-    Session d'authentification et famille de jetons (plan S1 §3.1).
+    Authentication session and refresh-token family.
 
-    **Pourquoi une table plutôt que la seule liste noire de SimpleJWT** : elle
-    permet de lister ses sessions actives, de révoquer une famille entière lors
-    d'une détection de vol, de lier la session à un appareil, et de porter le
-    niveau d'authentification pour l'élévation.
+    A dedicated table makes active sessions listable, allows whole-family
+    revocation after token reuse, binds sessions to devices, and stores the
+    authentication level used for step-up authorization.
 
-    `family_id` identifie toute la lignée issue d'une connexion. Sa révocation
-    est l'unité de réponse à une réutilisation de refresh (master prompt §17) :
-    on ne révoque pas le jeton fautif, on révoque la famille — y compris le
-    refresh qui vient d'être émis légitimement, puisqu'on ne sait pas lequel des
-    deux porteurs est l'attaquant.
-
-    À ne pas confondre avec `django.contrib.sessions` : aucun rapport, ce modèle
-    ne stocke pas d'état de session HTTP.
+    `family_id` identifies the lineage created by one login. On refresh reuse,
+    the entire family is revoked because the system cannot know which holder is
+    legitimate. This model is unrelated to `django.contrib.sessions` and stores
+    no generic HTTP-session state.
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
@@ -299,11 +270,9 @@ class Session(UUIDModel):
             "historiques ou les appels internes anterieurs a ce champ."
         ),
     )
-    # `default=` et non `auto_now_add=` : la date d'émission d'une session est
-    # une donnée MÉTIER, décidée par `TokenService`, pas un horodatage d'audit
-    # posé par l'ORM. `auto_now_add` la rendrait impossible à fixer
-    # explicitement — donc impossible à antidater dans un test, et impossible
-    # à reconstituer lors d'une reprise de données.
+    # Use `default=` instead of `auto_now_add=` because session issuance time is
+    # business data chosen by `TokenService`, not an ORM audit timestamp. It must
+    # remain explicitly settable for tests and data recovery.
     issued_at = models.DateTimeField(default=timezone.now)
     last_used_at = models.DateTimeField(default=timezone.now)
     expires_at = models.DateTimeField()
@@ -324,9 +293,8 @@ class Session(UUIDModel):
                 condition=models.Q(auth_level__in=list(AUTH_LEVELS)),
                 name="ck_session_auth_level_valid",
             ),
-            # Une session qui expire avant son émission est un bug de calcul de
-            # durée de vie. Mieux vaut le voir à l'écriture qu'au moment où un
-            # utilisateur se retrouve déconnecté sans raison.
+            # A session expiring before issuance indicates an invalid lifetime calculation;
+            # reject it at write time rather than surfacing it later to users.
             models.CheckConstraint(
                 condition=models.Q(expires_at__gt=models.F("issued_at")),
                 name="ck_session_expiry_after_issue",
@@ -354,18 +322,12 @@ class Session(UUIDModel):
 
 class MfaChallenge(UUIDModel):
     """
-    Défi de vérification renforcée — code à usage unique (plan S1 §3.1).
+    Step-up verification challenge with a one-time code.
 
-    **Le code n'est jamais stocké en clair.** Seul son SHA-256 l'est, et le
-    format est verrouillé par une contrainte CHECK : insérer `042917` dans
-    `code_hash` est rejeté par le SGBD, y compris par une écriture SQL directe
-    qui contournerait le service. Sans cette contrainte, un développeur pressé
-    pourrait y écrire le code brut sans que rien ne le signale — la fuite ne se
-    verrait qu'au moment d'une exfiltration de base.
-
-    `attempts <= max_attempts` est garanti en base : le plafond de 5 tentatives
-    ne peut pas être dépassé par une écriture concurrente qui aurait lu une
-    valeur périmée.
+    The code is never stored in plaintext; only its SHA-256 digest is persisted,
+    with a database CHECK constraint enforcing the digest shape even for direct
+    SQL writes. The database also guarantees `attempts <= max_attempts` so a
+    stale concurrent write cannot exceed the attempt ceiling.
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mfa_challenges")
