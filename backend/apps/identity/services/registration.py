@@ -1,10 +1,9 @@
 """
-`RegistrationService` — creation d un compte supporter.
+`RegistrationService` owns supporter-account creation business rules.
 
-Les regles metier vivent ICI, pas dans la vue ni dans le serialiseur. La vue
-traduit du HTTP, le serialiseur valide des FORMES ; le service porte les regles
-qui doivent tenir quel que soit l appelant — interface web, application mobile,
-commande d administration, reprise de donnees.
+Views translate HTTP and serializers validate input shape; this service carries
+rules that must hold regardless of caller, including web, mobile, administration
+commands, or data-recovery paths.
 """
 
 from __future__ import annotations
@@ -30,16 +29,7 @@ logger = logging.getLogger("fanid.identity")
 
 
 def age_in_years(birth_date: datetime.date, on_date: datetime.date) -> int:
-    """
-    Age revolu, calcule sans bibliotheque tierce.
-
-    `(today - birth).days // 365` est faux : il derive d un jour tous les quatre
-    ans et fait basculer un utilisateur du bon cote de la limite un jour trop
-    tot. La comparaison lexicographique de `(mois, jour)` est exacte, y compris
-    pour un 29 fevrier — un natif du 29/02 a son anniversaire le 1er mars les
-    annees non bissextiles selon cette regle, ce qui est le choix le plus
-    prudent : il attend un jour de plus, jamais l inverse.
-    """
+    """Compute attained age without third-party libraries, avoiding day-count approximations around leap years."""
     had_birthday = (on_date.month, on_date.day) >= (birth_date.month, birth_date.day)
     return on_date.year - birth_date.year - (0 if had_birthday else 1)
 
@@ -47,16 +37,11 @@ def age_in_years(birth_date: datetime.date, on_date: datetime.date) -> int:
 @dataclass(frozen=True, slots=True)
 class RegistrationCommand:
     """
-    Entree du service, deja validee dans sa FORME par le serialiseur.
+    Service input whose shape has already been validated by the serializer.
 
-    Volontairement fermee : `role`, `is_staff`, `is_superuser` et `is_active`
-    n y figurent pas. Le sur-postage n est donc pas « filtre » quelque part — il
-    est structurellement impossible d en transporter la valeur jusqu ici. Un
-    filtre s oublie lors d un ajout de champ ; une structure fermee, non.
-
-    `terms_accepted` est un BOOLEEN, pas un horodatage. La date d acceptation est
-    posee par le SERVEUR : un horodatage fourni par le client serait une preuve
-    de consentement fabriquee par la partie qu elle est censee engager.
+    The command is intentionally closed and carries no privilege fields.
+    `terms_accepted` is a boolean; the server records the acceptance timestamp
+    rather than trusting a client-supplied timestamp.
     """
 
     email: str
@@ -69,34 +54,24 @@ class RegistrationCommand:
 
 
 class RegistrationService:
-    """Cree un compte supporter et publie l evenement correspondant."""
+    """Create a supporter account and publish the corresponding event."""
 
     @staticmethod
     @transaction.atomic
     def register(command: RegistrationCommand) -> User:
-        """
-        Cree l utilisateur et publie `identity.user.registered` DANS LA MEME
-        TRANSACTION.
-
-        C est l invariant I-5 (ADR-S-03) : `publish_event()` refuse d ailleurs de
-        s executer hors transaction. Un evenement emis en dehors pourrait partir
-        alors que la creation a ete annulee — un courriel de bienvenue pour un
-        compte qui n existe pas.
-        """
+        """Create the user and publish `identity.user.registered` in the same transaction so no event can survive a rolled-back account creation."""
         if not command.terms_accepted:
             raise TermsNotAcceptedError()
 
         today = timezone.localdate()
         age = age_in_years(command.date_of_birth, today)
         if age < MINIMUM_AGE_YEARS:
-            # `details` ne contient QUE des bornes, jamais la date fournie : le
-            # corps d erreur transite dans les journaux et les traces.
+            # Error details contain only bounds, never the submitted birth date, because the
+            # error body may flow through logs and traces.
             raise UnderageError(details={"minimum_age_years": MINIMUM_AGE_YEARS})
 
         try:
-            # Point de sauvegarde imbrique : sans lui, l `IntegrityError` casse
-            # la transaction ENGLOBANTE, et le `publish_event` suivant echouerait
-            # avec une erreur incomprehensible au lieu du 400 attendu.
+            # Use an inner savepoint so an IntegrityError does not poison the outer transaction.
             with transaction.atomic():
                 user = User.objects.create_user(
                     email=command.email,
@@ -108,14 +83,12 @@ class RegistrationService:
                     phone=command.phone or None,
                 )
         except IntegrityError as exc:
-            # Aucune verification prealable par SELECT : entre le SELECT et
-            # l INSERT, deux requetes concurrentes passeraient toutes les deux.
-            # L unicite `citext` en base est la seule garantie qui tienne ; on
+            # Do not pre-check uniqueness with SELECT; concurrent requests could both pass.
+            # Database citext uniqueness is the race-safe guarantee.
             # traduit sa violation plutot que de courir apres elle.
             raise EmailAlreadyExistsError() from exc
         except DjangoValidationError as exc:
-            # `create_user` appelle `full_clean`. Sans ce filet, une violation de
-            # validateur de modele remonterait en 500 : DRF ne connait pas
+            # create_user calls full_clean so model-validator failures can be mapped cleanly.
             # `django.core.exceptions.ValidationError`.
             raise ValidationBusinessError(details={"fields": exc.message_dict}) from exc
 
@@ -140,15 +113,14 @@ class RegistrationService:
                 ),
             )
 
-        # Ni l adresse, ni le mot de passe, ni aucun element du corps de requete.
-        # Le `correlation_id` pose par le middleware relie cette ligne a la
-        # requete HTTP, qui porte deja ce qu il faut pour enqueter.
+        # Do not log the email address, password, or any request-body value.
+        # The correlation ID links this log entry to the HTTP request for diagnostics.
         logger.info("identity.user_registered", extra={"user_id": str(user.pk)})
         return user
 
     @staticmethod
     def as_command(data: dict[str, Any]) -> RegistrationCommand:
-        """Construit la commande a partir de donnees deja validees."""
+        """Build the command from already validated data."""
         return RegistrationCommand(
             email=data["email"],
             password=data["password"],
