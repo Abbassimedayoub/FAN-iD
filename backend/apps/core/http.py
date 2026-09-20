@@ -41,5 +41,6 @@ class FanIdApiRequest(Request):
     #: 1 = password, 2 = step-up verification. Read from the session so changes take effect immediately.
     auth_level: int
 
-    #: Organizer identifier installed by the owning context before permission checks; absence denies OWN_ORGANIZER scope.
+    #: Organizer identifier installed by the owning context before permission checks; absence denies
+    #: OWN_ORGANIZER scope.
     organizer_id: uuid.UUID | None
