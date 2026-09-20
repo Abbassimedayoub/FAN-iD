@@ -148,7 +148,10 @@ def test_a_refresh_from_a_revoked_session_is_invalid_not_a_reuse(fan):
 
 
 def test_replaying_a_rotated_refresh_revokes_the_whole_family(fan):
-    """A replayed rotated refresh revokes the whole family because the server cannot identify the legitimate holder."""
+    """
+    A replayed rotated refresh revokes the whole family because the server cannot identify the
+    legitimate holder.
+    """
     original = TokenService.issue_pair(user=fan)
     rotated = TokenService.rotate(original.refresh)
 
@@ -178,7 +181,10 @@ def test_a_reuse_in_one_family_leaves_the_other_sessions_alive(fan):
 
 
 def test_a_forged_family_claim_does_not_revoke_anything(fan):
-    """The family claim confirms reuse but never locates the session; current-session lookup is keyed by unique `jti`."""
+    """
+    The family claim confirms reuse but never locates the session; current-session lookup is keyed
+    by unique `jti`.
+    """
     alive = TokenService.issue_pair(user=fan)
     orphan = TokenService.issue_pair(user=fan)
     Session.objects.filter(pk=orphan.session.pk).delete()
