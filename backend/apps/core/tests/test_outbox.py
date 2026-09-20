@@ -1,10 +1,8 @@
 """
-Tests de concurrence — Outbox (§58 master prompt / §6.1 Source B) :
-transaction annulée ⇒ aucun événement ; deux relais concurrents ⇒ aucun
-doublon (validation de SKIP LOCKED) ; échec 5 fois ⇒ DEAD + métrique.
+Outbox concurrency tests: rolled-back transactions publish nothing, concurrent
+relays do not duplicate work, and repeated failures eventually mark events DEAD.
 
-Nécessite PostgreSQL réel (SKIP LOCKED, contraintes CHECK) — voir
-SPRINT_TEST_REPORT.md pour la commande d'exécution.
+These tests require real PostgreSQL for SKIP LOCKED and database constraints.
 """
 
 import threading
@@ -51,7 +49,7 @@ def test_publish_event_requires_active_transaction():
 
 @pytest.mark.django_db
 def test_rolled_back_transaction_publishes_no_event():
-    """Invariant I-5 : un événement n'est jamais écrit si la transaction métier échoue."""
+    """An event must never persist when the surrounding business transaction rolls back."""
     aggregate_id = uuid.uuid4()
 
     class _DeliberateRollback(Exception):
@@ -109,7 +107,7 @@ def test_relay_dispatches_pending_event_to_matching_consumer():
 
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_relays_never_process_same_event_twice():
-    """SKIP LOCKED : deux relais concurrents ne doivent jamais traiter le même événement."""
+    """SKIP LOCKED ensures concurrent relays never process the same event twice."""
     consumer = _RecordingConsumer()
     relay._CONSUMER_REGISTRY.clear()
     relay.register_consumer(consumer)
@@ -144,10 +142,10 @@ def test_two_concurrent_relays_never_process_same_event_twice():
         for t in threads:
             t.join()
 
-        assert sum(results) == 10  # tous traités, une seule fois chacun
+        assert sum(results) == 10  # all processed exactly once
         published_events = OutboxEvent.objects.filter(id__in=event_ids, status=OutboxEvent.Status.PUBLISHED)
         assert published_events.count() == 10
-        # Aucune double-consommation : consumed_event est en 1-1 avec les événements.
+        # No duplicate consumption: consumed_event remains one-to-one with events.
         assert ConsumedEvent.objects.filter(event_id__in=event_ids).count() == 10
     finally:
         relay._CONSUMER_REGISTRY.clear()
@@ -169,8 +167,8 @@ def test_event_failing_five_times_becomes_dead(settings):
             )
 
         for attempt in range(1, 6):
-            # available_at est décalé dans le futur par le backoff ; on le
-            # réinitialise entre chaque tentative pour simuler le passage du temps.
+            # Backoff moves available_at into the future; reset it between attempts to
+            # simulate time passing.
             OutboxEvent.objects.filter(pk=event.pk).update(available_at=relay.timezone.now())
             relay.relay_batch(batch_size=10)
             event.refresh_from_db()
@@ -186,7 +184,7 @@ def test_event_failing_five_times_becomes_dead(settings):
 
 @pytest.mark.django_db
 def test_consumed_event_primary_key_deduplicates():
-    """La contrainte PK composite (consumer_name, event_id) EST la déduplication."""
+    """The composite (consumer_name, event_id) constraint is the deduplication key."""
     event_id = uuid.uuid4()
     ConsumedEvent.objects.create(consumer_name="c1", event_id=event_id)
 
@@ -196,10 +194,7 @@ def test_consumed_event_primary_key_deduplicates():
 
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_relays_one_event_is_processed_exactly_once():
-    """
-    Preuve stricte SKIP LOCKED :
-    1 événement PENDING + 2 relais simultanés => 1 seul traitement.
-    """
+    """Strict SKIP LOCKED proof: one pending event plus two relays yields one processing."""
     consumer = _RecordingConsumer()
     relay._CONSUMER_REGISTRY.clear()
     relay.register_consumer(consumer)
@@ -219,7 +214,7 @@ def test_two_concurrent_relays_one_event_is_processed_exactly_once():
     def worker():
         connections.close_all()
         try:
-            # Force les deux relais à démarrer leur compétition ensemble.
+            # Force both relays to start competing at the same time.
             barrier.wait()
 
             result = relay.relay_batch(batch_size=1)
@@ -243,14 +238,14 @@ def test_two_concurrent_relays_one_event_is_processed_exactly_once():
 
         event.refresh_from_db()
 
-        # Un seul des deux relais doit publier l'événement.
+        # Exactly one relay must publish the event.
         assert sorted(results) == [0, 1], results
         assert event.status == OutboxEvent.Status.PUBLISHED
 
-        # Une seule exécution consumer.
+        # Exactly one consumer execution.
         assert consumer.handled.count(event.id) == 1
 
-        # Une seule trace de consommation.
+        # Exactly one consumption record.
         assert (
             ConsumedEvent.objects.filter(
                 consumer_name=consumer.name,
