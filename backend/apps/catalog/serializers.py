@@ -162,13 +162,10 @@ def event_start_date_is_allowed(starts_at: Any) -> bool:
 
 class EventWriteSerializer(serializers.Serializer):
     """
-    Contrat fermé du brouillon Event.
+    Closed write contract for an event draft.
 
-    organizer_id et status ne sont jamais des commandes
-    du client.
-
-    venue/capacity_total peuvent rester incomplets sur un
-    brouillon. La publication applique les invariants forts.
+    `organizer_id` and `status` are never client commands. Draft venue and
+    capacity may remain incomplete; publication enforces the stronger invariants.
     """
 
     category_id = serializers.PrimaryKeyRelatedField(
