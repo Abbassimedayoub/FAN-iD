@@ -16,12 +16,7 @@ from .reservations import StockUnavailableError
 
 @transaction.atomic
 def confirm_order_payment(*, order_id: UUID, now=None) -> Order:
-    """
-    Finalise une commande après vérification réussie par une passerelle de paiement.
-
-    Cette fonction est volontairement interne : un futur webhook de paiement
-    devra vérifier la signature avant de l'appeler.
-    """
+    """Finalize an order after successful payment-provider verification; callers must verify webhook authenticity before invoking it."""
     moment = now or timezone.now()
 
     try:
