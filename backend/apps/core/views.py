@@ -1,6 +1,6 @@
 """
-Endpoints plateforme du Sprint 0 (§34-36 master prompt, §3.2 Source B) :
-liveness, readiness. `/metrics` est servi par django-prometheus (urls.py).
+Platform health endpoints: liveness and readiness.
+`/metrics` is served by django-prometheus (urls.py).
 """
 
 import logging
@@ -15,46 +15,44 @@ _START_TIME = time.monotonic()
 
 logger = logging.getLogger("fanid.health")
 
-# Message générique renvoyé au CLIENT pour toute dépendance en échec —
-# jamais le texte de l'exception (§P1.B.2 plan de correction : une chaîne de
-# connexion, un nom d'hôte interne ou un message pilote PostgreSQL/Redis ne
-# doivent jamais atteindre un appelant non authentifié de /health/ready).
-# L'exception complète est systématiquement consignée côté serveur via
+# Generic message returned to the CLIENT when any dependency fails.
+# Never expose exception text: connection strings, internal hostnames, or
+# PostgreSQL/Redis driver messages must not reach an unauthenticated caller
+# of /health/ready.
+# The complete exception is always logged server-side with
 # `logger.warning(..., exc_info=True)`.
 _GENERIC_UNAVAILABLE_DETAIL = "dépendance indisponible — voir les journaux serveur pour le détail"
 
 
 def libpq_connect_timeout(timeout: float) -> int:
     """
-    Normalise un délai de garde applicatif (float, secondes) vers ce que libpq
-    accepte réellement pour `connect_timeout`.
+    Normalize an application-level timeout (float, seconds) to a value that
+    libpq actually accepts for `connect_timeout`.
 
-    Deux contraintes de libpq, toutes deux silencieuses — défaut révélé par le
-    premier passage réel de mypy sur ce dépôt (P1-000) :
+    libpq has two silent constraints that matter here:
 
-    1. La valeur doit être un ENTIER décimal de secondes. Vérifié : libpq 16
-       rejette `connect_timeout=2.0` avec « invalid integer value ». Un float
-       ne survit ici que grâce à une coercition implicite de psycopg — s'y
-       fier est fragile, et une troncature `int()` arrondit vers le bas.
-    2. Le plancher est de 2 secondes, et la valeur 0 signifie pour libpq
-       « attendre INDÉFINIMENT ». Une configuration à 0.5 produirait donc une
-       sonde SANS AUCUN délai de garde : l'exact inverse de l'exigence §36, et
-       un incident invisible tant que la base répond.
+    1. The value must be a decimal INTEGER number of seconds. libpq 16 rejects
+       `connect_timeout=2.0` with "invalid integer value". A float survives
+       here only because of implicit psycopg coercion; relying on that is
+       fragile, and `int()` truncation would round down.
+    2. The minimum effective timeout is 2 seconds, while 0 means "wait
+       INDEFINITELY" to libpq. A configuration value of 0.5 could therefore
+       create a probe with no timeout at all.
 
-    On borne donc explicitement à un entier >= 2 plutôt que de déléguer à une
-    conversion implicite.
+    Clamp explicitly to an integer >= 2 instead of delegating to implicit
+    conversion.
     """
     return max(2, int(round(timeout)))
 
 
 class HealthView(View):
     """
-    Health de bootstrap Sprint 1.
+    Bootstrap health endpoint.
 
-    Le contrat d'acceptation exige que `/api/v1/health` prouve que les deux
-    dépendances nécessaires au démarrage fonctionnel de l'API — PostgreSQL et
-    Redis — sont joignables. La readiness détaillée reste disponible séparément
-    sur `/health/ready`, notamment pour Celery et les latences.
+    The acceptance contract requires `/api/v1/health` to prove that the two
+    dependencies required for functional API startup — PostgreSQL and Redis —
+    are reachable. Detailed readiness remains available separately on
+    `/health/ready`, including Celery and latency checks.
     """
 
     def get(self, request: HttpRequest) -> JsonResponse:
@@ -78,9 +76,9 @@ class HealthView(View):
 
 class ReadinessView(View):
     """
-    Readiness — vérifie PostgreSQL (critique ⇒ 503 si en panne), Redis et
-    Celery (non critiques ⇒ `degraded` en 200), avec un délai de garde par
-    sonde (§36 master prompt).
+    Readiness endpoint — checks PostgreSQL (critical, so failure returns 503),
+    Redis, and Celery (non-critical, so failures return `degraded` with 200),
+    with a timeout applied to each probe.
     """
 
     def get(self, request: HttpRequest) -> JsonResponse:
@@ -119,17 +117,15 @@ class ReadinessView(View):
     @staticmethod
     def _check_database(timeout: float) -> dict:
         """
-        Timeout RÉELLEMENT appliqué (§P1.B.1) : une connexion psycopg dédiée
-        et éphémère est ouverte avec `connect_timeout` (phase TCP/auth) ET
-        `statement_timeout` SQL (phase requête) bornés à `timeout` secondes.
+        Apply a real timeout: open a dedicated, short-lived psycopg connection
+        with both `connect_timeout` (TCP/auth phase) and SQL
+        `statement_timeout` (query phase) bounded by `timeout` seconds.
 
-        La connexion partagée/poolée de Django (`connections["default"]`,
-        `CONN_MAX_AGE=60`) est délibérément évitée pour cette sonde : une
-        requête posée dessus n'a AUCUN timeout par défaut et pourrait geler
-        indéfiniment sur un réseau dégradé, ce qui viderait de son sens le
-        "délai de garde de 2s par sonde" exigé (§36 master prompt) — la
-        version précédente de ce code recevait `timeout` en paramètre mais
-        ne l'appliquait nulle part, bug corrigé ici.
+        The shared/persistent Django connection (`connections["default"]`,
+        `CONN_MAX_AGE=60`) is deliberately avoided for this probe. A query
+        on that connection has no default timeout and could hang indefinitely
+        on a degraded network. The dedicated probe therefore guarantees that
+        the configured health-check timeout is actually enforced.
         """
         start = time.monotonic()
         try:
@@ -170,11 +166,11 @@ class ReadinessView(View):
     @staticmethod
     def _check_outbox() -> dict:
         """
-        Signale une file Outbox qui ne progresse plus.
+        Report an Outbox queue that is no longer making progress.
 
-        Une file active peut contenir brièvement des événements PENDING ou
-        FAILED. Elle devient dégradée uniquement lorsqu'un événement dépasse
-        OUTBOX_STUCK_AFTER_SECONDS, ou lorsqu'un événement DEAD existe.
+        An active queue may briefly contain PENDING or FAILED events. It becomes
+        degraded only when an event exceeds OUTBOX_STUCK_AFTER_SECONDS, or when
+        at least one DEAD event exists.
         """
         try:
             from datetime import timedelta
@@ -234,7 +230,7 @@ class ReadinessView(View):
             replies = celery_app.control.ping(timeout=timeout)
             if replies:
                 return {"status": "ok"}
-            # Chaîne fixe, non dérivée d'une exception — sans risque de fuite.
+            # Fixed string, not derived from an exception, so it cannot leak exception details.
             return {"status": "degraded", "detail": "no heartbeat"}
         except Exception:
             logger.warning("readiness_celery_check_failed", exc_info=True)
