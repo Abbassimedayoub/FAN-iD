@@ -4,19 +4,16 @@ from typing import Iterable
 
 class EventPublisher(ABC):
     """
-    Port de publication d'événements (§2.3 Source B, ADR-S-03).
+    Event-publication port.
 
-    Implémentation Sprint 0 : `UnimplementedEventPublisher` (garde-fou
-    explicite — voir `apps.core.adapters.events` pour la justification
-    complète, correction post-bilan P2.2). La voie normale de publication
-    au Sprint 0 est `apps.core.outbox.publisher.publish_event()`, appelé
-    dans une transaction ; le relais dispatche ensuite en interne via
-    `register_consumer()`, sans passer par ce port.
+    The current explicit guardrail implementation is
+    `UnimplementedEventPublisher`. The normal publication path is
+    `apps.core.outbox.publisher.publish_event()`, called inside a transaction;
+    the relay then dispatches internally through `register_consumer()`.
 
-    Implémentations prévues : `SqsPublisher`/`KafkaPublisher` (V2, bascule de
-    configuration sans refonte), `RecordingPublisher` (tests — capture les
-    événements publiés pour assertion, n'appelle jamais de service réseau
-    réel).
+    Expected future implementations include `SqsPublisher` or
+    `KafkaPublisher`; tests use `RecordingPublisher` to capture events
+    without calling any real network service.
     """
 
     @abstractmethod
