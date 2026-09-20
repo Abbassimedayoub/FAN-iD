@@ -78,7 +78,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
             newPassword: _newPassword.text,
           );
 
-      // Le backend déconnecte toutes les sessions après modification.
+      // The backend logs out every session after the password change.
       await ref.read(authControllerProvider.notifier).signOutLocal();
 
       if (!mounted) {
