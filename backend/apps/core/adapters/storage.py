@@ -20,7 +20,7 @@ LOCAL_STORAGE_SIGNING_SALT = "fanid.local-object-storage"
 
 
 class InMemoryStorage(ObjectStorage):
-    """Tests — aucun accès disque ni S3 réel."""
+    """Test storage adapter with no real disk or S3 access."""
 
     def __init__(self) -> None:
         self._objects: dict[str, bytes] = {}
@@ -53,10 +53,10 @@ class InMemoryStorage(ObjectStorage):
 
 class LocalStorage(ObjectStorage):
     """
-    Stockage objet persistant de développement.
+    Persistent object storage for development.
 
-    Les chemins utilisateurs ne sont jamais acceptés directement :
-    seule une clé objet contrôlée par le backend est utilisée.
+    User-supplied filesystem paths are never accepted directly; only
+    backend-controlled object keys are used.
     """
 
     def __init__(
