@@ -213,8 +213,7 @@ class _FanCatalogPageState extends ConsumerState<FanCatalogPage>
         );
       });
     } catch (_) {
-      // Le rafraichissement automatique ne doit jamais
-      // masquer le catalogue deja affiche si le reseau
+      // Automatic refresh must never hide an already displayed catalog when the network
       // est temporairement indisponible.
     }
   }
