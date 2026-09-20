@@ -1,7 +1,6 @@
 """
-Gestionnaire d'exception unique — produit le contrat d'erreur gelé (§17 master
-prompt / §3.3 Source B) pour TOUTE erreur, qu'elle vienne de DRF ou d'une
-`BusinessError` métier.
+Single exception handler that produces the stable API error contract for every
+error, whether it comes from DRF or from a business-domain `BusinessError`.
 """
 
 import logging
@@ -44,11 +43,11 @@ def _error_body(code: str, message: str, details: dict | None = None) -> dict:
 
 def custom_exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
     """
-    Point d'entrée unique appelé par DRF (`REST_FRAMEWORK.EXCEPTION_HANDLER`).
+    Single entry point called by DRF (`REST_FRAMEWORK.EXCEPTION_HANDLER`).
 
-    Toute erreur 5xx ne doit JAMAIS exposer de détail technique (message
-    d'exception Python, traceback, requête SQL) au client — seule la
-    `correlation_id`/`trace_id` permet de retrouver l'incident côté serveur.
+    A 5xx response must never expose technical details such as Python exception
+    messages, tracebacks, or SQL queries. The correlation and trace identifiers
+    are the only client-visible references used to find the server-side incident.
     """
     if isinstance(exc, BusinessError):
         logger.warning(
@@ -63,10 +62,9 @@ def custom_exception_handler(exc: Exception, context: dict[str, Any]) -> Respons
         code = _DRF_STATUS_TO_CODE.get(response.status_code, "ERROR")
         detail = getattr(exc, "detail", None)
 
-        # DRF conserve le code explicite d une permission dans ErrorDetail.
-        # On ne preserve que les codes specialises : les codes DRF par defaut
-        # continuent d etre normalises par _DRF_STATUS_TO_CODE afin de garder
-        # le contrat API historique (NOT_AUTHENTICATED, PERMISSION_DENIED, etc.).
+        # DRF keeps an explicit permission code inside ErrorDetail.
+        # Preserve only specialized codes; default DRF codes are normalized
+        # through _DRF_STATUS_TO_CODE to keep the historical API contract.
         if isinstance(detail, ErrorDetail):
             detail_code = str(detail.code)
             default_code = getattr(exc, "default_code", None)
@@ -78,7 +76,8 @@ def custom_exception_handler(exc: Exception, context: dict[str, Any]) -> Respons
         response.data = _error_body(code, message, details)
         return response
 
-    # Erreur non gérée par DRF ni BusinessError : 500 générique, aucun détail exposé.
+    # Error not handled by DRF or BusinessError: return a generic 500 response
+    # without exposing implementation details.
     logger.exception("unhandled_exception")
     return Response(
         _error_body("INTERNAL_ERROR", "Une erreur interne est survenue."),
@@ -87,13 +86,12 @@ def custom_exception_handler(exc: Exception, context: dict[str, Any]) -> Respons
 
 
 class DRFBusinessException(APIException):
-    """Pont pour lever une BusinessError depuis du code qui attend une APIException DRF."""
+    """Bridge a BusinessError into code that expects a DRF APIException."""
 
     def __init__(self, business_error: BusinessError):
         self.status_code = business_error.status_code
-        # `APIException.detail` est typé `ErrorDetail | list | dict` : une `str`
-        # nue y est acceptée à l'exécution mais viole le contrat déclaré par DRF.
-        # `ErrorDetail` EST une sous-classe de `str` — aucun changement de
-        # comportement, le contrat d'erreur gelé du Sprint 0 est préservé.
+        # APIException.detail is typed as ErrorDetail | list | dict. A raw str
+        # works at runtime but violates DRF's declared type contract.
+        # ErrorDetail is a str subclass, so behavior stays unchanged.
         self.detail = ErrorDetail(business_error.message)
         self.business_error = business_error
