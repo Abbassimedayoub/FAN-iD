@@ -1,4 +1,7 @@
-"""Validate idempotency scope across user, key, endpoint, and request hash; matching keys and hashes must not replay across different endpoints."""
+"""
+Validate idempotency scope across user, key, endpoint, and request hash; matching keys and hashes
+must not replay across different endpoints.
+"""
 
 import pytest
 
@@ -8,7 +11,10 @@ from apps.core.idempotency import service
 
 @pytest.mark.django_db
 def test_same_key_same_hash_different_endpoint_is_rejected_not_replayed(user):
-    """Critical case: the request hash matches but the endpoint differs; this must be rejected rather than replayed across endpoints."""
+    """
+    Critical case: the request hash matches but the endpoint differs; this must be rejected rather
+    than replayed across endpoints.
+    """
     key = "shared-key-across-endpoints"
     same_hash = "hash-identical-on-both-calls"
 
