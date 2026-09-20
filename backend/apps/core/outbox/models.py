@@ -1,6 +1,6 @@
 """
-Tables `outbox_event` et `consumed_event` (§21/§22 master prompt, §3.1 Source B,
-ADR-S-03). Garantissent l'invariant I-5 : aucun effet de bord validé n'est perdu.
+`outbox_event` and `consumed_event` tables.
+They guarantee the invariant that no committed side effect is lost.
 """
 
 import uuid
@@ -15,15 +15,16 @@ class OutboxEvent(models.Model):
         FAILED = "FAILED", "Échoué (sera retenté)"
         DEAD = "DEAD", "Mort (abandonné après 5 tentatives)"
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # sert d'event_id
-    event_type = models.CharField(max_length=64)  # ex. "order.paid"
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # used as event_id
+    event_type = models.CharField(max_length=64)  # e.g. "order.paid"
     event_version = models.PositiveSmallIntegerField(default=1)
     aggregate_type = models.CharField(max_length=40)
     aggregate_id = models.UUIDField()
-    # Ordre global d'insertion (distinct de l'ordre par agrégat ci-dessous), alimenté
-    # par une vraie séquence PostgreSQL (BIGSERIAL) posée en migration via RunSQL —
-    # Django n'autorise pas un second AutoField non-PK sur un modèle (fields.E100),
-    # d'où ce BigIntegerField() dont la valeur par défaut est `nextval(...)` côté SQL.
+    # Global insertion order, distinct from the per-aggregate ordering below.
+    # Backed by a real PostgreSQL BIGSERIAL sequence created in the migration
+    # with RunSQL. Django does not allow a second non-PK AutoField on a model
+    # (fields.E100), hence this BigIntegerField whose SQL default is
+    # `nextval(...)`.
     sequence = models.BigIntegerField(
         editable=False,
         unique=True,
@@ -38,7 +39,7 @@ class OutboxEvent(models.Model):
     actor_id = models.UUIDField(null=True, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     attempts = models.PositiveSmallIntegerField(default=0)
-    available_at = models.DateTimeField()  # backoff exponentiel — relais n'y touche pas avant cette date
+    available_at = models.DateTimeField()  # exponential backoff: relay waits until this timestamp
     published_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(null=True, blank=True)
     occurred_at = models.DateTimeField()
@@ -54,8 +55,7 @@ class OutboxEvent(models.Model):
             ),
         ]
         indexes = [
-            # Index du relais : ne couvre QUE la file active, pas les millions
-            # d'événements déjà publiés (§21 master prompt).
+            # Relay index: covers ONLY the active queue, not already-published events.
             models.Index(
                 fields=["status", "available_at"],
                 name="ix_outbox_relay_queue",
@@ -78,11 +78,11 @@ class OutboxEvent(models.Model):
 
 class ConsumedEvent(models.Model):
     """
-    Déduplication côté consommateur (livraison Outbox *at-least-once*).
+    Consumer-side deduplication for at-least-once Outbox delivery.
 
-    La clé primaire composite EST le mécanisme de déduplication : un
-    consommateur tente l'insertion en DÉBUT de traitement ; une IntegrityError
-    signifie "déjà traité", il s'arrête sans effet (voir BaseConsumer).
+    The composite key is the deduplication mechanism: a consumer attempts the
+    insert at the START of processing. An IntegrityError means the event was
+    already processed, so it stops without producing a side effect.
     """
 
     consumer_name = models.CharField(max_length=80)
